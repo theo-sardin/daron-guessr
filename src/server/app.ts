@@ -109,8 +109,10 @@ export function createApp(options: AppOptions = {}): App {
 }
 
 function mountApi(app: Express, registry: RoomRegistry, allowPeek: (req: Request) => boolean): void {
+  // Render exposes the deployed commit; handy to check which version is live.
+  const version = (process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? 'dev').slice(0, 7);
   app.get('/api/health', (_req, res) => {
-    res.set('Cache-Control', 'no-store').json({ ok: true, rooms: registry.size });
+    res.set('Cache-Control', 'no-store').json({ ok: true, rooms: registry.size, version });
   });
 
   // Rate limited per IP: there are only 24^4 codes, they must not be enumerable.

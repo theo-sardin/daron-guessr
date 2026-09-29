@@ -229,7 +229,7 @@ describe('socket server: a whole game', () => {
     const peek = await getJson<RoomPeek>(`${url}/api/rooms/${code.toLowerCase()}`);
     expect(peek.body).toEqual({ code, exists: true, phase: 'lobby', playerCount: 4, joinable: true, hostName: 'Alice', hostAvatar: '🐸' });
     expect((await getJson<RoomPeek>(`${url}/api/rooms/zz-zz9`)).body).toEqual({ code: 'ZZZZ', exists: false });
-    expect((await getJson<{ ok: boolean; rooms: number }>(`${url}/api/health`)).body).toEqual({ ok: true, rooms: 1 });
+    expect((await getJson<{ ok: boolean; rooms: number }>(`${url}/api/health`)).body).toMatchObject({ ok: true, rooms: 1 });
 
     // --- Settings and start -----------------------------------------------
     expect(await bob.socket.emitWithAck('host:settings', { voteSeconds: 0 })).toEqual({ ok: false, error: 'NOT_HOST' });

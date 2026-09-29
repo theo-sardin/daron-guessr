@@ -53,7 +53,7 @@ describe('http app', () => {
   });
 
   it('reports health and peeks at unknown rooms', async () => {
-    expect(await (await fetch(`${url}/api/health`)).json()).toEqual({ ok: true, rooms: 0 });
+    expect(await (await fetch(`${url}/api/health`)).json()).toMatchObject({ ok: true, rooms: 0 });
     expect(await (await fetch(`${url}/api/rooms/abcd`)).json()).toEqual({ code: 'ABCD', exists: false });
   });
 
