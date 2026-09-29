@@ -311,6 +311,16 @@ export interface RoomView {
   results: ResultsView | null;
 }
 
+/**
+ * Game mode chosen on the home screen when creating a room (a mandatory step in the UI).
+ * `photosPerPlayer` defaults to THEME_DEFAULT_PHOTOS[theme]. Invalid values -> BAD_REQUEST.
+ * Omitted entirely -> DEFAULT_SETTINGS (kept for older clients and bots).
+ */
+export interface RoomSetup {
+  theme: Theme;
+  photosPerPlayer?: number;
+}
+
 /** Response of `GET /api/rooms/:code` — lets the join screen check a code before asking for a name. */
 export interface RoomPeek {
   code: string;
@@ -358,7 +368,7 @@ export interface Session {
 
 export interface ClientToServerEvents {
   /** Create a new room and join it as host. */
-  'room:create': (p: { name: string; avatar: string }, ack: Ack<{ session: Session }>) => void;
+  'room:create': (p: { name: string; avatar: string; settings?: RoomSetup }, ack: Ack<{ session: Session }>) => void;
   /** Join an existing room (lobby only). */
   'room:join': (p: { code: string; name: string; avatar: string }, ack: Ack<{ session: Session }>) => void;
   /**

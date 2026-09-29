@@ -9,6 +9,7 @@ import type {
   PublicPlayer,
   Reaction,
   ReactionEmoji,
+  RoomSetup,
   RoomView,
   Session,
   Settings,
@@ -163,8 +164,8 @@ socket.on('session:replaced', () => dropSession('replaced', { forget: false }));
 // ---------------------------------------------------------------------------
 
 export const api = {
-  async createRoom(name: string, avatar: string): Promise<Result<{ session: Session }>> {
-    const res = await call<{ session: Session }>('room:create', { name, avatar });
+  async createRoom(name: string, avatar: string, settings?: RoomSetup): Promise<Result<{ session: Session }>> {
+    const res = await call<{ session: Session }>('room:create', settings ? { name, avatar, settings } : { name, avatar });
     if (res.ok) adoptSession(res.session);
     return res;
   },
