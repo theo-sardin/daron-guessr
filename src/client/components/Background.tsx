@@ -41,8 +41,9 @@ export function Background() {
 /**
  * A light leak: warm orange and safelight red bleeding in from the edges of the screen. It is
  * an event, not a filter: turn it on for the darkroom moment (the reveal drum roll, a photo
- * "developing") and off again. Fixed and full screen by default; pass `className` to change
- * the layer (e.g. "absolute inset-0" inside a positioned card).
+ * "developing") and off again. By default it is fixed, full screen and behind the content (over
+ * the night, under the cards); `className` replaces that placement (e.g. "absolute inset-0 z-10"
+ * inside a positioned print).
  */
 export function LightLeak({ active, className }: { active: boolean; className?: string }) {
   const reduce = useReducedMotion();
@@ -50,7 +51,7 @@ export function LightLeak({ active, className }: { active: boolean; className?: 
     <AnimatePresence>
       {active && (
         <motion.div
-          className={cn('pointer-events-none fixed inset-0 z-0 overflow-hidden mix-blend-screen', className)}
+          className={cn('pointer-events-none overflow-hidden mix-blend-screen', className ?? 'fixed inset-0 -z-[5]')}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

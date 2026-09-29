@@ -1,16 +1,29 @@
-import type { CSSProperties, ReactNode, SVGProps } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode, type SVGProps } from 'react';
 import { cn } from '../lib/util';
 
 /**
- * The game's own icon set: 24x24, currentColor, 2.25px rounded strokes and a few solid
- * details, drawn to match the chunky ink-outline stickers. Shapes marked with `B` (body)
- * take the optional `fill` color, so an icon can be two-tone (e.g. an ink crown filled
- * with sun yellow): <Icon name="crown" fill="var(--color-sun)" />.
+ * The game's own icon set: 24x24, currentColor, rounded strokes and a few solid details,
+ * drawn to match the chunky ink-outline stickers. Shapes marked with `B` (body) take the
+ * optional `fill` color, so an icon can be two-tone (e.g. an ink crown filled with sun
+ * yellow): <Icon name="crown" fill="var(--color-sun)" />. In tiles, badges and chips prefer
+ * <IconBadge> (ink + one accent, like a sticker).
+ *
+ * Stroke weight follows the rendered size (see `weight`), so a 16px icon in a chip and a
+ * 44px icon in a tile both sit right next to the 2-3px ink borders around them.
  */
 
 const B = 'var(--icon-fill, none)';
 /** A solid detail in the stroke color. */
 const dot = (cx: number, cy: number, r = 1.3) => <circle cx={cx} cy={cy} r={r} fill="currentColor" stroke="none" />;
+
+/** An 8-ray flash burst (long and short rays), centered on (cx, cy). */
+function burstPoints(cx: number, cy: number, long: number, short: number, inner: number, rot = -78): string {
+  return Array.from({ length: 16 }, (_, i) => {
+    const r = i % 2 ? inner : (i / 2) % 2 ? short : long;
+    const a = ((rot + i * 22.5) * Math.PI) / 180;
+    return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
+  }).join(' ');
+}
 
 /** Points of a star centered on (cx, cy). */
 function starPoints(cx: number, cy: number, outer: number, inner: number, n = 5): string {
@@ -124,14 +137,14 @@ const ICONS = {
   'chevron-down': <path d="m5.8 9.2 6.2 6.2 6.2-6.2" />,
   'sound-on': (
     <>
-      <path d="M3.6 10.1v3.8a1.2 1.2 0 0 0 1.2 1.2h2.7l4.3 3.7a.9.9 0 0 0 1.5-.7V5.9a.9.9 0 0 0-1.5-.7L7.5 8.9H4.8a1.2 1.2 0 0 0-1.2 1.2z" fill="currentColor" />
+      <path d="M3.6 10.1v3.8a1.2 1.2 0 0 0 1.2 1.2h2.7l4.3 3.7a.9.9 0 0 0 1.5-.7V5.9a.9.9 0 0 0-1.5-.7L7.5 8.9H4.8a1.2 1.2 0 0 0-1.2 1.2z" fill={B} />
       <path d="M16.4 9.2a4 4 0 0 1 0 5.6" />
       <path d="M19 6.6a7.6 7.6 0 0 1 0 10.8" />
     </>
   ),
   'sound-off': (
     <>
-      <path d="M3.6 10.1v3.8a1.2 1.2 0 0 0 1.2 1.2h2.7l4.3 3.7a.9.9 0 0 0 1.5-.7V5.9a.9.9 0 0 0-1.5-.7L7.5 8.9H4.8a1.2 1.2 0 0 0-1.2 1.2z" fill="currentColor" />
+      <path d="M3.6 10.1v3.8a1.2 1.2 0 0 0 1.2 1.2h2.7l4.3 3.7a.9.9 0 0 0 1.5-.7V5.9a.9.9 0 0 0-1.5-.7L7.5 8.9H4.8a1.2 1.2 0 0 0-1.2 1.2z" fill={B} />
       <path d="m16.4 9.6 4.8 4.8M21.2 9.6l-4.8 4.8" />
     </>
   ),
@@ -229,12 +242,8 @@ const ICONS = {
       {dot(15.7, 15.7, 1.55)}
     </>
   ),
-  sparkle: (
-    <>
-      <path d="M10.2 5.2Q11.1 12 17.8 13Q11.1 14 10.2 20.8Q9.3 14 2.6 13Q9.3 12 10.2 5.2z" fill={B} />
-      <path d="M18.3 3.2v4.2M16.2 5.3h4.2" />
-    </>
-  ),
+  // A hard-edged xenon flash burst (not the 4-point "AI" twinkle): "the moment", a highlight.
+  sparkle: <polygon points={burstPoints(12, 12, 10, 7, 3.9)} fill={B} />,
   flash: <path d="M13.6 2.6 4.8 13.4h6.3l-1.2 8 8.9-11.2h-6.4z" fill={B} />,
   zoom: (
     <>
@@ -283,12 +292,14 @@ const ICONS = {
       <path d="M3.6 7.6h4.6M3.6 12h4.6M3.6 16.4h4.6M15.8 7.6h4.6M15.8 12h4.6M15.8 16.4h4.6" />
     </>
   ),
+  // A folded slip going down into the slot of a ballot box.
   ballot: (
     <>
-      <path d="M7.8 11.6V4.4a1 1 0 0 1 1-1h6.4a1 1 0 0 1 1 1v7.2" />
-      <path d="m10.1 7.5 1.4 1.4 2.5-2.6" />
-      <path d="M4.2 11.6h15.6v7.2a1.7 1.7 0 0 1-1.7 1.7H5.9a1.7 1.7 0 0 1-1.7-1.7z" fill={B} />
-      <path d="M2.6 11.6h18.8" />
+      <path d="M8.4 10.4H5.8a1.8 1.8 0 0 0-1.8 1.8v6.5a1.8 1.8 0 0 0 1.8 1.8h12.4a1.8 1.8 0 0 0 1.8-1.8v-6.5a1.8 1.8 0 0 0-1.8-1.8h-2.6" fill={B} />
+      <path d="M7.2 14h9.6" />
+      <path d="M9.2 14V4.5a1 1 0 0 1 1-1h2.9l2.1 2.1V14" />
+      <path d="M13.1 3.5v2.1h2.1" />
+      <path d="m10.7 9.3 1.2 1.2 1.9-2.2" />
     </>
   ),
   target: (
@@ -339,30 +350,78 @@ const ICONS = {
 export type IconName = keyof typeof ICONS;
 export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
+export type IconWeight = 'light' | 'regular' | 'bold';
+
+/** Multiplier on the size-aware stroke. */
+const WEIGHT: Record<IconWeight, number> = { light: 0.8, regular: 1, bold: 1.2 };
+
+/**
+ * Rendered stroke (px) for an icon rendered at `size` px: 1.75px up to 16px, 2px at 24px,
+ * 3px from 40px (= border-3), then it grows with the icon. Returned in viewBox units.
+ */
+export function iconStroke(size: number, weight: IconWeight = 'regular'): number {
+  const px = size <= 16 ? 1.75 : size <= 24 ? 1.75 + ((size - 16) / 8) * 0.25 : size < 40 ? 2 + (size - 24) / 16 : 3;
+  const units = Math.min(3, Math.max(1.6, (px * 24) / Math.max(1, size)));
+  return +(units * WEIGHT[weight]).toFixed(2);
+}
+
+/* One ResizeObserver for every auto-weighted icon: it reports after layout, before paint. */
+const weights = new WeakMap<Element, IconWeight>();
+const widths = new WeakMap<Element, number>();
+let observer: ResizeObserver | null = null;
+function applyStroke(el: SVGSVGElement, width: number) {
+  if (!(width > 0)) return;
+  widths.set(el, width);
+  el.style.strokeWidth = String(iconStroke(width, weights.get(el)));
+}
+function watch(el: SVGSVGElement) {
+  if (typeof ResizeObserver === 'undefined') return () => {};
+  observer ??= new ResizeObserver((entries) => {
+    for (const e of entries) applyStroke(e.target as SVGSVGElement, e.borderBoxSize?.[0]?.inlineSize ?? e.contentRect.width);
+  });
+  observer.observe(el);
+  return () => observer?.unobserve(el);
+}
+
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'fill' | 'name'> {
   name: IconName;
   /** CSS color for the icon's body (two-tone icons). Defaults to none (outline only). */
   fill?: string;
   /** Accessible label; without it the icon is decorative (aria-hidden). */
   label?: string;
-  /** Stroke width in viewBox units (default 2.25). */
+  /** Stroke relative to the size-aware default: light, regular (default) or bold. */
+  weight?: IconWeight;
+  /** Fixed stroke width in viewBox units. Overrides `weight`; prefer `weight`. */
   strokeWidth?: number;
 }
 
 /** <Icon name="camera" className="size-5" />: sizes with the font by default (1em). */
-export function Icon({ name, fill, label, strokeWidth = 2.25, className, style, ...rest }: IconProps) {
+export function Icon({ name, fill, label, weight = 'regular', strokeWidth, className, style, ...rest }: IconProps) {
+  const ref = useRef<SVGSVGElement>(null);
+  const auto = strokeWidth === undefined;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !auto) return;
+    weights.set(el, weight);
+    // Already measured (only the weight changed): re-apply now; otherwise the observer's first report does it.
+    const known = widths.get(el);
+    if (known) applyStroke(el, known);
+    return watch(el);
+  }, [auto, weight]);
+
   return (
     <svg
+      ref={ref}
       viewBox="0 0 24 24"
       width="1em"
       height="1em"
       fill="none"
       stroke="currentColor"
-      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={cn('icon', className)}
-      style={fill ? ({ '--icon-fill': fill, ...style } as CSSProperties) : style}
+      style={{ ...(fill ? { '--icon-fill': fill } : null), ...(auto ? null : { strokeWidth }), ...style } as CSSProperties}
       role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}

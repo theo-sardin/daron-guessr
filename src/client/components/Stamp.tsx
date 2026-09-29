@@ -7,7 +7,8 @@ export type StampSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 const FONT: Record<StampVariant, string> = {
   seg7: 'font-stamp7 tracking-[0.06em]',
   seg14: 'font-stamp14 tracking-[0.06em]',
-  mono: 'font-mono font-bold tracking-[0.16em]',
+  // The negative margin cancels the tracking after the last letter, so centered codes stay centered.
+  mono: 'font-mono font-bold tracking-[0.16em] -mr-[0.16em]',
 };
 
 const SIZE: Record<StampSize, string> = {

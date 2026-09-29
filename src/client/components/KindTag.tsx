@@ -26,26 +26,24 @@ export const kindColor = (kind: PhotoKind) => `var(--color-${KIND_TONE[kind]})`;
 
 export type KindTagSize = 'sm' | 'md' | 'lg';
 
-/** Tag height, pointer width (px) and type size per size. */
-const SIZES: Record<KindTagSize, { h: number; p: number; text: string; icon: string; eyelet: number }> = {
-  sm: { h: 22, p: 8, text: 'text-[10px]', icon: 'size-3', eyelet: 6 },
-  md: { h: 26, p: 9, text: 'text-[11.5px]', icon: 'size-3.5', eyelet: 7 },
-  lg: { h: 34, p: 11, text: 'text-[14px]', icon: 'size-4', eyelet: 9 },
+const SIZES: Record<KindTagSize, { box: string; text: string; dot: number; icon: string }> = {
+  sm: { box: 'h-[22px] gap-1.5 pr-2 pl-1.5 rounded-[5px] border-2', text: 'text-[11px]', dot: 9, icon: 'size-3.5' },
+  md: { box: 'h-[26px] gap-1.5 pr-2.5 pl-[7px] rounded-[6px] border-2', text: 'text-[12px]', dot: 10, icon: 'size-4' },
+  lg: { box: 'h-[34px] gap-2 pr-3 pl-2.5 rounded-[7px] border-[2.5px]', text: 'text-[14px]', dot: 13, icon: 'size-[18px]' },
 };
-
-const BORDER = 2;
-
-/** Price-tag outline: pointed left end, tiny chamfers on the right corners. */
-function tagShape(p: number) {
-  return `polygon(${p}px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, ${p}px 100%, 0 50%)`;
-}
 
 export interface KindTagProps {
   kind: PhotoKind;
   size?: KindTagSize;
+  /**
+   * paper (default): a white lab label, ink type, the kind color only on the sorting dot, so a
+   * card keeps one dominant accent. fill: the whole label in the kind color (use sparingly,
+   * e.g. one hero tag on a dark background).
+   */
+  tone?: 'paper' | 'fill';
   /** Rotation in degrees (a slapped-on label). */
   tilt?: number;
-  /** Optional icon after the eyelet. */
+  /** Optional icon before the text (replaces nothing: the dot stays). */
   icon?: IconName;
   /** Override the text (defaults to the kind's short label). */
   label?: string;
@@ -54,34 +52,31 @@ export interface KindTagProps {
 }
 
 /**
- * The photo kind as a paper luggage tag: pointed end with an eyelet, kind color, ink
- * outline, Space Mono caps. <KindTag kind="sister" size="sm" tilt={-4} />
+ * The photo kind as a photo-lab label: a paper sticker with a round color-coding dot (the
+ * kind's color, like the dots labs put on print envelopes) and Space Mono caps.
+ * <KindTag kind="sister" size="sm" tilt={-4} />
  */
-export function KindTag({ kind, size = 'md', tilt = 0, icon, label, className, style }: KindTagProps) {
+export function KindTag({ kind, size = 'md', tone = 'paper', tilt = 0, icon, label, className, style }: KindTagProps) {
   const t = useT();
   const s = SIZES[size];
-  const inner = s.p * ((s.h - BORDER * 2) / s.h);
+  const fill = tone === 'fill';
   return (
     <span
-      className={cn('relative inline-flex max-w-full shrink-0 items-center align-middle text-ink', className)}
-      style={{ height: s.h, rotate: tilt ? `${tilt}deg` : undefined, filter: 'drop-shadow(0 2px 0 var(--color-ink))', ...style }}
+      className={cn(
+        'relative inline-flex max-w-full shrink-0 items-center border-ink align-middle text-ink shadow-[0_2px_0_0_var(--color-ink)]',
+        s.box,
+        !fill && 'bg-paper',
+        className,
+      )}
+      style={{ rotate: tilt ? `${tilt}deg` : undefined, backgroundColor: fill ? kindColor(kind) : undefined, ...style }}
     >
-      <span className="absolute inset-0 bg-ink" style={{ clipPath: tagShape(s.p) }} aria-hidden />
       <span
-        className="absolute"
-        style={{ inset: BORDER, left: BORDER + 0.6, backgroundColor: kindColor(kind), clipPath: tagShape(inner) }}
+        className="shrink-0 rounded-full border-ink"
+        style={{ width: s.dot, height: s.dot, borderWidth: size === 'lg' ? 2 : 1.5, backgroundColor: fill ? 'var(--color-paper)' : kindColor(kind) }}
         aria-hidden
       />
-      {/* Eyelet: a reinforced punched hole. */}
-      <span
-        className="relative shrink-0 rounded-full border-ink bg-cream"
-        style={{ width: s.eyelet, height: s.eyelet, marginLeft: s.p - 1, borderWidth: size === 'lg' ? 2.5 : 2 }}
-        aria-hidden
-      />
-      {icon && <Icon name={icon} className={cn('relative ml-1 shrink-0', s.icon)} strokeWidth={2.6} />}
-      <span
-        className={cn('relative min-w-0 truncate pr-2 pl-1.5 font-mono leading-none font-bold tracking-[0.06em] uppercase', s.text)}
-      >
+      {icon && <Icon name={icon} className={cn('-mr-0.5 shrink-0', s.icon)} />}
+      <span className={cn('min-w-0 truncate font-mono leading-none font-bold tracking-[0.06em] uppercase', s.text)}>
         {label ?? t(`common.kind.${kind}`)}
       </span>
     </span>

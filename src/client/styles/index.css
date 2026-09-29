@@ -170,6 +170,13 @@
       0 0 clamp(1px, 0.24em, 6px) rgb(255 122 26 / 0.5),
       0 0 clamp(0px, calc(0.9em - 12px), 16px) rgb(255 72 0 / 0.35);
   }
+  /* Burned into a photo: a dark hairline keeps it legible on pale or orange pictures. */
+  .stamp-on-photo {
+    text-shadow:
+      0 0 1px rgb(27 16 54 / 0.85),
+      0 1px 2px rgb(27 16 54 / 0.5),
+      0 0 5px rgb(255 122 26 / 0.45);
+  }
   /* The imprint on light paper: darker ink, no glow (4.65:1 on cream). */
   .text-stamp-flat,
   .text-stamp-print {
@@ -196,6 +203,8 @@
   .icon {
     display: inline-block;
     flex-shrink: 0;
+    /* Until <Icon> measures itself (and for a fixed `strokeWidth`, set inline). */
+    stroke-width: 2.25;
   }
   /* Text with a chunky ink outline, for big titles on the dark background. */
   .text-outline {

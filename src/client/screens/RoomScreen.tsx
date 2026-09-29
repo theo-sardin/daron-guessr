@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { Phase, RoomView } from '../../shared/protocol';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
-import { Icon, type IconName } from '../components/Icon';
+import type { IconName } from '../components/Icon';
+import { IconBadge, type IconBadgeTone } from '../components/IconBadge';
 import { ReactionBar, ReactionsLayer } from '../components/Reactions';
 import { Spinner } from '../components/Spinner';
 import { toast } from '../components/Toast';
@@ -13,7 +14,6 @@ import { errorText } from '../lib/errors';
 import { navigate } from '../lib/router';
 import { sfx } from '../lib/sfx';
 import { api, useStore, type ExitReason } from '../lib/store';
-import { cn } from '../lib/util';
 import { JoinByLink } from './home/JoinByLink';
 import { LobbyScreen } from './lobby/LobbyScreen';
 import { ResultsScreen } from './results/ResultsScreen';
@@ -166,10 +166,10 @@ function OfflineBanner({ show }: { show: boolean }) {
 }
 
 /** Sticker + icon for each way out of a room. */
-const EXIT_LOOK: Record<Exclude<ExitReason, null>, { icon: IconName; bg: string }> = {
-  kicked: { icon: 'leave', bg: 'bg-danger' },
-  replaced: { icon: 'phone', bg: 'bg-sky' },
-  'room-gone': { icon: 'ghost', bg: 'bg-lilac' },
+const EXIT_LOOK: Record<Exclude<ExitReason, null>, { icon: IconName; tone: IconBadgeTone }> = {
+  kicked: { icon: 'leave', tone: 'danger' },
+  replaced: { icon: 'phone', tone: 'sky' },
+  'room-gone': { icon: 'ghost', tone: 'lilac' },
 };
 
 /** Exported for the dev gallery. */
@@ -188,12 +188,12 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
       <Card className="w-full max-w-sm text-center" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
         <Viewfinder className="mx-auto mt-2 mb-5 w-fit" color="var(--color-ink)" length={14} thickness={3} gap={12} snap={0.1}>
           <motion.span
-            className={cn('flex size-20 items-center justify-center rounded-[1.6rem] border-3 border-ink text-ink shadow-pop', look.bg)}
+            className="flex"
             initial={{ rotate: -16, scale: 0.6 }}
             animate={{ rotate: -5, scale: 1 }}
             transition={{ type: 'spring', stiffness: 380, damping: 14 }}
           >
-            <Icon name={look.icon} fill="#fff" className="size-11" strokeWidth={2.1} />
+            <IconBadge name={look.icon} tone={look.tone} size="xl" />
           </motion.span>
         </Viewfinder>
         <h1 className="font-display text-3xl leading-tight">{content.title}</h1>

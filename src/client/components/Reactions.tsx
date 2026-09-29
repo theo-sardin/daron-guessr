@@ -126,7 +126,7 @@ export function ReactionBar({ className }: { className?: string }) {
         aria-expanded={open}
         className="flex size-14 items-center justify-center rounded-full border-3 border-ink bg-sun text-3xl shadow-pop"
       >
-        {open ? <Icon name="x" className="size-6" strokeWidth={3} /> : '😂'}
+        {open ? <Icon name="x" className="size-6" weight="bold" /> : '😂'}
       </motion.button>
     </div>
   );
