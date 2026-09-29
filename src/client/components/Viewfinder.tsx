@@ -55,7 +55,10 @@ export function Viewfinder({
   const spread = Math.max(10, length * 0.7);
   const delay = typeof snap === 'number' ? snap : 0;
   return (
-    <Tag className={cn('relative', as === 'span' && 'inline-block', className)} style={style}>
+    <Tag
+      className={cn(!/\b(absolute|fixed|sticky)\b/.test(className ?? '') && 'relative', as === 'span' && 'inline-block', className)}
+      style={style}
+    >
       {children}
       <span className="pointer-events-none absolute" style={{ inset: -gap }} aria-hidden>
         {CORNERS.map((c) => {

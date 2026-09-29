@@ -174,7 +174,7 @@ test('the game mode step is mandatory, and Back returns to the form', async ({ p
   await page.screenshot({ path: `${SHOTS}/09-mode-step-fr.png` });
 
   // "Retour" goes back to the form, name kept, no room created.
-  await page.getByRole('button', { name: 'Retour' }).click();
+  await page.getByRole('button', { name: 'Retour', exact: true }).click();
   await expect(modes).toHaveCount(0);
   await expect(nickname).toHaveValue('Julie');
   expect(new URL(page.url()).pathname).toBe('/');
@@ -194,6 +194,19 @@ test('the game mode step is mandatory, and Back returns to the form', async ({ p
   await page.keyboard.press('Escape');
   await expect(modes).toHaveCount(0);
   await expect(create).toBeVisible();
+
+  // A reload on the step lands on the form, and afterwards one Back still closes the step.
+  await create.click();
+  await expect(modes).toBeVisible();
+  await page.reload();
+  await expect(nickname).toBeVisible();
+  await expect(modes).toHaveCount(0);
+  await nickname.fill('Julie');
+  await create.click();
+  await expect(modes).toBeVisible();
+  await page.getByRole('button', { name: 'Retour', exact: true }).click();
+  await expect(modes).toHaveCount(0);
+  await expect(nickname).toHaveValue('Julie');
 
   expect(errors).toEqual([]);
 });

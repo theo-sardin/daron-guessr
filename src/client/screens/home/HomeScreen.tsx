@@ -29,6 +29,16 @@ type Step = 'form' | 'mode';
 /** `history.state` marker of the mode step, so the phone's back button closes it. */
 const MODE_STATE_KEY = 'dgHomeStep';
 const isModeEntry = () => (window.history.state as Record<string, unknown> | null)?.[MODE_STATE_KEY] === 'mode';
+/** Removes the marker from the current history entry (same URL, rest of the state kept). */
+const clearModeEntry = () => {
+  try {
+    const state = { ...(window.history.state as Record<string, unknown> | null) };
+    delete state[MODE_STATE_KEY];
+    window.history.replaceState(state, '', window.location.href);
+  } catch {
+    // ignore
+  }
+};
 
 /**
  * Route "/": pick a name + avatar, then join a room with a code, or create one. Creating goes
@@ -108,7 +118,16 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
 
   // The phone's back button (or the browser's) closes the mode step instead of leaving the site.
   useEffect(() => {
-    if (step !== 'mode') return;
+    if (step !== 'mode') {
+      // A marker under the form is stale (a reload on the mode step, or "forward" into it). Left
+      // there, the next Back would land on it and leave the step open: drop it.
+      if (isModeEntry()) clearModeEntry();
+      const onFormPop = () => {
+        if (isModeEntry()) clearModeEntry();
+      };
+      window.addEventListener('popstate', onFormPop);
+      return () => window.removeEventListener('popstate', onFormPop);
+    }
     const onPop = () => {
       if (!isModeEntry()) closeMode();
     };
