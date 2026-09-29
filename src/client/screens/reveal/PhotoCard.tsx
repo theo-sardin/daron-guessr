@@ -97,22 +97,26 @@ export function PhotoCard({ src, alt, stage, tilt, owner, stamp, dateStamp, badg
                   }
                   aria-hidden
                 />
-                <AnimatePresence>
-                  {stamp && (
-                    <motion.div
-                      key="stamp"
-                      className="pointer-events-none absolute inset-x-0 bottom-[10%] flex justify-center"
-                      initial={{ scale: 3.2, opacity: 0, rotate: -35 }}
-                      animate={{ scale: 1, opacity: 1, rotate: -11 }}
-                      transition={{ type: 'spring', stiffness: 600, damping: 22, delay: 0.08 }}
-                    >
-                      <RubberStamp color={STAMP_COLORS[stamp.kind]} text={stamp.text} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </>
             }
           />
+          {/*
+           * Stamped on the whole print (not inside the clipped photo box) and sized from the print's
+           * width (cqw), so the longest word (DÉMASQUÉE !) never gets its ends cut off on a phone.
+           */}
+          <AnimatePresence>
+            {stamp && (
+              <motion.div
+                key="stamp"
+                className="@container pointer-events-none absolute inset-x-0 bottom-[13%] flex justify-center"
+                initial={{ scale: 3.2, opacity: 0, rotate: -35 }}
+                animate={{ scale: 1, opacity: 1, rotate: -11 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 22, delay: 0.08 }}
+              >
+                <RubberStamp color={STAMP_COLORS[stamp.kind]} text={stamp.text} />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {/*
            * The red safelight over the whole print (paper included): multiply keeps only the red
            * channel, like a real darkroom lamp. Off in a snap at the reveal, under the flash.
@@ -166,17 +170,15 @@ export function PhotoCard({ src, alt, stage, tilt, owner, stamp, dateStamp, badg
 
 /** SPOTTED / UNDERCOVER / REVEALED: a typographic rubber stamp, double frame, worn ink. */
 function RubberStamp({ color, text }: { color: string; text: string }) {
+  // Everything in em: the frame scales with the type, and the type with the print (11.5cqw).
   return (
     <span
-      className="rounded-lg bg-white/80 p-[3px] shadow-[0_2px_10px_rgb(27_16_54/0.35)]"
+      className="rounded-[0.3em] bg-white/80 p-[0.1em] text-[clamp(0.9rem,11.5cqw,2.3rem)] shadow-[0_2px_10px_rgb(27_16_54/0.35)]"
       style={{ maskImage: STAMP_WEAR, WebkitMaskImage: STAMP_WEAR, maskSize: '160px 160px', WebkitMaskSize: '160px 160px' }}
     >
-      <span
-        className="block rounded-md border-[4px] px-1 py-px"
-        style={{ borderColor: color, color }}
-      >
+      <span className="block rounded-[0.24em] border-[0.15em] px-[0.06em] py-[0.03em]" style={{ borderColor: color, color }}>
         <span
-          className="block rounded-[3px] border-2 px-2.5 pt-0.5 font-display text-[clamp(1.2rem,5.6vw,2.1rem)] leading-[1.05] tracking-[0.04em] whitespace-nowrap uppercase [font-stretch:75%] md:text-[2.3rem]"
+          className="block rounded-[0.12em] border-[0.07em] px-[0.35em] pt-[0.06em] font-display leading-[1.05] tracking-[0.04em] whitespace-nowrap uppercase [font-stretch:75%]"
           style={{ borderColor: color }}
         >
           {text}

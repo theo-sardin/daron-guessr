@@ -36,6 +36,13 @@ function renderSeg7(text: string): ReactNode {
           <span className={cn(SEGMENT, 'top-[4%] left-[42%] h-[92%] w-[0.1em] rotate-[18deg]')} />
         </span>
       );
+    if (part === '+')
+      return (
+        <span key={i} className="relative inline-block h-[1em] w-[0.5em] align-baseline">
+          <span className={cn(SEGMENT, 'top-[46%] left-[8%] h-[0.1em] w-[84%]')} />
+          <span className={cn(SEGMENT, 'top-[18%] left-[45%] h-[64%] w-[0.1em]')} />
+        </span>
+      );
     if (part === "'")
       return (
         <span key={i} className="relative inline-block h-[1em] w-[0.3em] align-baseline">

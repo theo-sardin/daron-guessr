@@ -97,7 +97,7 @@ export function CandidateGrid({
                       transition={{ type: 'spring', stiffness: 520, damping: 15 }}
                       // Slapped on the top edge between the brackets' arms (not over a corner), which
                       // also keeps it clear of the floating reaction button on a phone's right column.
-                      className="absolute -top-3 left-4 flex items-center gap-1 rounded-md border-2 border-ink bg-ink py-[3px] pr-2 pl-1 whitespace-nowrap text-cream shadow-[0_2px_0_0_rgb(27_16_54_/_0.5)] lg:left-1/2 lg:-translate-x-1/2"
+                      className="absolute -top-3.5 left-4 flex items-center gap-1 rounded-md border-2 border-ink bg-ink py-[3px] pr-2 pl-1 whitespace-nowrap text-cream shadow-[0_2px_0_0_rgb(27_16_54_/_0.5)] lg:left-1/2 lg:-translate-x-1/2"
                     >
                       <span
                         className={cn('flex size-[18px] items-center justify-center rounded-[5px] text-ink', decoy ? 'bg-tangerine' : 'bg-mint')}

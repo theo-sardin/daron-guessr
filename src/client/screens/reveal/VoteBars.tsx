@@ -145,7 +145,7 @@ function BarRow({
           isOwner ? 'border-ink bg-white shadow-pop-sm' : 'border-transparent',
         )}
         animate={{
-          opacity: dim ? 0.55 : 1,
+          opacity: dim ? 0.62 : 1,
           scale: isOwner ? [1, 1.06, 1] : 1,
         }}
         transition={{ opacity: { duration: 0.35 }, scale: { duration: 0.45, delay: 0.1 } }}

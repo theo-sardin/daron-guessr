@@ -510,14 +510,14 @@ function KindChip({
       aria-label={aria}
       title={aria}
       aria-haspopup={mode === 'picker' ? 'dialog' : undefined}
-      className="group relative inline-flex h-11 max-w-full items-center pr-2 pl-0.5 font-sans disabled:opacity-60 @max-[18rem]:pr-1.5 @max-[18rem]:pl-0"
+      className="group relative inline-flex h-11 max-w-full items-center pr-2.5 pl-0.5 font-sans disabled:opacity-60 @max-[18rem]:pr-1.5 @max-[18rem]:pl-0"
     >
       {tag}
       <span
         className={cn(
           'absolute right-0 flex items-center justify-center rounded-full border-2 border-ink bg-cream text-ink shadow-[0_1.5px_0_0_var(--color-ink)] transition-colors group-hover:bg-sun',
           // Sits on the label's corner, above the text line.
-          wide ? 'top-0 size-5.5' : '-top-0.5 size-5 @max-[18rem]:size-4.5',
+          wide ? 'top-0 size-5.5' : '-top-1 size-5 @max-[18rem]:size-4.5',
         )}
         aria-hidden
       >

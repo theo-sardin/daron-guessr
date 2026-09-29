@@ -15,7 +15,7 @@ export function Intro({ secondsLeft, total }: { secondsLeft: number; total: numb
   return (
     <div className="flex min-h-[calc(100dvh-15rem)] flex-col items-center justify-center text-center">
       <motion.h1
-        className="text-outline font-display text-[2.6rem] leading-[1] tracking-[-0.02em] text-cream [font-stretch:80%] sm:text-7xl"
+        className="text-outline font-display text-[2.6rem] leading-[1] tracking-[-0.02em] text-balance text-cream [font-stretch:80%] sm:text-7xl"
         initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
         animate={{ scale: 1, opacity: 1, rotate: [-8, 3, -2, 0] }}
         transition={{ type: 'spring', stiffness: 320, damping: 14 }}

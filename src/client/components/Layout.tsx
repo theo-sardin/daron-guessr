@@ -42,7 +42,8 @@ export function ScreenShell({
 export function BottomBar({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-grape-950 via-grape-950/85 to-transparent pt-10">
-      <div className={cn('safe-bottom pointer-events-auto mx-auto flex w-full max-w-xl items-center gap-3 px-4', className)}>
+      {/* On phones the right side is kept free for the floating reaction button. */}
+      <div className={cn('safe-bottom pointer-events-auto mx-auto flex w-full max-w-xl items-center gap-3 px-4 pr-[4.75rem] md:pr-4', className)}>
         {children}
       </div>
     </div>

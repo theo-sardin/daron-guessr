@@ -78,7 +78,7 @@ export function Headline({
         {caption && (
           <motion.p
             key="caption"
-            className="text-hand mx-auto mt-1.5 max-w-md text-[1.6rem] leading-[1.05] text-grape-200 sm:text-3xl"
+            className="text-hand mx-auto mt-1.5 max-w-md text-[1.6rem] leading-[1.05] text-balance text-grape-200 sm:text-3xl"
             initial={{ opacity: 0, y: 12, rotate: -2 }}
             animate={{ opacity: 1, y: 0, rotate: -1 }}
             transition={{ delay: 0.55, type: 'spring', stiffness: 300, damping: 22 }}

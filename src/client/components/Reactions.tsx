@@ -89,7 +89,11 @@ export function ReactionBar({ className }: { className?: string }) {
   };
 
   return (
-    <div className={cn('fixed right-3 bottom-24 z-[56] flex flex-col items-end gap-2 sm:right-5', className)}>
+    // Sits in the BottomBar's lane (which reserves room for it on phones) so it never covers content.
+    <div
+      className={cn('fixed right-3 z-[56] flex flex-col items-end gap-2 sm:right-5', className)}
+      style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
       <AnimatePresence>
         {open && (
           <motion.div

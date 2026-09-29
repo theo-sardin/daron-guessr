@@ -67,6 +67,19 @@ export function Polaroid({
       <div
         className={cn('relative overflow-hidden rounded-sm bg-grape-200/40', imageClassName ?? 'aspect-square w-full', onOpen && 'cursor-zoom-in')}
         onClick={onOpen}
+        role={onOpen ? 'button' : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+        aria-label={onOpen ? alt || (typeof caption === 'string' ? caption : undefined) : undefined}
+        onKeyDown={
+          onOpen
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpen();
+                }
+              }
+            : undefined
+        }
       >
         {!loaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-grape-200/60 to-pink/20" />}
         <img
