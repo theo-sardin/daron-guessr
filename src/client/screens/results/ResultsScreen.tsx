@@ -14,7 +14,7 @@ import { sfx } from '../../lib/sfx';
 import { api, playersById } from '../../lib/store';
 import { copyText, vibrate } from '../../lib/util';
 import { Awards } from './Awards';
-import { gameKey, joinNames, markCelebrated, playerOr, podiumGroups, seedOf, sortedRanking, wasCelebrated } from './helpers';
+import { awardFlavor, gameFlavor, gameKey, joinNames, markCelebrated, playerOr, podiumGroups, seedOf, sortedRanking, wasCelebrated } from './helpers';
 import { MyGame } from './MyGame';
 import { PhotoWall } from './PhotoWall';
 import { Podium, podiumTimeline } from './Podium';
@@ -55,6 +55,8 @@ export function ResultsScreen({ view }: { view: RoomView }) {
   const timeline = useMemo(() => podiumTimeline(groups.length), [groups.length]);
   const photosById = useMemo(() => new Map(res.photos.map((p) => [p.photo.id, p])), [res.photos]);
   const photos = useMemo(() => [...res.photos].sort((a, b) => a.index - b.index), [res.photos]);
+  // Copy follows what the photos show (parents, baby pics, picked pictures…).
+  const flavor = gameFlavor(res.photos, view.settings.theme);
   const key = gameKey(view.code, res);
 
   const winners = groups[0]?.entries ?? [];
@@ -113,8 +115,8 @@ export function ResultsScreen({ view }: { view: RoomView }) {
             ),
           })
         : winners[0]?.playerId === meId
-          ? tpick('results.winner.me', seedOf(seed, 'w'))
-          : tpick('results.winner.one', seedOf(seed, 'w'), { name: winnerPlayers[0]?.name ?? '' });
+          ? tpick(`results.winner.me.${flavor}`, seedOf(seed, 'w'))
+          : tpick(`results.winner.one.${flavor}`, seedOf(seed, 'w'), { name: winnerPlayers[0]?.name ?? '' });
 
   // Lightbox
   const [zoom, setZoom] = useState<PhotoResult | null>(null);
@@ -206,6 +208,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
             photos={photosById}
             meId={meId}
             seed={seed}
+            flavor={flavor}
             ready={podiumDone}
             onOpenPhoto={setZoom}
           />
@@ -220,6 +223,8 @@ export function ResultsScreen({ view }: { view: RoomView }) {
               photos={myPhotos}
               awards={res.awards}
               seed={seed}
+              flavor={flavor}
+              awardFlavor={(a) => awardFlavor(a, res.photos, flavor)}
               onShare={share}
               sharing={sharing}
               onOpenPhoto={setZoom}
@@ -228,7 +233,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
         )}
 
         {photos.length > 0 && (
-          <Section emoji="🖼️" title={t('results.wall.title')} sub={t('results.wall.subtitle')}>
+          <Section emoji="🖼️" title={t(`results.wall.title.${flavor}`)} sub={t('results.wall.subtitle')}>
             <PhotoWall photos={photos} players={players} meId={meId} onOpen={setZoom} />
           </Section>
         )}

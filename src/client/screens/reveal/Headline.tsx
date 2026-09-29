@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import type { ParentKind, PublicPlayer } from '../../../shared/protocol';
+import type { PhotoKind, PublicPlayer } from '../../../shared/protocol';
 import { useI18n } from '../../i18n';
 import type { Stage } from './timeline';
 
@@ -17,7 +17,7 @@ export function Headline({
   caption,
 }: {
   stage: Stage;
-  kind: ParentKind;
+  kind: PhotoKind;
   index: number;
   /** Only set once the owner is revealed. */
   owner: PublicPlayer | null;

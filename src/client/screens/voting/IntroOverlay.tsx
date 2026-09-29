@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
+import type { Theme } from '../../../shared/protocol';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/util';
 
@@ -12,7 +13,17 @@ const STICKER: Record<Exclude<IntroStage, 'ready'>, string> = {
 };
 
 /** Full-screen "Get ready!" + 3-2-1-GO before the very first photo. */
-export function IntroOverlay({ stage, totalRounds, voteSeconds }: { stage: IntroStage; totalRounds: number; voteSeconds: number }) {
+export function IntroOverlay({
+  stage,
+  totalRounds,
+  voteSeconds,
+  theme,
+}: {
+  stage: IntroStage;
+  totalRounds: number;
+  voteSeconds: number;
+  theme: Theme;
+}) {
   const t = useT();
   return (
     <motion.div
@@ -46,12 +57,12 @@ export function IntroOverlay({ stage, totalRounds, voteSeconds }: { stage: Intro
       </motion.h1>
 
       <motion.p
-        className="relative mt-4 max-w-sm text-lg leading-snug font-extrabold text-cream sm:text-xl"
+        className="relative mt-4 max-w-sm text-lg leading-snug font-extrabold text-balance text-cream sm:text-xl"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
       >
-        {t('voting.intro.rule')}
+        {t(`voting.intro.rule.${theme}`)}
       </motion.p>
 
       <div className="relative my-8 flex size-44 items-center justify-center sm:size-52">

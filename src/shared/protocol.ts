@@ -19,8 +19,12 @@ export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const MIN_PHOTO_OWNERS = 3;
 export const MAX_PLAYERS = 12;
 export const MAX_NAME_LENGTH = 16;
-/** Each player has two photo slots: slot 0 and slot 1 (default kinds: daron, daronne). */
-export const PHOTO_SLOTS = [0, 1] as const;
+/**
+ * Photo slots a player can fill. Only the first `Settings.photosPerPlayer` are active: photos in
+ * higher slots are kept (so lowering the setting never deletes an upload) but ignored.
+ */
+export const PHOTO_SLOTS = [0, 1, 2] as const;
+export const PHOTOS_PER_PLAYER_OPTIONS = [1, 2, 3] as const;
 /** Max accepted upload size (the client compresses to well under this). */
 export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 export const ACCEPTED_PHOTO_MIME = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -78,7 +82,66 @@ export const PLAYER_COLORS = [
 // Domain types
 // ---------------------------------------------------------------------------
 
-export type ParentKind = 'daron' | 'daronne';
+/**
+ * What a photo shows, relative to the player who uploaded it. It drives the question asked
+ * while voting ("Whose sister is this?", "Who is this as a kid?", "Who picked this picture?")
+ * and every caption about the photo.
+ * - `kid`: the player themself as a child.
+ * - `pick`: any picture the player chose (a meme, a place, a dish…).
+ */
+export const PHOTO_KINDS = [
+  'daron',
+  'daronne',
+  'brother',
+  'sister',
+  'grandpa',
+  'grandma',
+  'friend',
+  'partner',
+  'pet',
+  'kid',
+  'pick',
+] as const;
+export type PhotoKind = (typeof PHOTO_KINDS)[number];
+
+/** Game themes, picked by the host: they decide which kinds players can upload. */
+export const THEMES = ['parents', 'family', 'childhood', 'pick', 'mix'] as const;
+export type Theme = (typeof THEMES)[number];
+
+/** Kinds a player may upload under each theme (the first is the default). */
+export const THEME_KINDS: Record<Theme, readonly PhotoKind[]> = {
+  parents: ['daron', 'daronne'],
+  family: ['sister', 'brother', 'daron', 'daronne', 'grandpa', 'grandma', 'friend', 'partner', 'pet'],
+  childhood: ['kid'],
+  pick: ['pick'],
+  mix: PHOTO_KINDS,
+};
+
+/** `photosPerPlayer` applied when the host switches to a theme (they can change it afterwards). */
+export const THEME_DEFAULT_PHOTOS: Record<Theme, number> = {
+  parents: 2,
+  family: 2,
+  childhood: 1,
+  pick: 1,
+  mix: 2,
+};
+
+/** Default kind proposed for an empty slot under a theme. */
+export function defaultKindForSlot(theme: Theme, slot: number): PhotoKind {
+  const presets: Record<Theme, readonly PhotoKind[]> = {
+    parents: ['daron', 'daronne', 'daron'],
+    family: ['sister', 'brother', 'friend'],
+    childhood: ['kid', 'kid', 'kid'],
+    pick: ['pick', 'pick', 'pick'],
+    mix: ['daron', 'daronne', 'kid'],
+  };
+  return presets[theme][slot] ?? THEME_KINDS[theme][0];
+}
+
+export function isKindAllowed(theme: Theme, kind: PhotoKind): boolean {
+  return THEME_KINDS[theme].includes(kind);
+}
+
 export type PhotoSlot = (typeof PHOTO_SLOTS)[number];
 export type Phase = 'lobby' | 'voting' | 'reveal' | 'results';
 
@@ -87,11 +150,22 @@ export interface Settings {
   voteSeconds: number;
   /** When true (default), reveals only show vote counts. When false, they show who voted for whom. */
   anonymousVotes: boolean;
+  /**
+   * Which kinds of photos players upload. Switching theme relabels uploaded photos whose kind
+   * the new theme does not allow (to `defaultKindForSlot`) and resets `photosPerPlayer` to
+   * THEME_DEFAULT_PHOTOS unless the same update sets it. Sending the current theme again
+   * changes nothing. Kept by `host:playAgain`, like every setting.
+   */
+  theme: Theme;
+  /** Active photo slots per player (one of PHOTOS_PER_PLAYER_OPTIONS). */
+  photosPerPlayer: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   voteSeconds: 30,
   anonymousVotes: true,
+  theme: 'parents',
+  photosPerPlayer: 2,
 };
 
 export interface PublicPlayer {
@@ -101,7 +175,7 @@ export interface PublicPlayer {
   color: string;
   connected: boolean;
   isHost: boolean;
-  /** Has uploaded at least one photo (lobby readiness). Counts are not exposed on purpose. */
+  /** Has at least one photo in an active slot (lobby readiness). Counts are not exposed on purpose. */
   ready: boolean;
   /**
    * Score visible to everyone. During `reveal` this only includes photos whose reveal
@@ -117,7 +191,7 @@ export interface PhotoRef {
   id: string;
   /** Relative URL served by the server, e.g. `/photos/ABCD/3f2a…`. */
   url: string;
-  kind: ParentKind;
+  kind: PhotoKind;
 }
 
 export interface MyPhoto extends PhotoRef {
@@ -226,7 +300,11 @@ export interface RoomView {
   settings: Settings;
   /** In join order. */
   players: PublicPlayer[];
-  /** The viewer's own uploaded photos (only ever their own). Emptied when a new game starts from the lobby. */
+  /**
+   * The viewer's own uploaded photos (only ever their own), by slot. Includes photos in
+   * inactive slots (slot >= settings.photosPerPlayer), which the game ignores: the lobby UI
+   * decides what to show. Emptied by `host:playAgain`.
+   */
   myPhotos: MyPhoto[];
   voting: VotingView | null;
   reveal: RevealView | null;
@@ -294,24 +372,30 @@ export interface ClientToServerEvents {
 
   /** Lobby only: change name and/or avatar. */
   'player:update': (p: { name?: string; avatar?: string }, ack: Ack) => void;
-  /** Lobby only: upload (or replace) the photo in a slot. `data` is the raw image bytes. */
-  'photo:upload': (p: { slot: PhotoSlot; kind: ParentKind; mime: string; data: ArrayBuffer | Uint8Array }, ack: Ack<{ photo: MyPhoto }>) => void;
-  /** Lobby only. */
+  /**
+   * Lobby only: upload (or replace) the photo in a slot. `data` is the raw image bytes.
+   * `slot` must be < settings.photosPerPlayer and `kind` allowed by settings.theme (else BAD_REQUEST).
+   */
+  'photo:upload': (p: { slot: PhotoSlot; kind: PhotoKind; mime: string; data: ArrayBuffer | Uint8Array }, ack: Ack<{ photo: MyPhoto }>) => void;
+  /** Lobby only. Works on any slot, inactive ones included. */
   'photo:remove': (p: { slot: PhotoSlot }, ack: Ack) => void;
-  /** Lobby only: relabel an uploaded photo as daron / daronne. */
-  'photo:setKind': (p: { slot: PhotoSlot; kind: ParentKind }, ack: Ack) => void;
+  /** Lobby only: relabel an uploaded photo (same rules as `photo:upload`: active slot, kind allowed by settings.theme). */
+  'photo:setKind': (p: { slot: PhotoSlot; kind: PhotoKind }, ack: Ack) => void;
 
-  /** Host, lobby only. */
+  /** Host, lobby only. See `Settings.theme` for what switching theme does. */
   'host:settings': (p: Partial<Settings>, ack: Ack) => void;
   /** Host, lobby only. */
   'host:kick': (p: { playerId: string }, ack: Ack) => void;
-  /** Host, lobby only. Requires MIN_PHOTO_OWNERS players with photos. */
+  /**
+   * Host, lobby only. Requires MIN_PHOTO_OWNERS players with a photo in an active slot; only
+   * active-slot photos are played (photos in other slots are ignored, not deleted).
+   */
   'host:start': (ack: Ack) => void;
   /** Host, voting: close the given round now. Ignored (ok) if `round` is not the current one. */
   'host:skipRound': (p: { round: number }, ack: Ack) => void;
   /** Host, reveal: move past reveal `index` (to the next photo, or to results after the last). Idempotent. */
   'host:nextReveal': (p: { index: number }, ack: Ack) => void;
-  /** Host, results: back to the lobby with the same players (photos, votes and scores are cleared). */
+  /** Host, results: back to the lobby with the same players and settings (photos, votes and scores are cleared). */
   'host:playAgain': (ack: Ack) => void;
 
   /** Voting: cast or change the vote for `round`. */

@@ -1,8 +1,15 @@
+import { PHOTO_KINDS, type PhotoKind } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
 import { rankOf, resultsView, topCount } from './previewData';
 import { ResultsScreen } from './ResultsScreen';
 
 const LONG = { 1: 'Marie-Antoinette', 2: 'Jean-Christophe', 4: 'Maximilien-Henri' };
+
+const has = (awards: { id: string }[], ...ids: string[]) => ids.every((id) => awards.some((a) => a.id === id));
+
+/** Every kind, spread over players and slots (mix theme). */
+const mixKind = (i: number, slot: number): PhotoKind => PHOTO_KINDS[(i * 3 + slot * 5) % PHOTO_KINDS.length];
+const FAMILY: PhotoKind[] = ['sister', 'brother', 'friend', 'partner', 'pet', 'grandma', 'grandpa'];
 
 const render = (view: Parameters<typeof ResultsScreen>[0]['view'] | null) => (view ? <ResultsScreen view={view} /> : null);
 
@@ -68,6 +75,48 @@ const previews: PreviewRegistry = {
         { players: 6, photos: (i) => (i === 5 ? 0 : 2) },
         (s) => topCount(s) === 1,
         () => 5,
+      ),
+    render,
+  },
+  /** "Mini me" theme: one photo of each player as a kid, every award (flavored titles). */
+  childhood: {
+    view: () =>
+      resultsView(
+        { players: 6, theme: 'childhood' },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'carbonCopy', 'masterOfDisguise', 'doppelganger', 'biggestMixup') && rankOf(s, 'p0') > 1,
+      ),
+    render,
+  },
+  /** "Mini me" theme, the viewer won (winner line + "first" verdict flavored). */
+  'childhood-me-wins': {
+    view: () => resultsView({ players: 5, theme: 'childhood', skill: (i) => (i === 0 ? 0.95 : 0.3) }, (s) => topCount(s) === 1 && rankOf(s, 'p0') === 1),
+    render,
+  },
+  /** "Who picked it?" theme: one picked picture each. */
+  pick: {
+    view: () =>
+      resultsView(
+        { players: 6, theme: 'pick', seed: 40 },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'sherlock', 'carbonCopy', 'masterOfDisguise', 'biggestMixup') && rankOf(s, 'p0') > 1,
+      ),
+    render,
+  },
+  /** "Friends & family" theme with 3 photos each (siblings, friends, partners, pets…). */
+  family: {
+    view: () =>
+      resultsView(
+        { players: 5, theme: 'family', photos: () => 3, kinds: (i, slot) => FAMILY[(i + slot * 2) % FAMILY.length] },
+        (s) => topCount(s) === 1 && s.results.awards.length >= 6 && has(s.results.awards, 'biggestMixup'),
+      ),
+    render,
+  },
+  /** "Anything goes" theme: every kind of photo, 1 to 3 per player. */
+  mix: {
+    view: () =>
+      resultsView(
+        { players: 6, theme: 'mix', photos: (i) => 1 + (i % 3), kinds: mixKind },
+        (s) => topCount(s) === 1 && s.results.awards.length === 7,
+        () => 2,
       ),
     render,
   },

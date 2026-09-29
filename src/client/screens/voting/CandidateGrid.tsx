@@ -8,7 +8,7 @@ const UNKNOWN: Pick<PublicPlayer, 'avatar' | 'color' | 'name'> = { avatar: '❓'
 
 /**
  * The big "whose is it?" buttons. `selected` is the (optimistic) vote; `decoy` switches
- * the accent when the viewer is voting on their own parent's photo.
+ * the accent when the viewer is voting on their own photo.
  */
 export function CandidateGrid({
   candidates,

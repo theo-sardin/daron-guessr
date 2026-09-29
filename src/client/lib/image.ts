@@ -6,7 +6,8 @@ export class ImageReadError extends Error {
   }
 }
 
-const MAX_EDGE = 1280;
+// Plenty for phone screens and the lightbox; keeps uploads around 150-400 KB.
+const MAX_EDGE = 1080;
 
 async function decode(file: Blob): Promise<ImageBitmap | HTMLImageElement> {
   if ('createImageBitmap' in window) {
@@ -57,7 +58,7 @@ export async function compressImage(file: Blob): Promise<Blob> {
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   if ('close' in source) source.close();
 
-  for (const quality of [0.86, 0.75, 0.6, 0.45]) {
+  for (const quality of [0.82, 0.72, 0.6, 0.45]) {
     const blob = await toBlob(canvas, quality);
     if (blob && blob.size <= MAX_PHOTO_BYTES) return blob;
   }

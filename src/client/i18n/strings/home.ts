@@ -2,16 +2,21 @@
 // `fr` must mirror `en` exactly (enforced by the type).
 const en = {
   hero: {
-    tagline: 'Snap your parents. Guess everyone else’s. Laugh a lot.',
-    mysteryLabel: 'Mystery parent — tap to peek',
+    tagline: 'Parents, pals, baby pics… Guess whose is whose. Laugh a lot.',
+    mysteryLabel: 'Mystery photo — tap to peek',
     mysteryCaption: ['???', 'Who dis?', 'Hmm…', 'Suspect #4', 'Whose?'],
     peekTease: ['Nice try 😏', 'Not yet!', 'No peeking!', 'Patience…', 'Nope 🙅'],
   },
   how: {
     title: 'How it works',
-    step1: 'Everyone uploads their dad & mom',
-    step2: 'Guess whose parent is whose',
+    step1: 'Upload parents, siblings, baby pics…',
+    step2: 'Guess whose photo is whose',
     step3: 'Laugh at the big reveal',
+  },
+  /** Row advertising the themes the host can pick (names come from common.theme). */
+  themes: {
+    label: 'Themes',
+    listLabel: 'Themes the host can pick',
   },
   profile: {
     title: 'Who are you?',
@@ -46,7 +51,7 @@ const en = {
   },
   join: {
     title: 'You’re invited!',
-    sub: 'Time to guess whose parents are whose 🕵️',
+    sub: 'Time to guess whose photo is whose 🕵️',
     hostedBy: 'Hosted by {name}',
     playersInside: '{count}/{max} players inside',
     checking: ['Knocking on the door…', 'Peeking through the keyhole…', 'Ringing the doorbell…'],
@@ -59,22 +64,26 @@ const en = {
     inProgressTitle: 'Game already started',
     inProgressBody: 'Too late for this round! Ask the host to start a new one, then check again.',
     fullTitle: 'Room is full',
-    fullBody: 'Room {code} already has {max} players. That’s a lot of parents!',
+    fullBody: 'Room {code} already has {max} players. That’s a full house!',
   },
 };
 
 const fr: typeof en = {
   hero: {
-    tagline: 'Tes darons en photo. Devine ceux des potes. Fou rire garanti.',
-    mysteryLabel: 'Daron mystère — touche pour espionner',
+    tagline: 'Darons, potes, toi bébé… Devine à qui c’est. Fou rire garanti.',
+    mysteryLabel: 'Photo mystère — touche pour espionner',
     mysteryCaption: ['???', "C'est qui ?", 'Hmm…', 'Suspect n°4', 'À qui ?'],
     peekTease: ['Bien tenté 😏', 'Pas encore !', 'On triche pas !', 'Patience…', 'Nan 🙅'],
   },
   how: {
     title: 'Comment ça marche',
-    step1: 'Chacun balance son daron & sa daronne',
-    step2: 'Devine qui est le daron de qui',
+    step1: 'Balance darons, frangins, toi bébé…',
+    step2: 'Devine qui a ramené quoi',
     step3: 'Pleure de rire au grand reveal',
+  },
+  themes: {
+    label: 'Thèmes',
+    listLabel: 'Thèmes au choix de l’hôte',
   },
   profile: {
     title: "T'es qui, toi ?",
@@ -109,7 +118,7 @@ const fr: typeof en = {
   },
   join: {
     title: "T'es invité !",
-    sub: "C'est l'heure de deviner qui est le daron de qui 🕵️",
+    sub: "C'est l'heure de deviner qui a ramené quoi 🕵️",
     hostedBy: 'Chez {name}',
     playersInside: '{count}/{max} joueurs déjà là',
     checking: ['Toc toc toc…', 'On mate par le trou de la serrure…', 'On sonne à la porte…'],
@@ -122,7 +131,7 @@ const fr: typeof en = {
     inProgressTitle: 'La partie a déjà commencé',
     inProgressBody: "Trop tard pour cette manche ! Demande à l'hôte d'en relancer une, puis revérifie.",
     fullTitle: 'Salon complet',
-    fullBody: 'Le salon {code} a déjà {max} joueurs. Ça fait beaucoup de darons !',
+    fullBody: 'Le salon {code} a déjà {max} joueurs. C’est plein à craquer !',
   },
 };
 

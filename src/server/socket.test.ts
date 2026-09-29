@@ -7,6 +7,8 @@ import {
   type AwardId,
   type ClientToServerEvents,
   type MyPhoto,
+  type PhotoKind,
+  type PhotoSlot,
   type Reaction,
   type RoomPeek,
   type RoomView,
@@ -343,6 +345,127 @@ describe('socket server: a whole game', () => {
     }
     expect(late.views).toEqual([]);
   }, 20_000);
+});
+
+describe('socket server: themes and photos per player', () => {
+  const put = (c: Client, slot: PhotoSlot, kind: PhotoKind) =>
+    c.socket.emitWithAck('photo:upload', { slot, kind, mime: 'image/png', data: PNG });
+  const rawPut = (c: Client, payload: object) => c.raw.emitWithAck('photo:upload', { mime: 'image/png', data: PNG, ...payload });
+  const settings = (c: Client, patch: object) => c.raw.emitWithAck('host:settings', patch);
+  const BAD = { ok: false, error: 'BAD_REQUEST' };
+  const slotsAndKinds = (v: RoomView) => v.myPhotos.map((ph) => [ph.slot, ph.kind]);
+
+  it('validates settings, uploads and relabels against the theme and the active slots', async () => {
+    const { url } = await startServer();
+    const [alice, bob] = await Promise.all([client(url), client(url)]);
+    const { code } = await alice.create('Alice');
+    await bob.join(code, 'Bob');
+
+    for (const patch of [{ theme: 'cousins' }, { photosPerPlayer: 4 }, { photosPerPlayer: '2' }, { theme: 'mix', photosPerPlayer: 0 }]) {
+      expect(await settings(alice, patch)).toEqual(BAD);
+    }
+    expect(await settings(bob, { theme: 'mix' })).toEqual({ ok: false, error: 'NOT_HOST' });
+    expect((await alice.until('lobby', (v) => v.players.length === 2)).settings).toEqual({
+      voteSeconds: 30,
+      anonymousVotes: true,
+      theme: 'parents',
+      photosPerPlayer: 2,
+    });
+
+    expect(await put(bob, 0, 'daron')).toMatchObject({ ok: true });
+    expect(await put(bob, 1, 'daron')).toMatchObject({ ok: true });
+    expect(await put(bob, 2, 'daronne')).toEqual(BAD); // inactive slot
+    expect(await put(bob, 1, 'kid')).toEqual(BAD); // not a parents kind
+    expect(await rawPut(bob, { slot: 1, kind: 'cousin' })).toEqual(BAD);
+    expect(await rawPut(bob, { slot: 3, kind: 'daron' })).toEqual(BAD);
+    expect(await bob.socket.emitWithAck('photo:setKind', { slot: 1, kind: 'sister' })).toEqual(BAD);
+    expect(await bob.socket.emitWithAck('photo:setKind', { slot: 1, kind: 'daronne' })).toEqual({ ok: true });
+    await bob.until('bob photos', (v) => v.myPhotos.length === 2 && v.myPhotos[1].kind === 'daronne');
+
+    // Childhood: both photos become 'kid', slot 1 is kept but inactive.
+    expect(await settings(alice, { theme: 'childhood' })).toEqual({ ok: true });
+    const relabeled = await bob.until('childhood', (v) => v.settings.theme === 'childhood');
+    expect(relabeled.settings.photosPerPlayer).toBe(1);
+    expect(slotsAndKinds(relabeled)).toEqual([[0, 'kid'], [1, 'kid']]);
+    expect(relabeled.players.find((p) => p.id === bob.id)!.ready).toBe(true);
+    expect(await put(bob, 1, 'kid')).toEqual(BAD);
+    expect(await bob.socket.emitWithAck('photo:setKind', { slot: 1, kind: 'kid' })).toEqual(BAD);
+    expect(await put(alice, 0, 'daron')).toEqual(BAD);
+
+    // Removing the active photo leaves Bob not ready, even with a photo in slot 1.
+    expect(await bob.socket.emitWithAck('photo:remove', { slot: 0 })).toEqual({ ok: true });
+    const notReady = await alice.until('bob not ready', (v) => !v.players.find((p) => p.id === bob.id)!.ready);
+    expect(notReady.myPhotos).toEqual([]);
+    expect(slotsAndKinds(bob.view)).toEqual([[1, 'kid']]);
+
+    // An explicit count sent with the theme wins over the theme's default.
+    expect(await settings(alice, { theme: 'mix', photosPerPlayer: 3 })).toEqual({ ok: true });
+    await bob.until('mix', (v) => v.settings.theme === 'mix' && v.settings.photosPerPlayer === 3);
+    expect(await put(bob, 2, 'pet')).toMatchObject({ ok: true, photo: { slot: 2, kind: 'pet' } });
+    expect(await bob.socket.emitWithAck('photo:setKind', { slot: 1, kind: 'grandma' })).toEqual({ ok: true });
+    const mixed = await bob.until('mixed kinds', (v) => v.myPhotos.length === 2 && v.myPhotos[0].kind === 'grandma');
+    expect(slotsAndKinds(mixed)).toEqual([[1, 'grandma'], [2, 'pet']]);
+    await alice.until('bob ready again', (v) => v.players.find((p) => p.id === bob.id)!.ready);
+  });
+
+  it('plays a childhood game with one photo each, ignoring inactive photos, and keeps the settings', async () => {
+    const { url } = await startServer();
+    const [alice, bob, carol] = await Promise.all([client(url), client(url), client(url)]);
+    const { code } = await alice.create('Alice');
+    await bob.join(code, 'Bob');
+    await carol.join(code, 'Carol');
+    const players = [alice, bob, carol];
+
+    // Uploaded under the parents theme, then left in an inactive slot.
+    const extra = await put(alice, 1, 'daronne');
+    if (!extra.ok) throw new Error(extra.error);
+    expect(await settings(alice, { theme: 'childhood', voteSeconds: 0 })).toEqual({ ok: true });
+    const owners = new Map<string, Client>();
+    for (const c of players) {
+      const res = await put(c, 0, 'kid');
+      if (!res.ok) throw new Error(res.error);
+      owners.set(res.photo.id, c);
+    }
+    await alice.until('everybody ready', (v) => v.players.every((p) => p.ready));
+    expect(slotsAndKinds(alice.view)).toEqual([[0, 'kid'], [1, 'kid']]);
+
+    expect(await alice.socket.emitWithAck('host:start')).toEqual({ ok: true });
+    const first = (await carol.until('voting', (v) => v.phase === 'voting')).voting!;
+    expect(first.totalRounds).toBe(3);
+    for (let round = 0; round < 3; round++) {
+      const voting = (await alice.until(`round ${round}`, (v) => v.voting?.round === round)).voting!;
+      expect(voting.photo.kind).toBe('kid');
+      expect(voting.photo.id).not.toBe(extra.photo.id);
+      await waitFor('round start', () => Date.now() >= voting.startsAt);
+      const owner = owners.get(voting.photo.id)!;
+      for (const p of players) {
+        const candidate = p === owner ? players.find((o) => o !== p)!.id : owner.id;
+        expect(await p.socket.emitWithAck('vote:cast', { round, candidateId: candidate })).toEqual({ ok: true });
+      }
+    }
+
+    for (let index = 0; index < 3; index++) {
+      const reveal = (await alice.until(`reveal ${index}`, (v) => v.reveal?.index === index)).reveal!;
+      expect(reveal.current.photo.kind).toBe('kid');
+      expect(reveal.current.correctVotes).toBe(2);
+      await waitFor('owner revealed', () => Date.now() >= reveal.startedAt + FAST.revealOwnerAtMs! + 5);
+      expect(await alice.socket.emitWithAck('host:nextReveal', { index })).toEqual({ ok: true });
+    }
+    const results = (await bob.until('results', (v) => v.phase === 'results')).results!;
+    expect(results.photos.map((ph) => ph.photo.kind)).toEqual(['kid', 'kid', 'kid']);
+    expect(results.ranking.map((r) => [r.score, r.rank])).toEqual([
+      [2 * POINTS_PER_CORRECT, 1],
+      [2 * POINTS_PER_CORRECT, 1],
+      [2 * POINTS_PER_CORRECT, 1],
+    ]);
+
+    expect(await alice.socket.emitWithAck('host:playAgain')).toEqual({ ok: true });
+    for (const p of players) {
+      const v = await p.until('back to lobby', (view) => view.phase === 'lobby');
+      expect(v.settings).toEqual({ voteSeconds: 0, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1 });
+      expect(v.myPhotos).toEqual([]);
+    }
+  }, 15_000);
 });
 
 describe('socket server: sessions', () => {

@@ -1,6 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import {
   AVATARS,
+  defaultKindForSlot,
   type AckResult,
   type ClientToServerEvents,
   type RoomView,
@@ -32,8 +33,9 @@ function emitAck<T extends object>(socket: BotSocket, event: string, ...args: un
 }
 
 /**
- * A scripted player: joins a room over Socket.IO, uploads two generated photos and votes
- * (randomly, or for the right owner when `cheatOwnerOf` knows it) whenever a round opens.
+ * A scripted player: joins a room over Socket.IO, fills every active photo slot of the room
+ * (`settings.photosPerPlayer`, at most `opts.photos`) with a generated photo of the theme's
+ * default kind for that slot, and votes randomly whenever a round opens.
  */
 export async function spawnBot(baseUrl: string, code: string, index: number, opts: { photos?: number } = {}): Promise<Bot> {
   const socket: BotSocket = io(baseUrl, { transports: ['websocket'], forceNew: true });
@@ -45,6 +47,8 @@ export async function spawnBot(baseUrl: string, code: string, index: number, opt
   let view: RoomView | null = null;
   const votedRounds = new Set<number>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
+  // The join ack comes before the first view: wait for it to know the room's settings.
+  const firstView = new Promise<RoomView>((resolve) => socket.once('room:state', resolve));
 
   socket.on('room:state', (v) => {
     view = v;
@@ -65,12 +69,13 @@ export async function spawnBot(baseUrl: string, code: string, index: number, opt
   const joined = await emitAck<{ session: Session }>(socket, 'room:join', { code, name, avatar: AVATARS[(index * 7 + 3) % AVATARS.length] });
   if (!joined.ok) throw new Error(`bot ${name} could not join: ${joined.error}`);
 
-  const photos = opts.photos ?? 2;
+  const { settings } = await firstView;
+  const photos = Math.min(opts.photos ?? settings.photosPerPlayer, settings.photosPerPlayer);
   for (let slot = 0; slot < photos; slot++) {
     const png = makeFacePng(index * 10 + slot + 1);
     const res = await emitAck(socket, 'photo:upload', {
       slot,
-      kind: slot === 0 ? 'daron' : 'daronne',
+      kind: defaultKindForSlot(settings.theme, slot),
       mime: 'image/png',
       data: png,
     });

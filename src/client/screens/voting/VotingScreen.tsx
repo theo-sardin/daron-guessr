@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { RoomView, VotingView } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
@@ -168,7 +168,9 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
             <AnimatePresence mode="wait" initial={false}>
               <motion.h2
                 key={`${v.photo.id}-q`}
-                className="text-outline order-1 px-1 text-center font-display text-[clamp(1.5rem,8.4vw,2rem)] leading-[1.05] text-cream sm:text-4xl lg:text-5xl"
+                // Phone: shrink long questions ("C'est le ou la pote de qui ?") so they stay on one line.
+                style={{ '--q-em': question.length * 0.45 } as CSSProperties}
+                className="text-outline order-1 px-1 text-center font-display text-[length:clamp(1.25rem,min(8.4vw,calc((100vw_-_2.75rem)/var(--q-em))),2rem)] leading-[1.05] text-balance text-cream sm:text-4xl lg:text-5xl"
                 initial={{ scale: 0.7, opacity: 0, rotate: -3 }}
                 animate={{ scale: 1, opacity: 1, rotate: 0 }}
                 exit={{ scale: 0.8, opacity: 0 }}
@@ -242,7 +244,13 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
       {createPortal(
         <AnimatePresence>
           {introStage !== null && (
-            <IntroOverlay key="intro" stage={introStage} totalRounds={v.totalRounds} voteSeconds={view.settings.voteSeconds} />
+            <IntroOverlay
+              key="intro"
+              stage={introStage}
+              totalRounds={v.totalRounds}
+              voteSeconds={view.settings.voteSeconds}
+              theme={view.settings.theme}
+            />
           )}
           {inTransition && <RoundTransition key={`t-${v.round}`} round={v.round} total={v.totalRounds} kind={v.photo.kind} />}
         </AnimatePresence>,

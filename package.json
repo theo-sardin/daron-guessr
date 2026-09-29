@@ -2,7 +2,7 @@
   "name": "daron-guessr",
   "version": "1.0.0",
   "private": true,
-  "description": "Party game: everyone uploads photos of their parents, then guess whose daron is whose.",
+  "description": "Party game: everyone uploads photos (parents, family, friends, themselves as kids, random picks), then the group guesses whose photo is whose.",
   "type": "module",
   "engines": {
     "node": ">=20"

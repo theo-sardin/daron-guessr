@@ -16,6 +16,7 @@ import { useRevealEffects, type PersonalResult } from './effects';
 import { Feedback, PersonalBadge } from './Feedback';
 import { Headline } from './Headline';
 import { Intro } from './Intro';
+import { CAPTION_GROUP } from './kinds';
 import { PhotoCard } from './PhotoCard';
 import { ScoreStrip } from './ScoreStrip';
 import { VoteBars } from './VoteBars';
@@ -40,6 +41,11 @@ import {
  */
 export function RevealScreen({ view }: { view: RoomView }) {
   const r = view.reveal;
+  const index = r?.index;
+  // Players often scroll down to their result card: bring each new photo back into view.
+  useEffect(() => {
+    if (index !== undefined && index > 0) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [index]);
   if (!r) {
     return (
       <ScreenShell>
@@ -143,9 +149,12 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
     const vars = {
       name: outcome === 'wrongMajority' && wrongId ? playerOrGhost(model.byId, wrongId).name : outcome === 'onlyOneNamed' && soloId ? playerOrGhost(model.byId, soloId).name : owner.name,
       owner: owner.name,
+      who: t(`common.possessive.${kind}`, { name: owner.name }),
+      of: t(`reveal.of.${kind}`, { name: owner.name }),
+      yours: t(`common.yours.${kind}`),
     };
-    return tpick(`reveal.caption.${outcome}.${kind}`, reveal.index, vars);
-  }, [owner, model, kind, reveal.index, tpick]);
+    return tpick(`reveal.caption.${outcome}.${CAPTION_GROUP[kind]}`, reveal.index, vars);
+  }, [owner, model, kind, reveal.index, t, tpick]);
 
   const stamp = owner ? { kind: model.outcome.stamp, text: t(`reveal.stamp.${model.outcome.stamp}.${kind}`) } : null;
   const questionText = t(`common.whose.${kind}`);

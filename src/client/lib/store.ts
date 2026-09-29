@@ -4,7 +4,7 @@ import type {
   ClientToServerEvents,
   ErrorCode,
   MyPhoto,
-  ParentKind,
+  PhotoKind,
   PhotoSlot,
   PublicPlayer,
   Reaction,
@@ -213,13 +213,13 @@ export const api = {
 
   updatePlayer: (patch: { name?: string; avatar?: string }) => call('player:update', patch),
 
-  async uploadPhoto(slot: PhotoSlot, kind: ParentKind, blob: Blob): Promise<Result<{ photo: MyPhoto }>> {
+  async uploadPhoto(slot: PhotoSlot, kind: PhotoKind, blob: Blob): Promise<Result<{ photo: MyPhoto }>> {
     const data = await blob.arrayBuffer();
     return call<{ photo: MyPhoto }>('photo:upload', { slot, kind, mime: blob.type || 'image/jpeg', data });
   },
 
   removePhoto: (slot: PhotoSlot) => call('photo:remove', { slot }),
-  setPhotoKind: (slot: PhotoSlot, kind: ParentKind) => call('photo:setKind', { slot, kind }),
+  setPhotoKind: (slot: PhotoSlot, kind: PhotoKind) => call('photo:setKind', { slot, kind }),
 
   updateSettings: (patch: Partial<Settings>) => call('host:settings', patch),
   kick: (playerId: string) => call('host:kick', { playerId }),

@@ -1,4 +1,4 @@
-import type { AwardId, PhotoResult, PublicPlayer, RankingEntry, ResultsView } from '../../../shared/protocol';
+import type { Award, AwardId, PhotoKind, PhotoResult, PublicPlayer, RankingEntry, ResultsView, Theme } from '../../../shared/protocol';
 import { hashString } from '../../lib/util';
 
 /** A podium step: every player sharing one rank (ties stand together). */
@@ -72,6 +72,58 @@ export const AWARD_EMOJI: Record<AwardId, string> = {
   mostConfusing: '🌀',
   biggestMixup: '🔀',
 };
+
+/**
+ * Which set of copy fits the photos being talked about (see i18n/strings/results.ts):
+ * `parents` (only dads & moms), `childhood` (only players as kids), `pick` (only picked
+ * pictures), `family` for everything else (siblings, friends, pets, a mix of kinds…).
+ */
+export type Flavor = 'parents' | 'family' | 'childhood' | 'pick';
+
+const PARENT_KINDS: readonly PhotoKind[] = ['daron', 'daronne'];
+
+export function flavorOfTheme(theme: Theme): Flavor {
+  return theme === 'mix' ? 'family' : theme;
+}
+
+/** Flavor of a set of photos, from what they actually show (`fallback` when there are none). */
+export function flavorOfKinds(kinds: readonly PhotoKind[], fallback: Flavor): Flavor {
+  if (kinds.length === 0) return fallback;
+  if (kinds.every((k) => PARENT_KINDS.includes(k))) return 'parents';
+  if (kinds.every((k) => k === 'kid')) return 'childhood';
+  if (kinds.every((k) => k === 'pick')) return 'pick';
+  return 'family';
+}
+
+/** Flavor of the whole game: what the photos show, else the theme it was played with. */
+export function gameFlavor(photos: readonly PhotoResult[], theme: Theme): Flavor {
+  return flavorOfKinds(
+    photos.map((p) => p.photo.kind),
+    flavorOfTheme(theme),
+  );
+}
+
+/**
+ * Flavor of one award. Awards about the winners' own photos (carbon copy, master of disguise)
+ * follow what those photos show; the others follow the game.
+ */
+export function awardFlavor(award: Award, photos: readonly PhotoResult[], game: Flavor): Flavor {
+  if (award.id !== 'carbonCopy' && award.id !== 'masterOfDisguise') return game;
+  return flavorOfKinds(
+    photos.filter((p) => award.playerIds.includes(p.ownerId)).map((p) => p.photo.kind),
+    game,
+  );
+}
+
+/** Emoji of an award, with a few flavor-specific twists. */
+export function awardEmoji(id: AwardId, flavor: Flavor): string {
+  if (flavor === 'childhood' && id === 'carbonCopy') return '👶';
+  if (flavor === 'childhood' && id === 'masterOfDisguise') return '🦋';
+  if (flavor === 'pick' && id === 'carbonCopy') return '📖';
+  if (flavor === 'pick' && id === 'sherlock') return '🔮';
+  if (flavor === 'pick' && id === 'masterOfDisguise') return '🃏';
+  return AWARD_EMOJI[id];
+}
 
 export type AwardTone = 'sun' | 'sky' | 'mint' | 'lilac' | 'pink' | 'cream' | 'white';
 

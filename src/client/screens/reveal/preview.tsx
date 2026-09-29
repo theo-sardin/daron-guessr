@@ -1,4 +1,4 @@
-import type { ParentKind, PhotoResult, PublicPlayer, RoomView } from '../../../shared/protocol';
+import { DEFAULT_SETTINGS, type PhotoKind, type PhotoResult, type PublicPlayer, type RoomView, type Theme } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
 import { fakePhoto, fakePlayers, fakeView } from '../../dev/fixtures';
 import { RevealScreen } from './RevealScreen';
@@ -19,7 +19,8 @@ interface Opts {
   index?: number;
   total?: number;
   anonymous?: boolean;
-  kind?: ParentKind;
+  kind?: PhotoKind;
+  theme?: Theme;
   scores?: number[];
 }
 
@@ -52,7 +53,7 @@ function reveal(o: Opts): RoomView {
   };
   return fakeView(players, o.me, {
     phase: 'reveal',
-    settings: { voteSeconds: 30, anonymousVotes: o.anonymous !== false },
+    settings: { ...DEFAULT_SETTINGS, anonymousVotes: o.anonymous !== false, theme: o.theme ?? DEFAULT_SETTINGS.theme },
     reveal: { index, total, startedAt: Date.now() - o.ago, current },
   });
 }
@@ -183,6 +184,65 @@ const previews: PreviewRegistry = {
   'long-names': {
     view: () =>
       reveal({ players: longPlayers(), me: 3, owner: 1, votes: { 0: 2, 2: 1, 3: 2, 4: 5, 5: 1 }, ago: OWNER_AT, kind: 'daronne' }),
+    render,
+  },
+  // Other kinds: every caption, stamp and card follows the photo's kind.
+  /** Majority wrong on a childhood photo (longest captions). */
+  kid: {
+    view: () =>
+      reveal({ me: 0, owner: 3, n: 6, votes: { 0: 2, 1: 2, 2: 1, 4: 2, 5: 3 }, ago: OWNER_AT, index: 0, kind: 'kid', theme: 'childhood', scores: SCORES }),
+    render,
+  },
+  'kid-nobody': {
+    view: () => reveal({ me: 2, owner: 4, votes: { 0: 1, 1: 0, 2: 0, 3: 1 }, ago: OWNER_AT, index: 1, kind: 'kid', theme: 'childhood', scores: SCORES }),
+    render,
+  },
+  /** Everybody guessed who picked it. */
+  pick: {
+    view: () => reveal({ me: 3, owner: 1, n: 6, votes: { 0: 1, 2: 1, 3: 1, 4: 1, 5: 1 }, ago: OWNER_AT, index: 0, kind: 'pick', theme: 'pick', scores: SCORES }),
+    render,
+  },
+  'pick-wrong': {
+    view: () =>
+      reveal({ me: 0, owner: 3, n: 6, votes: { 0: 2, 1: 2, 2: 1, 4: 2, 5: 3 }, ago: OWNER_AT, index: 1, kind: 'pick', theme: 'pick', scores: SCORES }),
+    render,
+  },
+  sister: {
+    view: () => reveal({ me: 2, owner: 4, votes: { 0: 1, 1: 0, 2: 0, 3: 1 }, ago: OWNER_AT, index: 0, kind: 'sister', theme: 'family', scores: SCORES }),
+    render,
+  },
+  friend: {
+    view: () =>
+      reveal({ me: 0, owner: 3, n: 6, votes: { 0: 2, 1: 2, 2: 1, 4: 2, 5: 3 }, ago: OWNER_AT, index: 0, kind: 'friend', theme: 'family', scores: SCORES }),
+    render,
+  },
+  /** Public votes, one right guesser named. */
+  'grandpa-solo': {
+    view: () =>
+      reveal({ me: 4, owner: 2, n: 6, anonymous: false, votes: { 0: 1, 1: 3, 3: 1, 4: 2, 5: 0 }, ago: OWNER_AT, index: 0, kind: 'grandpa', theme: 'family', scores: SCORES }),
+    render,
+  },
+  'pet-most': {
+    view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, index: 0, kind: 'pet', theme: 'family', scores: SCORES }),
+    render,
+  },
+  /** The owner's own card for a childhood photo (most recognised them). */
+  'mine-kid': {
+    view: () => reveal({ me: 2, owner: 2, decoy: 1, votes: { 0: 2, 1: 2, 3: 2, 4: 0 }, ago: OWNER_AT, index: 0, kind: 'kid', theme: 'childhood', scores: SCORES }),
+    render,
+  },
+  'mine-pick': {
+    view: () => reveal({ me: 2, owner: 2, decoy: 0, votes: { 0: 1, 1: 0, 3: 2, 4: 0 }, ago: OWNER_AT, index: 0, kind: 'pick', theme: 'pick', scores: SCORES }),
+    render,
+  },
+  'mine-partner': {
+    view: () => reveal({ me: 2, owner: 2, decoy: 1, votes: { 0: 2, 1: 2, 3: 2, 4: 0 }, ago: OWNER_AT, index: 1, kind: 'partner', theme: 'family', scores: SCORES }),
+    render,
+  },
+  /** Longest captions: long names in a childhood wrong-majority caption. */
+  'long-names-kid': {
+    view: () =>
+      reveal({ players: longPlayers(), me: 3, owner: 0, votes: { 1: 2, 2: 1, 3: 1, 4: 1, 5: 3 }, ago: OWNER_AT, index: 0, kind: 'kid', theme: 'childhood' }),
     render,
   },
   'first-photo': {

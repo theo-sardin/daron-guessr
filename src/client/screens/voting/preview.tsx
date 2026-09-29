@@ -1,11 +1,15 @@
 import { useEffect } from 'react';
 import {
   ALL_VOTED_GRACE_MS,
+  DEFAULT_SETTINGS,
   GAME_INTRO_MS,
+  PHOTO_KINDS,
   ROUND_GAP_MS,
-  type ParentKind,
+  THEME_KINDS,
+  type PhotoKind,
   type PublicPlayer,
   type RoomView,
+  type Theme,
   type VotingView,
 } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
@@ -43,7 +47,9 @@ interface Opts {
   isMine?: boolean;
   myVote?: string | null;
   voted?: number[];
-  kind?: ParentKind;
+  kind?: PhotoKind;
+  /** Game theme (drives the intro one-liner). Defaults to one that allows `kind`. */
+  theme?: Theme;
   names?: string[];
   offline?: number[];
 }
@@ -60,10 +66,12 @@ function makeView(o: Opts = {}): RoomView {
   const startsAt = now + startsIn;
   const endsAt = endsIn === null ? null : now + endsIn;
   const round = o.round ?? 1;
+  const kind = o.kind ?? 'daron';
+  const theme = o.theme ?? themeFor(kind);
   const voting: VotingView = {
     round,
     totalRounds: o.total ?? 8,
-    photo: fakePhoto(round + 3, o.kind ?? 'daron'),
+    photo: fakePhoto(round + 3, kind),
     startsAt,
     endsAt,
     isMine: o.isMine ?? false,
@@ -71,7 +79,13 @@ function makeView(o: Opts = {}): RoomView {
     candidates: players.filter((p) => p.id !== players[me].id).map((p) => p.id),
     votedIds: (o.voted ?? []).map((i) => players[i].id),
   };
-  return fakeView(players, me, { phase: 'voting', serverNow: now, settings: { voteSeconds, anonymousVotes: true }, voting });
+  return fakeView(players, me, { phase: 'voting', serverNow: now, settings: { ...DEFAULT_SETTINGS, voteSeconds, anonymousVotes: true, theme }, voting });
+}
+
+/** Narrowest theme that allows `kind`. */
+function themeFor(kind: PhotoKind): Theme {
+  const order: Theme[] = ['parents', 'childhood', 'pick', 'family', 'mix'];
+  return order.find((th) => THEME_KINDS[th].includes(kind)) ?? 'mix';
 }
 
 const render = (view: RoomView | null) => (view ? <VotingScreen view={view} /> : null);
@@ -83,7 +97,10 @@ const render = (view: RoomView | null) => (view ? <VotingScreen view={view} /> :
 const SIM_SECONDS = 12;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function Sim() {
+/** Kind of the photo shown in round `round` of the sim, cycling through `kinds`. */
+const simKind = (kinds: readonly PhotoKind[], round: number): PhotoKind => kinds[round % kinds.length];
+
+function Sim({ kinds }: { kinds: readonly PhotoKind[] }) {
   const view = useRoom();
   useEffect(() => {
     const orig = { vote: api.vote, skipRound: api.skipRound };
@@ -100,7 +117,7 @@ function Sim() {
         const startsAt = at + ROUND_GAP_MS;
         return {
           round,
-          photo: fakePhoto(round + 3, round % 3 === 1 ? 'daronne' : 'daron'),
+          photo: fakePhoto(round + 3, simKind(kinds, round)),
           startsAt,
           endsAt: startsAt + SIM_SECONDS * 1000,
           isMine: round === 2,
@@ -144,7 +161,7 @@ function Sim() {
       api.vote = orig.vote;
       api.skipRound = orig.skipRound;
     };
-  }, []);
+  }, [kinds]);
   return view ? <VotingScreen view={view} /> : null;
 }
 
@@ -159,7 +176,7 @@ const previews: PreviewRegistry = {
   vote: { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0, 2, 4] }), render },
   /** Same with my vote cast. */
   voted: { view: () => makeView({ round: 1, endsIn: 14_000, voteSeconds: 30, voted: [0, 1, 2], myVote: 'p3' }), render },
-  /** My own parent's photo: decoy vote. */
+  /** My own mom's photo: decoy vote. */
   mine: { view: () => makeView({ round: 4, endsIn: 17_000, voted: [3], isMine: true, kind: 'daronne' }), render },
   /** Own photo, decoy cast. */
   'mine-voted': { view: () => makeView({ round: 4, endsIn: 9_000, voted: [1, 3], isMine: true, myVote: 'p4' }), render },
@@ -186,7 +203,44 @@ const previews: PreviewRegistry = {
   /** Timer ran out without voting. */
   'locked-missed': { view: () => makeView({ round: 7, endsIn: -400, voted: [0, 3] }), render },
   /** Playable loop with a fake server and bots (host view). */
-  sim: { view: () => makeView({ me: 0, round: 0, total: 5, startsIn: GAME_INTRO_MS, voteSeconds: SIM_SECONDS }), render: () => <Sim /> },
+  sim: { view: () => makeView({ me: 0, round: 0, total: 5, startsIn: GAME_INTRO_MS, voteSeconds: SIM_SECONDS }), render: () => <Sim kinds={SIM_PARENTS} /> },
+  /** Same loop, "Anything goes" theme: every round is a different kind. */
+  'sim-mix': {
+    view: () => makeView({ me: 0, round: 0, total: PHOTO_KINDS.length, startsIn: GAME_INTRO_MS, voteSeconds: SIM_SECONDS, theme: 'mix' }),
+    render: () => <Sim kinds={PHOTO_KINDS} />,
+  },
+
+  // --- Other photo kinds / themes -------------------------------------------------------
+  /** "Who is this as a kid?" (Mini me theme). */
+  kid: { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0, 2], kind: 'kid' }), render },
+  /** "Who picked this picture?" (Who picked it? theme). */
+  pick: { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0, 2], myVote: 'p3', kind: 'pick' }), render },
+  /** Friends & family theme: a sister. */
+  sister: { view: () => makeView({ round: 2, endsIn: 18_000, voteSeconds: 30, voted: [4], kind: 'sister' }), render },
+  /** Longest question in French ("C'est le ou la pote de qui ?"), 12 players. */
+  friend: {
+    view: () => makeView({ players: 12, me: 5, round: 3, total: 24, names: LONG_NAMES, voted: [0, 1], kind: 'friend', endsIn: 25_000, voteSeconds: 45 }),
+    render,
+  },
+  /** Owner's banner on their kid photo. */
+  'mine-kid': { view: () => makeView({ round: 4, endsIn: 17_000, voted: [3], isMine: true, kind: 'kid' }), render },
+  /** Owner's banner on the picture they picked. */
+  'mine-pick': { view: () => makeView({ round: 4, endsIn: 12_000, voted: [1, 3], isMine: true, myVote: 'p2', kind: 'pick' }), render },
+  /** Owner's banner, longest French title ("C'est un·e pote à TOI !"). */
+  'mine-friend': { view: () => makeView({ round: 4, endsIn: 17_000, voted: [3], isMine: true, kind: 'friend' }), render },
+  /** Between two rounds, next photo is a kid photo. */
+  'transition-kid': { view: () => makeView({ round: 2, startsIn: ROUND_GAP_MS, kind: 'kid' }), render },
+  /** Between two rounds, next photo is someone's pick. */
+  'transition-pick': { view: () => makeView({ round: 5, startsIn: ROUND_GAP_MS, kind: 'pick' }), render },
+  /** Between two rounds, next photo is someone's partner (longest teaser). */
+  'transition-partner': { view: () => makeView({ round: 1, startsIn: ROUND_GAP_MS, kind: 'partner', theme: 'family' }), render },
+  /** Intro one-liner of each theme. */
+  'intro-family': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'sister', theme: 'family' }), render },
+  'intro-childhood': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'kid' }), render },
+  'intro-pick': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'pick' }), render },
+  'intro-mix': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'pet', theme: 'mix' }), render },
 };
+
+const SIM_PARENTS: readonly PhotoKind[] = ['daron', 'daronne', 'daron'];
 
 export default previews;

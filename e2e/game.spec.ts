@@ -118,3 +118,54 @@ test('joining an unknown room shows a friendly error', async ({ page }) => {
   await page.goto('/ZZZZ?lang=en');
   await expect(page.getByRole('button', { name: /home/i }).first()).toBeVisible({ timeout: 10_000 });
 });
+
+test('a "Mini me" game: one childhood photo each', async ({ browser, baseURL }) => {
+  const host = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  host.on('pageerror', (e) => errors.push(e.message));
+
+  await host.goto('/?lang=en');
+  await host.getByPlaceholder('Your nickname').fill('Host Théo');
+  await host.getByRole('button', { name: /Create a room/ }).click();
+  await host.waitForURL(/\/[A-Z]{4}$/);
+  const code = new URL(host.url()).pathname.slice(1);
+
+  // The host switches the theme: one photo slot, of the player as a kid.
+  await host.getByRole('radio', { name: /Mini me/ }).click();
+  await expect(host.locator('input[type=file]')).toHaveCount(1);
+
+  // Bots join after the switch, so they upload one 'kid' photo each.
+  const bots: Bot[] = [];
+  for (let i = 0; i < 3; i++) bots.push(await spawnBot(baseURL!, code, i));
+  await host.locator('input[type=file]').first().setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: makeFacePng(42) });
+  await expect(host.locator('img[src^="/photos/"]')).toHaveCount(1, { timeout: 15_000 });
+  await host.screenshot({ path: `${SHOTS}/10-minime-lobby.png`, fullPage: true });
+
+  await host.getByRole('button', { name: /Start the game/ }).click();
+  await expect(host.getByText('Who is this as a kid?').first()).toBeVisible({ timeout: 10_000 });
+
+  let revealing = false;
+  const watcher = (async () => {
+    await expect(host.getByRole('button', { name: /Next photo|See the results/ })).toBeVisible({ timeout: 120_000 });
+    revealing = true;
+  })();
+  await host.waitForTimeout(4_000);
+  await host.screenshot({ path: `${SHOTS}/11-minime-voting.png` });
+  await Promise.all([voteWhileVoting(host, () => revealing), watcher]);
+
+  const next = host.getByRole('button', { name: /Next photo|See the results/ });
+  for (let i = 0; i < 4; i++) {
+    await expect(next).toBeEnabled({ timeout: 20_000 });
+    if (i === 0) await host.screenshot({ path: `${SHOTS}/12-minime-reveal.png` });
+    const label = (await next.textContent()) ?? '';
+    await next.click();
+    if (/results/i.test(label)) break;
+    await expect(next).toBeDisabled({ timeout: 5_000 });
+  }
+  await expect(host.getByRole('button', { name: /Play again/ })).toBeVisible({ timeout: 15_000 });
+  await host.waitForTimeout(5_000);
+  await host.screenshot({ path: `${SHOTS}/13-minime-results.png`, fullPage: true });
+
+  bots.forEach((b) => b.stop());
+  expect(errors).toEqual([]);
+});

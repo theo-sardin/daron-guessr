@@ -8,7 +8,11 @@ import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import {
   MAX_PHOTO_BYTES,
+  PHOTO_KINDS,
+  PHOTO_SLOTS,
+  PHOTOS_PER_PLAYER_OPTIONS,
   REACTION_EMOJIS,
+  THEMES,
   type AckResult,
   type ClientToServerEvents,
   type ErrorCode,
@@ -17,6 +21,7 @@ import {
   type Session,
 } from '../shared/protocol';
 import {
+  canPlacePhoto,
   castVote,
   disconnectPlayer,
   findPlayer,
@@ -89,15 +94,19 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
   roomMissesPerMinute: 20,
   uploadBurst: 8,
   uploadsPerSecond: 0.1,
-  uploadBytesPerIp: 64 * MIB,
+  // A party on one Wi-Fi shares an IP and may replay several rounds: keep this roomy.
+  uploadBytesPerIp: 192 * MIB,
   // Generous: a party shares one Wi-Fi IP, and some proxies collapse clients onto one address.
   connectionsPerIp: 100,
 };
 
 /** Every photo of every room is kept in memory: refuse uploads past this (all rooms together). */
 export const DEFAULT_MAX_TOTAL_PHOTO_BYTES = 256 * MIB;
-/** Per room. Real clients send JPEGs of at most 1280 px, well under 1 MiB each (12 players x 2 slots). */
-export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 24 * MIB;
+/**
+ * Per room: 1 MiB per slot on average (12 players x 3 slots; photos in inactive slots count
+ * too). Real clients send JPEGs of at most 1080 px, usually 100-400 KB.
+ */
+export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 36 * MIB;
 const UPLOAD_BYTES_REFILL_SECONDS = 30 * 60;
 /** setTimeout overflows past ~24.8 days; waking up early is harmless (tick is a no-op). */
 const MAX_TIMER_DELAY_MS = 60 * 60_000;
@@ -327,8 +336,8 @@ class RoomHub {
 // ---------------------------------------------------------------------------
 
 const text = (max: number) => z.string().max(max);
-const slot = z.union([z.literal(0), z.literal(1)]);
-const kind = z.enum(['daron', 'daronne']);
+const slot = z.literal(PHOTO_SLOTS);
+const kind = z.enum(PHOTO_KINDS);
 const index = z.number().int().min(0).max(10_000);
 const binary = z.custom<ArrayBuffer | Uint8Array>((v) => v instanceof ArrayBuffer || v instanceof Uint8Array);
 
@@ -341,7 +350,12 @@ const schemas = {
   upload: z.object({ slot, kind, mime: text(100), data: binary }),
   remove: z.object({ slot }),
   setKind: z.object({ slot, kind }),
-  settings: z.object({ voteSeconds: z.number().optional(), anonymousVotes: z.boolean().optional() }),
+  settings: z.object({
+    voteSeconds: z.number().optional(),
+    anonymousVotes: z.boolean().optional(),
+    theme: z.enum(THEMES).optional(),
+    photosPerPlayer: z.literal(PHOTOS_PER_PLAYER_OPTIONS).optional(),
+  }),
   kick: z.object({ playerId: text(100) }),
   skip: z.object({ round: index }),
   nextReveal: z.object({ index }),
@@ -501,6 +515,8 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
 
   bind('photo:upload', schemas.upload, (p, dirty) =>
     seated((room, player) => {
+      // Stale lobby (e.g. the host just changed the theme): refuse before any work.
+      if (room.phase === 'lobby' && !canPlacePhoto(room, p.slot, p.kind)) return failure('BAD_REQUEST');
       if (!uploads.take(now())) return failure('RATE_LIMITED');
       const size = p.data.byteLength;
       if (size > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');

@@ -1,12 +1,16 @@
 import {
+  DEFAULT_SETTINGS,
   POINTS_PER_CORRECT,
+  THEME_DEFAULT_PHOTOS,
+  defaultKindForSlot,
   type Award,
-  type ParentKind,
+  type PhotoKind,
   type PhotoResult,
   type PublicPlayer,
   type RankingEntry,
   type ResultsView,
   type RoomView,
+  type Theme,
 } from '../../../shared/protocol';
 import { fakePhoto, fakePlayers, fakeView } from '../../dev/fixtures';
 import { seeded } from '../../lib/util';
@@ -18,8 +22,12 @@ import { seeded } from '../../lib/util';
 export interface SimOptions {
   players: number;
   seed: number;
-  /** Photos per player index (default 2). */
+  /** Theme the game was played with (default 'parents'). */
+  theme?: Theme;
+  /** Photos per player index (default: the theme's default count). */
   photos?: (i: number) => number;
+  /** Kind of player i's photo in `slot` (default: the theme's default kind for the slot). */
+  kinds?: (i: number, slot: number) => PhotoKind;
   /** Probability that player i guesses right (default 0.2..0.8 spread). */
   skill?: (i: number) => number;
   /** Probability of not voting on a photo. */
@@ -38,14 +46,16 @@ interface Sim {
 export function simulate(o: SimOptions): Sim {
   const rand = seeded(o.seed);
   const players = fakePlayers(o.players, { offline: o.offline }).map((p, i) => ({ ...p, name: o.names?.[i] ?? p.name }));
-  const photosOf = o.photos ?? (() => 2);
+  const theme = o.theme ?? 'parents';
+  const photosOf = o.photos ?? (() => THEME_DEFAULT_PHOTOS[theme]);
+  const kindOf = o.kinds ?? ((_i: number, slot: number) => defaultKindForSlot(theme, slot));
   const skill = o.skill ?? ((i: number) => 0.25 + ((i * 37) % 10) / 16);
   const owners = players.filter((_, i) => photosOf(i) > 0).map((p) => p.id);
 
   // Photos, shuffled.
-  const list: { ownerId: string; kind: ParentKind; seed: number }[] = [];
+  const list: { ownerId: string; kind: PhotoKind; seed: number }[] = [];
   players.forEach((p, i) => {
-    for (let s = 0; s < photosOf(i); s++) list.push({ ownerId: p.id, kind: s === 0 ? 'daron' : 'daronne', seed: i * 10 + s + o.seed });
+    for (let s = 0; s < photosOf(i); s++) list.push({ ownerId: p.id, kind: kindOf(i, s), seed: i * 10 + s + o.seed });
   });
   for (let i = list.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
@@ -221,7 +231,9 @@ export function resultsView(
   const meId = sim.players[meIndex].id;
   const votes = sim.votes;
   const results: ResultsView = { ...sim.results, photos: sim.results.photos.map((p) => ({ ...p, myVote: votes[p.photo.id]?.[meId] ?? null })) };
-  return fakeView(sim.players, meIndex, { phase: 'results', results });
+  const theme = opts.theme ?? 'parents';
+  const photosPerPlayer = Math.max(1, ...sim.players.map((_, i) => opts.photos?.(i) ?? THEME_DEFAULT_PHOTOS[theme]));
+  return fakeView(sim.players, meIndex, { phase: 'results', results, settings: { ...DEFAULT_SETTINGS, theme, photosPerPlayer } });
 }
 
 export const rankOf = (sim: Sim, id: string) => sim.results.ranking.find((r) => r.playerId === id)?.rank ?? 0;

@@ -115,6 +115,8 @@ function PhaseSwitch({ view }: { view: RoomView }) {
       const s = PHASE_SOUNDS[view.phase];
       if (s) sfx.play(s);
       prevPhase.current = view.phase;
+      // Each phase starts at its top (the host may have scrolled down to the lobby settings).
+      window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [view.phase]);
 

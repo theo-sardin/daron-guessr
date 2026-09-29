@@ -7,7 +7,7 @@ import { cn, seeded } from '../../lib/util';
 /**
  * Photo box sizes. The photo is capped by the viewport height so that on a phone the
  * question, the photo and the first row of candidates fit on one screen. The owner's
- * view is a bit smaller to make room for the "that's YOUR parent" banner.
+ * view is a bit smaller to make room for the "that's YOUR ___!" banner.
  */
 const SIZES = {
   normal: {

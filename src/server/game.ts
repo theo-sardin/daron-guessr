@@ -16,21 +16,28 @@ import {
   MAX_PHOTO_BYTES,
   MAX_PLAYERS,
   MIN_PHOTO_OWNERS,
+  PHOTO_KINDS,
   PHOTO_SLOTS,
+  PHOTOS_PER_PLAYER_OPTIONS,
   PLAYER_COLORS,
   POINTS_PER_CORRECT,
   REVEAL_INTRO_MS,
   REVEAL_OWNER_AT_MS,
   ROUND_GAP_MS,
+  THEMES,
+  THEME_DEFAULT_PHOTOS,
   VOTE_SECONDS_OPTIONS,
+  defaultKindForSlot,
+  isKindAllowed,
   sanitizeName,
   type Award,
   type ErrorCode,
-  type ParentKind,
   type Phase,
+  type PhotoKind,
   type PhotoSlot,
   type RankingEntry,
   type Settings,
+  type Theme,
 } from '../shared/protocol';
 
 // ---------------------------------------------------------------------------
@@ -83,7 +90,7 @@ export interface Photo {
   id: string;
   ownerId: string;
   slot: PhotoSlot;
-  kind: ParentKind;
+  kind: PhotoKind;
   mime: PhotoMime;
   data: Buffer;
   uploadedAt: number;
@@ -102,9 +109,9 @@ export interface RevealState {
 
 export interface GameState {
   startedAt: number;
-  /** Photo ids in play order (voting and reveal). */
+  /** Photo ids in play order (voting and reveal): active-slot photos only. */
   order: string[];
-  /** Players that had >= 1 photo when the game started, in join order: the vote candidates. */
+  /** Players that had >= 1 active-slot photo when the game started, in join order: the vote candidates. */
   ownerIds: string[];
   /** Per round: voter id -> vote (decoys included). */
   votes: Map<string, Vote>[];
@@ -144,7 +151,7 @@ export interface NewPlayer {
 export interface NewPhoto {
   id: string;
   slot: PhotoSlot;
-  kind: ParentKind;
+  kind: PhotoKind;
   mime: PhotoMime;
   data: Buffer;
 }
@@ -165,12 +172,28 @@ export function findPlayerByToken(room: Room, token: string): Player | undefined
   return token ? room.players.find((p) => p.token === token) : undefined;
 }
 
+/** Every photo of a player, inactive slots included, by slot. */
 export function playerPhotos(room: Room, playerId: string): Photo[] {
   return room.photos.filter((ph) => ph.ownerId === playerId).sort((a, b) => a.slot - b.slot);
 }
 
 export function hasPhotos(room: Room, playerId: string): boolean {
   return room.photos.some((ph) => ph.ownerId === playerId);
+}
+
+/** Only the first `settings.photosPerPlayer` slots are played; photos in the others are kept but ignored. */
+export function isActiveSlot(room: Room, slot: number): boolean {
+  return slot < room.settings.photosPerPlayer;
+}
+
+/** A player's photos that take part in the game (active slots), by slot. */
+export function activePhotos(room: Room, playerId: string): Photo[] {
+  return playerPhotos(room, playerId).filter((ph) => isActiveSlot(room, ph.slot));
+}
+
+/** Lobby readiness: at least one photo in an active slot. */
+export function hasActivePhotos(room: Room, playerId: string): boolean {
+  return room.photos.some((ph) => ph.ownerId === playerId && isActiveSlot(room, ph.slot));
 }
 
 export function isRoomEmpty(room: Room): boolean {
@@ -191,10 +214,20 @@ export function gamePhoto(room: Room, index: number): Photo {
 }
 
 const isSlot = (slot: number): slot is PhotoSlot => (PHOTO_SLOTS as readonly number[]).includes(slot);
-const isKind = (kind: string): kind is ParentKind => kind === 'daron' || kind === 'daronne';
+const isKind = (kind: unknown): kind is PhotoKind => (PHOTO_KINDS as readonly unknown[]).includes(kind);
+const isTheme = (theme: unknown): theme is Theme => (THEMES as readonly unknown[]).includes(theme);
+const isPhotosPerPlayer = (n: unknown): n is number => (PHOTOS_PER_PLAYER_OPTIONS as readonly unknown[]).includes(n);
 const isAvatar = (avatar: string) => (AVATARS as readonly string[]).includes(avatar);
 /** Comparison key for names: case-insensitive, ignoring emoji variation selectors. */
 const nameKey = (name: string) => name.normalize('NFC').replace(/[\ufe0e\ufe0f]/g, '').toLowerCase();
+
+/**
+ * Whether a photo of `kind` may go in `slot` under the current settings: an active slot, and
+ * a kind the theme allows. Checked on upload and relabel (BAD_REQUEST otherwise).
+ */
+export function canPlacePhoto(room: Room, slot: number, kind: string): boolean {
+  return isSlot(slot) && isActiveSlot(room, slot) && isKind(kind) && isKindAllowed(room.settings.theme, kind);
+}
 
 /** Validates a name / avatar pair; returns the sanitized name. */
 function checkIdentity(room: Room | null, rawName: string, avatar: string, selfId?: string): Result<string> {
@@ -354,7 +387,7 @@ function transferHost(room: Room, fromId: string, now: number): boolean {
 export function uploadPhoto(room: Room, playerId: string, input: NewPhoto, now: number): Result<Photo> {
   const player = member(room, playerId, 'lobby');
   if (!player.ok) return player;
-  if (!isSlot(input.slot) || !isKind(input.kind)) return fail('BAD_REQUEST');
+  if (!canPlacePhoto(room, input.slot, input.kind)) return fail('BAD_REQUEST');
   if (!(ACCEPTED_PHOTO_MIME as readonly string[]).includes(input.mime) || input.data.byteLength === 0) {
     return fail('INVALID_PHOTO');
   }
@@ -373,25 +406,41 @@ export function removePhoto(room: Room, playerId: string, slot: PhotoSlot): Resu
   return DONE;
 }
 
-export function setPhotoKind(room: Room, playerId: string, slot: PhotoSlot, kind: ParentKind): Result {
+/** Relabels an uploaded photo; the slot must be active and the kind allowed by the theme. */
+export function setPhotoKind(room: Room, playerId: string, slot: PhotoSlot, kind: PhotoKind): Result {
   const player = member(room, playerId, 'lobby');
   if (!player.ok) return player;
   const photo = room.photos.find((ph) => ph.ownerId === playerId && ph.slot === slot);
-  if (!photo || !isKind(kind)) return fail('BAD_REQUEST');
+  if (!photo || !canPlacePhoto(room, slot, kind)) return fail('BAD_REQUEST');
   photo.kind = kind;
   return DONE;
 }
 
+/**
+ * Host, lobby. All-or-nothing: an invalid field rejects the whole update. Switching to
+ * another theme relabels every uploaded photo whose kind it does not allow (inactive slots
+ * included) to `defaultKindForSlot`, and resets `photosPerPlayer` to the theme's default
+ * unless the same update sets it. Sending the current theme again changes nothing.
+ */
 export function updateSettings(room: Room, playerId: string, patch: Partial<Settings>): Result {
   const auth = host(room, playerId, 'lobby');
   if (!auth.ok) return auth;
-  const { voteSeconds, anonymousVotes } = patch;
+  const { voteSeconds, anonymousVotes, theme, photosPerPlayer } = patch;
   if (voteSeconds !== undefined && !(VOTE_SECONDS_OPTIONS as readonly number[]).includes(voteSeconds)) {
     return fail('BAD_REQUEST');
   }
   if (anonymousVotes !== undefined && typeof anonymousVotes !== 'boolean') return fail('BAD_REQUEST');
-  if (voteSeconds !== undefined) room.settings.voteSeconds = voteSeconds;
-  if (anonymousVotes !== undefined) room.settings.anonymousVotes = anonymousVotes;
+  if (theme !== undefined && !isTheme(theme)) return fail('BAD_REQUEST');
+  if (photosPerPlayer !== undefined && !isPhotosPerPlayer(photosPerPlayer)) return fail('BAD_REQUEST');
+  const settings = room.settings;
+  if (voteSeconds !== undefined) settings.voteSeconds = voteSeconds;
+  if (anonymousVotes !== undefined) settings.anonymousVotes = anonymousVotes;
+  if (theme !== undefined && theme !== settings.theme) {
+    settings.theme = theme;
+    settings.photosPerPlayer = THEME_DEFAULT_PHOTOS[theme];
+    for (const ph of room.photos) if (!isKindAllowed(theme, ph.kind)) ph.kind = defaultKindForSlot(theme, ph.slot);
+  }
+  if (photosPerPlayer !== undefined) settings.photosPerPlayer = photosPerPlayer;
   return DONE;
 }
 
@@ -402,10 +451,11 @@ export function updateSettings(room: Room, playerId: string, patch: Partial<Sett
 export function startGame(room: Room, playerId: string, now: number, rng: Rng): Result {
   const auth = host(room, playerId, 'lobby');
   if (!auth.ok) return auth;
-  const ownerIds = room.players.filter((p) => hasPhotos(room, p.id)).map((p) => p.id);
+  // Only active slots play: photos in the others stay in the room, unused.
+  const ownerIds = room.players.filter((p) => hasActivePhotos(room, p.id)).map((p) => p.id);
   if (ownerIds.length < MIN_PHOTO_OWNERS) return fail('NOT_ENOUGH_PLAYERS');
   // Deterministic input order so that a seeded RNG gives a reproducible shuffle.
-  const photos = ownerIds.flatMap((id) => playerPhotos(room, id));
+  const photos = ownerIds.flatMap((id) => activePhotos(room, id));
   const order = arrangeAvoidingRepeats(photos, (ph) => ph.ownerId, rng).map((ph) => ph.id);
   const startsAt = now + room.timing.gameIntroMs;
   room.game = {
@@ -552,9 +602,10 @@ export function nextReveal(room: Room, playerId: string, index: number, now: num
 }
 
 /**
- * Host, results: back to the lobby with the same players and settings. Players who are
- * disconnected get a fresh lobby grace period (`lobbyDropMs` from now) instead of being
- * dropped at once for having been away during the game.
+ * Host, results: back to the lobby with the same players and settings (theme and photos per
+ * player included); every photo is deleted. Players who are disconnected get a fresh lobby
+ * grace period (`lobbyDropMs` from now) instead of being dropped at once for having been
+ * away during the game.
  */
 export function playAgain(room: Room, playerId: string, now: number): Result {
   const auth = host(room, playerId, 'results');

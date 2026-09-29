@@ -1,9 +1,15 @@
 import { motion } from 'motion/react';
-import type { ParentKind } from '../../../shared/protocol';
+import type { PhotoKind } from '../../../shared/protocol';
 import { useI18n } from '../../i18n';
+import type { QuipGroup } from '../../i18n/strings/voting';
+
+/** Faces (family, friends, pets) share the quips; kid photos and random picks get their own. */
+function quipGroup(kind: PhotoKind): QuipGroup {
+  return kind === 'kid' || kind === 'pick' ? kind : 'people';
+}
 
 /** Quick "Photo 3/8" card sweeping across the screen between two rounds. */
-export function RoundTransition({ round, total, kind }: { round: number; total: number; kind: ParentKind }) {
+export function RoundTransition({ round, total, kind }: { round: number; total: number; kind: PhotoKind }) {
   const { t, tpick } = useI18n();
   const last = round === total - 1;
   return (
@@ -45,10 +51,10 @@ export function RoundTransition({ round, total, kind }: { round: number; total: 
           {round + 1}
           <span className="text-4xl opacity-60 sm:text-6xl">/{total}</span>
         </span>
-        <span className="mt-2 rounded-full border-2 border-ink bg-cream px-3 py-1 text-sm font-extrabold">
+        <span className="mt-2 rounded-full border-2 border-ink bg-cream px-3 py-1 text-sm font-extrabold text-balance">
           {t(`common.kindEmoji.${kind}`)} {last ? t('voting.transition.last') : t(`voting.transition.next.${kind}`)}
         </span>
-        <span className="mt-2 text-sm font-bold opacity-80">{tpick('voting.transition.quips', round * 31 + total)}</span>
+        <span className="mt-2 text-sm font-bold opacity-80">{tpick(`voting.transition.quips.${quipGroup(kind)}`, round * 31 + total)}</span>
       </motion.div>
     </motion.div>
   );

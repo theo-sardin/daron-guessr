@@ -1,10 +1,11 @@
 import { motion } from 'motion/react';
-import { POINTS_PER_CORRECT, type ParentKind, type PublicPlayer } from '../../../shared/protocol';
+import { POINTS_PER_CORRECT, type PhotoKind, type PublicPlayer } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Card } from '../../components/Card';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/util';
 import type { PersonalResult } from './effects';
+import { CAPTION_GROUP } from './kinds';
 
 /** The viewer's private verdict for this photo, shown once the owner is revealed. */
 export function Feedback({
@@ -16,7 +17,7 @@ export function Feedback({
   total,
 }: {
   result: PersonalResult;
-  kind: ParentKind;
+  kind: PhotoKind;
   index: number;
   /** The candidate the viewer voted for (wrong answers). */
   picked: PublicPlayer | null;
@@ -71,7 +72,8 @@ export function Feedback({
 
   if (result === 'proud' || result === 'offended') {
     const line = total > 0 ? t(`reveal.me.mineCount.${kind}`, { correct, total }) : t(`reveal.me.mineNoVotes.${kind}`);
-    const mood = result === 'proud' ? tpick('reveal.me.mineProud', index) : tpick('reveal.me.mineOffended', index);
+    const group = CAPTION_GROUP[kind];
+    const mood = result === 'proud' ? tpick(`reveal.me.mineProud.${group}`, index) : tpick(`reveal.me.mineOffended.${group}`, index);
     return (
       <Card tone="sun" padded={false} className="flex items-center gap-3 px-4 py-3" {...enter}>
         <motion.span
@@ -84,7 +86,7 @@ export function Feedback({
           {result === 'proud' ? '😎' : '😤'}
         </motion.span>
         <div className="min-w-0">
-          <p className="font-display text-2xl leading-tight">{t(`reveal.me.mineTitle.${kind}`)}</p>
+          <p className="font-display text-2xl leading-tight break-words">{t(`reveal.me.mineTitle.${kind}`)}</p>
           <p className="text-sm font-extrabold">{line}</p>
           <p className="text-xs font-bold opacity-70">{mood}</p>
         </div>

@@ -86,8 +86,9 @@ function HostStart({ view }: { view: RoomView }) {
   };
 
   let helper: string;
-  if (missing === 1) helper = t('lobby.start.needMoreOne');
-  else if (missing > 1) helper = t('lobby.start.needMoreMany', { n: missing });
+  const withWhat = t(`lobby.start.with.${view.settings.theme}`);
+  if (missing === 1) helper = t('lobby.start.needMoreOne', { with: withWhat });
+  else if (missing > 1) helper = t('lobby.start.needMoreMany', { n: missing, with: withWhat });
   else if (notReady.length > 0) helper = t('lobby.start.someReady', { ready: readyCount, total: view.players.length });
   else helper = t('lobby.start.allReady');
 

@@ -3,7 +3,7 @@ import {
   DEFAULT_SETTINGS,
   PLAYER_COLORS,
   photoUrl,
-  type ParentKind,
+  type PhotoKind,
   type PhotoRef,
   type PublicPlayer,
   type RoomView,
@@ -38,15 +38,19 @@ const BG = ['#a8d8ea', '#f6c6ea', '#fce38a', '#b5ead7', '#c7ceea', '#ffd3b6', '#
  * A cartoon "parent portrait" as an SVG data URI, so layouts can be judged with
  * something photo-like. Deterministic per seed.
  */
-export function fakePortrait(seed: number, kind: ParentKind): string {
-  const r = seeded(seed * 7919 + (kind === 'daron' ? 1 : 2));
+export function fakePortrait(seed: number, kind: PhotoKind): string {
+  if (kind === 'pick') return fakePick(seed);
+  const r = seeded(seed * 7919 + PHOTO_KIND_SEED[kind]);
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const skin = pick(SKIN);
   const hair = pick(HAIR);
   const bg = pick(BG);
-  const glasses = r() > 0.6;
-  const mustache = kind === 'daron' && r() > 0.35;
-  const longHair = kind === 'daronne' && r() > 0.25;
+  const masculine = kind === 'daron' || kind === 'brother' || kind === 'grandpa';
+  const feminine = kind === 'daronne' || kind === 'sister' || kind === 'grandma';
+  const kid = kind === 'kid';
+  const glasses = !kid && r() > 0.6;
+  const mustache = masculine && r() > 0.35;
+  const longHair = (feminine || kid) && r() > 0.25;
   const smile = r() > 0.3;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480">
 <rect width="400" height="480" fill="${bg}"/>
@@ -55,7 +59,8 @@ ${longHair ? `<ellipse cx="200" cy="260" rx="150" ry="190" fill="${hair}"/>` : '
 <rect x="165" y="290" width="70" height="70" fill="${skin}"/>
 <ellipse cx="200" cy="220" rx="110" ry="130" fill="${skin}"/>
 <path d="M90 190 Q110 70 200 80 Q300 75 312 190 Q290 120 200 125 Q120 120 90 190Z" fill="${hair}"/>
-<circle cx="160" cy="215" r="10" fill="#1b1036"/><circle cx="240" cy="215" r="10" fill="#1b1036"/>
+<circle cx="160" cy="215" r="${kid ? 16 : 10}" fill="#1b1036"/><circle cx="240" cy="215" r="${kid ? 16 : 10}" fill="#1b1036"/>
+${kid ? '<circle cx="135" cy="265" r="18" fill="#ff8fa3" opacity="0.6"/><circle cx="265" cy="265" r="18" fill="#ff8fa3" opacity="0.6"/>' : ''}
 ${glasses ? '<circle cx="160" cy="215" r="28" fill="none" stroke="#1b1036" stroke-width="6"/><circle cx="240" cy="215" r="28" fill="none" stroke="#1b1036" stroke-width="6"/><line x1="188" y1="215" x2="212" y2="215" stroke="#1b1036" stroke-width="6"/>' : ''}
 ${mustache ? `<path d="M200 272c-8-14-30-18-46-8-10 6-18 14-30 10 8 16 36 20 52 12 10-5 16-10 24-10s14 5 24 10c16 8 44 4 52-12-12 4-20-4-30-10-16-10-38-6-46 8z" fill="${hair}"/>` : ''}
 <path d="${smile ? 'M165 295 Q200 325 235 295' : 'M170 305 L230 305'}" stroke="#7a2b2b" stroke-width="7" fill="none" stroke-linecap="round"/>
@@ -63,7 +68,27 @@ ${mustache ? `<path d="M200 272c-8-14-30-18-46-8-10 6-18 14-30 10 8 16 36 20 52 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-export function fakePhoto(seed: number, kind: ParentKind): PhotoRef {
+const PHOTO_KIND_SEED: Record<PhotoKind, number> = {
+  daron: 1, daronne: 2, brother: 3, sister: 4, grandpa: 5, grandma: 6, friend: 7, partner: 8, pet: 9, kid: 10, pick: 11,
+};
+
+/** A "random picture someone picked": a little landscape with a sun and a caption. */
+function fakePick(seed: number): string {
+  const r = seeded(seed * 104729);
+  const sky = BG[Math.floor(r() * BG.length)];
+  const hill = ['#3ddc97', '#7bd389', '#2ec4b6', '#b388ff'][Math.floor(r() * 4)];
+  const caption = ['MOOD', 'VIBES', 'MONDAY', 'LOL', 'MY PLACE'][Math.floor(r() * 5)];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480">
+<rect width="400" height="480" fill="${sky}"/>
+<circle cx="${90 + Math.round(r() * 220)}" cy="120" r="55" fill="#ffd23f"/>
+<path d="M0 360 Q100 260 200 340 T400 320 V480 H0Z" fill="${hill}"/>
+<path d="M0 420 Q120 360 240 410 T400 400 V480 H0Z" fill="#1b1036" opacity="0.25"/>
+<text x="200" y="455" font-family="Impact, sans-serif" font-size="56" text-anchor="middle" fill="#fff" stroke="#1b1036" stroke-width="4" paint-order="stroke">${caption}</text>
+</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export function fakePhoto(seed: number, kind: PhotoKind): PhotoRef {
   return { id: `photo${seed}`, url: fakePortrait(seed, kind), kind };
 }
 

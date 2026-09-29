@@ -6,7 +6,7 @@ import { Card } from '../../components/Card';
 import { useI18n, type I18n } from '../../i18n';
 import { sfx } from '../../lib/sfx';
 import { cn } from '../../lib/util';
-import { AWARD_EMOJI, AWARD_TONE, joinNames, playerOr, seedOf, tiltOf } from './helpers';
+import { AWARD_TONE, awardEmoji, awardFlavor, joinNames, playerOr, seedOf, tiltOf, type Flavor } from './helpers';
 
 type PlayerAwardId = 'sherlock' | 'needsGlasses' | 'carbonCopy' | 'masterOfDisguise' | 'doppelganger';
 
@@ -16,13 +16,17 @@ interface AwardCopy {
   stat: string;
 }
 
-/** Title, funny description and headline stat of an award, in the current language. */
+/**
+ * Title, funny description and headline stat of an award, in the current language.
+ * `flavor` is the award's own flavor (see `awardFlavor`).
+ */
 export function awardCopy(
   award: Award,
   { t, tpick }: Pick<I18n, 't' | 'tpick'>,
   players: Map<string, PublicPlayer>,
   photos: Map<string, PhotoResult>,
   seed: string,
+  flavor: Flavor,
 ): AwardCopy {
   const winners = award.playerIds.map((id) => playerOr(players, id));
   const names = joinNames(
@@ -30,7 +34,7 @@ export function awardCopy(
     t('results.and'),
   );
   const s = seedOf(seed, award.id);
-  const title = t(`results.awards.${award.id}.title`);
+  const title = t(`results.awards.${award.id}.title.${flavor}`);
   const stat = t(`results.awards.stat.${award.id}`, { value: award.value, total: award.total ?? '?' });
   const vars = { names, value: award.value, total: award.total ?? '?' };
 
@@ -44,6 +48,7 @@ export function awardCopy(
     case 'biggestMixup': {
       const photo = award.photoId ? photos.get(award.photoId) : undefined;
       const kind = photo?.photo.kind ?? 'daron';
+      // {possessive} for relatives ("Paul's mom"), {names} (the owner) for kid / pick photos.
       const possessive = t(`results.awards.possessiveMid.${kind}`, { name: winners[0]?.name ?? '' });
       const other = award.otherPlayerId ? playerOr(players, award.otherPlayerId).name : '???';
       return { title, stat, text: tpick(`results.awards.biggestMixup.${kind}`, s, { ...vars, possessive, other }) };
@@ -51,7 +56,7 @@ export function awardCopy(
     default: {
       const id: PlayerAwardId = award.id;
       const plural = winners.length > 1 ? 'many' : 'one';
-      return { title, stat, text: tpick(`results.awards.${id}.${plural}`, s, vars) };
+      return { title, stat, text: tpick(`results.awards.${id}.${flavor}.${plural}`, s, vars) };
     }
   }
 }
@@ -96,6 +101,7 @@ function AwardCard({
   photos,
   meId,
   seed,
+  flavor,
   onOpenPhoto,
 }: {
   award: Award;
@@ -107,6 +113,8 @@ function AwardCard({
   photos: Map<string, PhotoResult>;
   meId: string;
   seed: string;
+  /** This award's flavor. */
+  flavor: Flavor;
   onOpenPhoto: (photo: PhotoResult) => void;
 }) {
   const i18n = useI18n();
@@ -114,7 +122,7 @@ function AwardCard({
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.35 });
   const show = ready && inView;
-  const copy = awardCopy(award, i18n, players, photos, seed);
+  const copy = awardCopy(award, i18n, players, photos, seed, flavor);
   const tone = AWARD_TONE[award.id];
   const photo = award.photoId ? photos.get(award.photoId) : undefined;
   const winners = award.playerIds.map((id) => playerOr(players, id));
@@ -147,7 +155,7 @@ function AwardCard({
             transition={{ type: 'tween', duration: 0.9, delay: delay + 0.3, ease: 'easeOut' }}
             aria-hidden
           >
-            {AWARD_EMOJI[award.id]}
+            {awardEmoji(award.id, flavor)}
           </motion.div>
           <div className="min-w-0 flex-1">
             <h3 className="font-display text-2xl leading-tight">{copy.title}</h3>
@@ -204,6 +212,7 @@ export function Awards({
   photos,
   meId,
   seed,
+  flavor,
   ready,
   onOpenPhoto,
 }: {
@@ -212,6 +221,8 @@ export function Awards({
   photos: Map<string, PhotoResult>;
   meId: string;
   seed: string;
+  /** The game's flavor. */
+  flavor: Flavor;
   ready: boolean;
   onOpenPhoto: (photo: PhotoResult) => void;
 }) {
@@ -236,6 +247,7 @@ export function Awards({
           photos={photos}
           meId={meId}
           seed={seed}
+          flavor={awardFlavor(award, [...photos.values()], flavor)}
           onOpenPhoto={onOpenPhoto}
         />
       ))}

@@ -5,7 +5,7 @@
  */
 import type { PhotoMime } from './game';
 
-/** Largest accepted width / height. The client sends at most 1280 px. */
+/** Largest accepted width / height. The client sends at most 1080 px. */
 export const MAX_IMAGE_SIDE = 4096;
 
 const JPEG = [0xff, 0xd8, 0xff];

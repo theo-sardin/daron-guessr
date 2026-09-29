@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_VOTED_GRACE_MS, MAX_PLAYERS, POINTS_PER_CORRECT, type RoomView } from '../shared/protocol';
 import * as g from './game';
-import { addPhotos, idOf, makeRoom, newPlayer, seededRng, unwrap } from './testUtils';
+import { addPhoto, addPhotos, allCorrect, idOf, makeRoom, newPlayer, playAllRounds, revealAll, seededRng, unwrap } from './testUtils';
 import { buildView, peekRoom } from './views';
 
 const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'];
@@ -49,7 +49,7 @@ const PHOTO_RESULT_KEYS = ['correctVotes', 'index', 'myVote', 'ownerId', 'photo'
  */
 function expectExactShape(view: RoomView): void {
   expect(keys(view)).toEqual(ROOM_VIEW_KEYS);
-  expect(keys(view.settings)).toEqual(['anonymousVotes', 'voteSeconds']);
+  expect(keys(view.settings)).toEqual(['anonymousVotes', 'photosPerPlayer', 'theme', 'voteSeconds']);
   for (const p of view.players) expect(keys(p)).toEqual(PLAYER_KEYS);
   for (const ph of view.myPhotos) expect(keys(ph)).toEqual([...PHOTO_REF_KEYS, 'slot'].sort());
   if (view.voting) {
@@ -278,6 +278,76 @@ describe('reveal and results views', () => {
     expect(view.results!.ranking.every((r) => r.score === r.correct * POINTS_PER_CORRECT)).toBe(true);
     expect(view.results!.awards).toEqual(g.computeAwards(room));
     expect(view.results!.photos).toHaveLength(5);
+  });
+});
+
+describe('themes and photos per player in views', () => {
+  it('count only active slots for readiness, while myPhotos keeps every slot', () => {
+    const room = makeRoom(NAMES);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 3 }));
+    addPhotos(room, [3, 0, 1, 1, 0]);
+    addPhoto(room, B, 2);
+    const ready = () => buildView(room, E, 0).players.map((p) => p.ready);
+    expect(ready()).toEqual([true, true, true, true, false]);
+
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 2 }));
+    expect(ready()).toEqual([true, false, true, true, false]);
+    const alice = buildView(room, A, 0);
+    expect(alice.settings).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2 });
+    expect(alice.myPhotos.map((ph) => [ph.slot, ph.kind])).toEqual([[0, 'daron'], [1, 'daronne'], [2, 'daron']]);
+    expect(buildView(room, B, 0).myPhotos.map((ph) => ph.slot)).toEqual([2]);
+
+    // A theme switch shows up in the settings and in the relabeled photos.
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    const after = buildView(room, A, 0);
+    expect(after.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 1 });
+    expect(after.myPhotos.map((ph) => [ph.slot, ph.kind])).toEqual([[0, 'kid'], [1, 'kid'], [2, 'kid']]);
+    expect(ready()).toEqual([true, false, true, true, false]);
+    for (const view of viewsOf(room, 0)) expectExactShape(view);
+  });
+
+  it('never leak inactive photos to other players, and never play them', () => {
+    const room = makeRoom(NAMES);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 3, voteSeconds: 0 }));
+    addPhotos(room, [3, 3, 3, 1, 0]);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 1 }));
+    const inactive = room.photos.filter((ph) => ph.slot > 0);
+    unwrap(g.startGame(room, A, 0, seededRng(4)));
+    expect(game(room).order).toHaveLength(4);
+    const check = () => {
+      for (const view of viewsOf(room, 0)) {
+        const json = JSON.stringify(view);
+        for (const ph of inactive) expect(json.includes(ph.id)).toBe(ph.ownerId === view.meId);
+      }
+    };
+    while (room.phase === 'voting') {
+      check();
+      expect(g.gamePhoto(room, game(room).round).slot).toBe(0);
+      unwrap(g.skipRound(room, A, game(room).round, game(room).roundStartsAt));
+    }
+    check();
+    revealAll(room, 0);
+    check();
+    expect(buildView(room, E, 0).results!.photos).toHaveLength(4);
+  });
+
+  it('carry each photo kind through a childhood game', () => {
+    const room = makeRoom(NAMES.slice(0, 4));
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    addPhotos(room, [1, 1, 1, 1]);
+    unwrap(g.startGame(room, A, 0, seededRng(3)));
+    expect(buildView(room, B, 0).voting).toMatchObject({ totalRounds: 4, photo: { kind: 'kid' } });
+    const reveal = playAllRounds(room, allCorrect, 0);
+    expect(buildView(room, B, reveal).reveal!.current.photo.kind).toBe('kid');
+    revealAll(room, reveal);
+    const results = buildView(room, B, 0).results!;
+    expect(results.photos.map((ph) => ph.photo.kind)).toEqual(['kid', 'kid', 'kid', 'kid']);
+    expect(results.photos.every((ph) => ph.correctVotes === 3)).toBe(true);
+    unwrap(g.playAgain(room, A, 0));
+    const lobby = buildView(room, B, 0);
+    expect(lobby.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 1 });
+    expect(lobby.myPhotos).toEqual([]);
+    expect(lobby.players.every((p) => !p.ready)).toBe(true);
   });
 });
 

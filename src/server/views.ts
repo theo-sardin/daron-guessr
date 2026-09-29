@@ -26,7 +26,7 @@ import {
   computeRanking,
   findPlayer,
   gamePhoto,
-  hasPhotos,
+  hasActivePhotos,
   playerPhotos,
   publicScores,
   requireGame,
@@ -45,6 +45,7 @@ export function buildView(room: Room, viewerId: string, now: number): RoomView {
     hostId: room.hostId,
     settings: { ...room.settings },
     players: publicPlayers(room),
+    // Every slot, inactive ones included: the lobby UI decides what to show.
     myPhotos: playerPhotos(room, viewerId).map((ph) => toMyPhoto(room.code, ph)),
     voting: room.phase === 'voting' ? votingView(room, viewerId) : null,
     reveal: room.phase === 'reveal' ? revealView(room, viewerId) : null,
@@ -74,7 +75,7 @@ function publicPlayers(room: Room): PublicPlayer[] {
     color: p.color,
     connected: p.connected,
     isHost: p.id === room.hostId,
-    ready: hasPhotos(room, p.id),
+    ready: hasActivePhotos(room, p.id),
     score: scores.get(p.id) ?? 0,
   }));
 }

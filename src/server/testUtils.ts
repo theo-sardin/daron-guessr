@@ -1,5 +1,5 @@
 /** Helpers shared by the server unit tests (engine and views). */
-import type { PhotoSlot } from '../shared/protocol';
+import { defaultKindForSlot, type PhotoKind, type PhotoSlot } from '../shared/protocol';
 import * as g from './game';
 
 /** Minimal PNG signature: enough for the engine, which never decodes images. */
@@ -40,17 +40,16 @@ export function makeRoom(names: string[], now = 0, timing: g.Timing = g.DEFAULT_
 
 let photoCounter = 0;
 
-/** Uploads a photo with an opaque id (never derived from the owner). */
-export function addPhoto(room: g.Room, playerId: string, slot: PhotoSlot = 0, now = 0): g.Photo {
+/** A photo with an opaque id (never derived from the owner), of the theme's default kind for its slot. */
+export function newPhoto(room: g.Room, slot: PhotoSlot = 0, kind?: PhotoKind): g.NewPhoto {
   photoCounter += 1;
-  return unwrap(
-    g.uploadPhoto(
-      room,
-      playerId,
-      { id: `photo${photoCounter.toString(16).padStart(6, '0')}`, slot, kind: slot === 0 ? 'daron' : 'daronne', mime: 'image/png', data: PNG_BYTES },
-      now,
-    ),
-  );
+  const id = `photo${photoCounter.toString(16).padStart(6, '0')}`;
+  return { id, slot, kind: kind ?? defaultKindForSlot(room.settings.theme, slot), mime: 'image/png', data: PNG_BYTES };
+}
+
+/** Uploads a photo (see `newPhoto`). */
+export function addPhoto(room: g.Room, playerId: string, slot: PhotoSlot = 0, now = 0, kind?: PhotoKind): g.Photo {
+  return unwrap(g.uploadPhoto(room, playerId, newPhoto(room, slot, kind), now));
 }
 
 /** `counts[i]` photos for the i-th player. */

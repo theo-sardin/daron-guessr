@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { THEMES, type Theme } from '../../../shared/protocol';
 import { Logo } from '../../components/Logo';
 import { useI18n } from '../../i18n';
 import { sfx } from '../../lib/sfx';
@@ -19,13 +20,13 @@ interface MysterySpec {
 
 const CARDS: MysterySpec[] = [
   { silhouette: '👨', tilt: -12, className: 'left-0 top-0 sm:left-2', bg: 'from-sky to-grape-300', delay: 0.35, seed: 0, size: 'md' },
-  { silhouette: '👵', tilt: 11, className: 'right-0 top-10 sm:right-2', bg: 'from-pink to-tangerine', delay: 0.5, seed: 1, size: 'md' },
-  { silhouette: '🧔', tilt: 8, className: 'hidden lg:flex -left-8 top-[9.5rem]', bg: 'from-mint to-sky', delay: 0.65, seed: 3, size: 'sm' },
-  { silhouette: '👩', tilt: -9, className: 'hidden lg:flex -right-6 top-[10.5rem]', bg: 'from-sun to-pink', delay: 0.8, seed: 2, size: 'sm' },
+  { silhouette: '🧒', tilt: 11, className: 'right-0 top-10 sm:right-2', bg: 'from-pink to-tangerine', delay: 0.5, seed: 1, size: 'md' },
+  { silhouette: '🐶', tilt: 8, className: 'hidden lg:flex -left-8 top-[9.5rem]', bg: 'from-mint to-sky', delay: 0.65, seed: 3, size: 'sm' },
+  { silhouette: '👵', tilt: -9, className: 'hidden lg:flex -right-6 top-[10.5rem]', bg: 'from-sun to-pink', delay: 0.8, seed: 2, size: 'sm' },
 ];
 
 /**
- * A mini instant photo whose parent is a black silhouette hidden behind a big "?".
+ * A mini instant photo whose subject (a dad, a kid, a pet…) is a black silhouette hidden behind a big "?".
  * Tapping it teases ("Nice try 😏") instead of revealing anything: the whole game in a nutshell.
  */
 function MysteryCard({ spec }: { spec: MysterySpec }) {
@@ -139,6 +140,70 @@ const STEPS = [
   { key: 'home.how.step3', emoji: '😂', bg: 'bg-pink text-white', tilt: -2 },
 ] as const;
 
+const THEME_TONE: Record<Theme, string> = {
+  parents: 'bg-sun',
+  family: 'bg-mint',
+  childhood: 'bg-sky',
+  pick: 'bg-lilac',
+  mix: 'bg-cream',
+};
+
+function ThemeChip({ theme, hidden }: { theme: Theme; hidden?: boolean }) {
+  const t = useI18n().t;
+  return (
+    <li
+      className={cn(
+        // A trailing margin (not a gap) keeps both copies exactly the same width: seamless loop.
+        'mr-2 flex shrink-0 items-center gap-1.5 rounded-full border-2 border-ink px-2.5 py-1 text-sm font-extrabold whitespace-nowrap text-ink shadow-pop-sm',
+        THEME_TONE[theme],
+      )}
+      title={t(`common.theme.${theme}.desc`)}
+      aria-hidden={hidden || undefined}
+    >
+      <span className="leading-none" style={EMOJI_FONT} aria-hidden>
+        {t(`common.theme.${theme}.emoji`)}
+      </span>
+      {t(`common.theme.${theme}.name`)}
+    </li>
+  );
+}
+
+/**
+ * The themes the host can pick, as an endless conveyor of chips (a plain scrollable row when
+ * motion is reduced): the game is not only about parents.
+ */
+function ThemeChips() {
+  const t = useI18n().t;
+  const reduce = useReducedMotion();
+  return (
+    <div className="mt-4 flex items-center gap-2">
+      <span className="shrink-0 -rotate-3 rounded-lg border-2 border-ink bg-pink px-2 py-0.5 font-display text-sm tracking-wide text-white uppercase shadow-pop-sm">
+        {t('home.themes.label')}
+      </span>
+      <div
+        className={cn(
+          // `contain` keeps the (very wide) conveyor out of the page's intrinsic width.
+          'min-w-0 flex-1 pt-0.5 pb-1.5 [contain:inline-size] [mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)]',
+          reduce ? 'overflow-x-auto' : 'overflow-hidden',
+        )}
+      >
+        <motion.ul
+          className={cn('flex w-max', reduce && 'pl-3')}
+          aria-label={t('home.themes.listLabel')}
+          animate={reduce ? undefined : { x: ['0%', '-50%'] }}
+          transition={{ duration: 26, ease: 'linear', repeat: Infinity }}
+        >
+          {THEMES.map((th) => (
+            <ThemeChip key={th} theme={th} />
+          ))}
+          {/* Second copy so the loop is seamless. */}
+          {!reduce && THEMES.map((th) => <ThemeChip key={`${th}-copy`} theme={th} hidden />)}
+        </motion.ul>
+      </div>
+    </div>
+  );
+}
+
 export function HowItWorks({ className }: { className?: string }) {
   const t = useI18n().t;
   const reduce = useReducedMotion();
@@ -176,6 +241,9 @@ export function HowItWorks({ className }: { className?: string }) {
           </motion.li>
         ))}
       </motion.ol>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, type: 'spring', stiffness: 300, damping: 20 }}>
+        <ThemeChips />
+      </motion.div>
     </section>
   );
 }

@@ -5,27 +5,42 @@
 photo, whose parent is whose. Then comes the reveal: every photo, its votes, a drum roll,
 confetti, and a final recap with a podium and awards.
 
+Not only parents: the host picks a theme for the room.
+
+| Theme | Everyone uploads… | Photos each (default) |
+| --- | --- | --- |
+| 👨👩 **Parents** (the original) | their dad and their mom | 2 |
+| 👨‍👩‍👧 **Friends & family** | photos of their siblings, parents, grandparents, friends, partner or pet | 2 |
+| 🧒 **Mini me** | a photo of themselves as a kid: who was that cutie? | 1 |
+| 🎲 **Who picked it?** | any picture at all (a meme, a place, a dish…): guess who chose it | 1 |
+| 🌀 **Anything goes** | any of the above, all mixed up | 2 |
+
+The host can change the number of photos per player (1 to 3) for any theme.
+
 Playable on phones and desktops, in French or English.
 
 ## How a game goes
 
 1. **Create a room.** Pick a nickname and an avatar, create a room, and share the 4-letter
    code, the invite link or the QR code.
-2. **Upload your darons.** Each player adds a photo of their dad and one of their mom. Only you
-   see your own photos until the game starts.
-3. **Guess.** Photos show up one at a time and everyone votes for whose parent it is. When it's
-   your own parent, you vote too, as a bluff, so nobody can tell it's yours. Votes are
+2. **Pick a theme and upload.** The host picks the theme and the number of photos per player
+   (1 to 3). Each player adds their photos and says what each one shows (your dad, your
+   sister, you as a kid, your pick…). Only you see your own photos until the game starts.
+3. **Guess.** Photos show up one at a time and everyone votes for whose photo it is: "Whose
+   daronne is this?", "Whose sister?", "Who is this as a kid?", "Who picked this?". When it's
+   your own photo, you vote too, as a bluff, so nobody can tell it's yours. Votes are
    anonymous.
-4. **Reveal.** For each photo you see how many votes everyone got, then who the parent really
-   belongs to. Players who guessed right get 100 points.
+4. **Reveal.** For each photo you see how many votes everyone got, then whose it really is.
+   Players who guessed right get 100 points.
 5. **Recap.** A podium, the full ranking, awards (Sherlock, Carbon copy, Master of disguise,
-   Doppelgänger, Biggest mix-up…) and a wall of every photo. The host can start a new round.
+   Doppelgänger, Biggest mix-up…) and a wall of every photo. The host can start a new round,
+   with the same players and settings.
 
 At least **3 players with photos** are needed to start (players without photos can still
 guess). Up to 12 players per room. At any time, players can send floating emoji reactions.
 
-Host settings: seconds per photo (15–60, or no timer) and whether the reveal shows *who*
-voted for whom or only the counts.
+Host settings: the theme, photos per player (1–3), seconds per photo (15–60, or no timer) and
+whether the reveal shows *who* voted for whom or only the counts.
 
 ## Running it locally
 

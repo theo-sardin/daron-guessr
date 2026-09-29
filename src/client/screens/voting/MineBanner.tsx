@@ -1,10 +1,10 @@
 import { motion } from 'motion/react';
-import type { ParentKind } from '../../../shared/protocol';
+import type { PhotoKind } from '../../../shared/protocol';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/util';
 
 /** Shown only to the photo's owner: their vote is a decoy, so bluff away. */
-export function MineBanner({ kind, className }: { kind: ParentKind; className?: string }) {
+export function MineBanner({ kind, className }: { kind: PhotoKind; className?: string }) {
   const t = useT();
   return (
     <motion.div

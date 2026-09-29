@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_VOTED_GRACE_MS,
+  DEFAULT_SETTINGS,
   GAME_INTRO_MS,
   HOST_GRACE_MS,
   MAX_PLAYERS,
@@ -20,6 +21,7 @@ import {
   allCorrect,
   idOf,
   makeRoom,
+  newPhoto,
   newPlayer,
   playAllRounds,
   revealAll,
@@ -458,7 +460,7 @@ describe('lobby rules', () => {
     expect(errorOf(g.updateSettings(room, B, { voteSeconds: 15 }))).toBe('NOT_HOST');
     expect(errorOf(g.updateSettings(room, A, { voteSeconds: 25 }))).toBe('BAD_REQUEST');
     unwrap(g.updateSettings(room, A, { voteSeconds: 0, anonymousVotes: false }));
-    expect(room.settings).toEqual({ voteSeconds: 0, anonymousVotes: false });
+    expect(room.settings).toEqual({ voteSeconds: 0, anonymousVotes: false, theme: 'parents', photosPerPlayer: 2 });
     unwrap(g.setPhotoKind(room, A, 0, 'daronne'));
     expect(errorOf(g.setPhotoKind(room, A, 1, 'daron'))).toBe('BAD_REQUEST');
 
@@ -524,6 +526,179 @@ describe('lobby rules', () => {
     const room = makeRoom(['Solo']);
     unwrap(g.leaveRoom(room, idOf('Solo'), 1));
     expect(g.isRoomEmpty(room)).toBe(true);
+  });
+});
+
+describe('themes and photos per player', () => {
+  const kinds = (room: g.Room, playerId: string) => g.playerPhotos(room, playerId).map((ph) => [ph.slot, ph.kind]);
+
+  it('starts with the parents theme and 2 photos per player', () => {
+    expect(makeRoom(FOUR).settings).toEqual(DEFAULT_SETTINGS);
+    expect(DEFAULT_SETTINGS).toMatchObject({ theme: 'parents', photosPerPlayer: 2 });
+  });
+
+  it('switching theme relabels the kinds it does not allow and resets photosPerPlayer', () => {
+    const room = makeRoom(FOUR);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 3 }));
+    addPhotos(room, [3, 1, 0, 0]);
+    expect(kinds(room, A)).toEqual([[0, 'daron'], [1, 'daronne'], [2, 'daron']]);
+
+    // Family allows parents: nothing to relabel, back to the family default count.
+    unwrap(g.updateSettings(room, A, { theme: 'family' }));
+    expect(room.settings).toMatchObject({ theme: 'family', photosPerPlayer: 2 });
+    expect(kinds(room, A)).toEqual([[0, 'daron'], [1, 'daronne'], [2, 'daron']]);
+    unwrap(g.setPhotoKind(room, B, 0, 'pet'));
+
+    // Childhood: everything becomes 'kid', inactive slots included, and nothing is deleted.
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    expect(room.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 1 });
+    expect(kinds(room, A)).toEqual([[0, 'kid'], [1, 'kid'], [2, 'kid']]);
+    expect(kinds(room, B)).toEqual([[0, 'kid']]);
+
+    unwrap(g.updateSettings(room, A, { theme: 'pick' }));
+    expect(room.settings).toMatchObject({ theme: 'pick', photosPerPlayer: 1 });
+    expect(kinds(room, A)).toEqual([[0, 'pick'], [1, 'pick'], [2, 'pick']]);
+
+    // Mix allows every kind: labels stay.
+    unwrap(g.updateSettings(room, A, { theme: 'mix' }));
+    expect(room.settings).toMatchObject({ theme: 'mix', photosPerPlayer: 2 });
+    expect(kinds(room, A)).toEqual([[0, 'pick'], [1, 'pick'], [2, 'pick']]);
+    unwrap(g.setPhotoKind(room, B, 0, 'grandma'));
+
+    // Back to parents: each slot gets that theme's default kind.
+    unwrap(g.updateSettings(room, A, { theme: 'parents' }));
+    expect(room.settings).toMatchObject({ theme: 'parents', photosPerPlayer: 2 });
+    expect(kinds(room, A)).toEqual([[0, 'daron'], [1, 'daronne'], [2, 'daron']]);
+    expect(kinds(room, B)).toEqual([[0, 'daron']]);
+    expect(room.photos).toHaveLength(4);
+  });
+
+  it('keeps an explicit photosPerPlayer sent with the theme, and does not reset on the same theme', () => {
+    const room = makeRoom(FOUR);
+    unwrap(g.updateSettings(room, A, { theme: 'childhood', photosPerPlayer: 3 }));
+    expect(room.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 3 });
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 2 }));
+    expect(room.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 2 });
+    // The whole settings object sent back (e.g. to change the timer) changes nothing else.
+    unwrap(g.updateSettings(room, A, { ...room.settings, voteSeconds: 15 }));
+    expect(room.settings).toEqual({ voteSeconds: 15, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 2 });
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    expect(room.settings.photosPerPlayer).toBe(2);
+  });
+
+  it('rejects invalid themes and photo counts, without applying any part of the update', () => {
+    const room = makeRoom(FOUR);
+    const before = { ...room.settings };
+    const bad = [
+      { theme: 'cousins' },
+      { theme: 'mix', photosPerPlayer: 4 },
+      { photosPerPlayer: 0 },
+      { photosPerPlayer: 1.5 },
+      { photosPerPlayer: '2' },
+      { voteSeconds: 15, photosPerPlayer: 5 },
+    ] as unknown as Partial<g.Room['settings']>[];
+    for (const patch of bad) expect(errorOf(g.updateSettings(room, A, patch))).toBe('BAD_REQUEST');
+    expect(room.settings).toEqual(before);
+    expect(errorOf(g.updateSettings(room, B, { theme: 'mix' }))).toBe('NOT_HOST');
+  });
+
+  it('only accepts uploads and relabels in an active slot, with a kind the theme allows', () => {
+    const room = makeRoom(FOUR);
+    const upload = (slot: 0 | 1 | 2, kind: string) =>
+      errorOf(g.uploadPhoto(room, A, newPhoto(room, slot, kind as g.Photo['kind']), 0));
+    expect(upload(2, 'daron')).toBe('BAD_REQUEST'); // slot 2 is inactive with 2 photos per player
+    expect(upload(0, 'kid')).toBe('BAD_REQUEST'); // not a parents kind
+    expect(upload(0, 'cousin')).toBe('BAD_REQUEST'); // not a kind at all
+    expect(upload(3 as 2, 'daron')).toBe('BAD_REQUEST');
+    expect(upload(1, 'daron')).toBeNull(); // two darons is fine
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 3 }));
+    expect(upload(2, 'daronne')).toBeNull();
+
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    expect(upload(0, 'daron')).toBe('BAD_REQUEST');
+    expect(upload(1, 'kid')).toBe('BAD_REQUEST'); // 1 photo per player now
+    expect(upload(0, 'kid')).toBeNull();
+    // Relabel: the slot 1 photo is still there, but inactive.
+    expect(errorOf(g.setPhotoKind(room, A, 1, 'kid'))).toBe('BAD_REQUEST');
+    expect(errorOf(g.setPhotoKind(room, A, 0, 'pick'))).toBe('BAD_REQUEST');
+    unwrap(g.setPhotoKind(room, A, 0, 'kid'));
+    // Removing works on any slot.
+    unwrap(g.removePhoto(room, A, 2));
+    expect(g.playerPhotos(room, A).map((ph) => ph.slot)).toEqual([0, 1]);
+
+    unwrap(g.updateSettings(room, A, { theme: 'mix', photosPerPlayer: 3 }));
+    for (const kind of ['pet', 'partner', 'grandpa', 'pick'] as const) unwrap(g.setPhotoKind(room, A, 1, kind));
+    expect(upload(2, 'friend')).toBeNull();
+    unwrap(g.updateSettings(room, A, { theme: 'family' }));
+    expect(errorOf(g.setPhotoKind(room, A, 0, 'kid'))).toBe('BAD_REQUEST');
+    unwrap(g.setPhotoKind(room, A, 0, 'sister'));
+  });
+
+  it('ignores photos in inactive slots for readiness and for the game, without deleting them', () => {
+    const room = makeRoom(FOUR);
+    addPhotos(room, [2, 2, 2, 0]);
+    addPhoto(room, D, 1);
+    expect(FOUR.map((n) => g.hasActivePhotos(room, idOf(n)))).toEqual([true, true, true, true]);
+
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 1 }));
+    expect(FOUR.map((n) => g.hasActivePhotos(room, idOf(n)))).toEqual([true, true, true, false]);
+    expect(g.activePhotos(room, A).map((ph) => ph.slot)).toEqual([0]);
+    expect(g.playerPhotos(room, A).map((ph) => ph.slot)).toEqual([0, 1]);
+
+    unwrap(g.startGame(room, A, 0, seededRng(5)));
+    expect(game(room).ownerIds).toEqual([A, B, C]);
+    expect(game(room).order).toHaveLength(3);
+    for (let i = 0; i < 3; i++) expect(g.gamePhoto(room, i).slot).toBe(0);
+    expect(room.photos).toHaveLength(7);
+    // Dave only guesses.
+    expect(errorOf(g.castVote(room, A, 0, D, game(room).roundStartsAt))).toBe('INVALID_VOTE');
+  });
+
+  it('needs MIN_PHOTO_OWNERS players with an active photo', () => {
+    const room = makeRoom(FOUR);
+    addPhotos(room, [1, 1, 0, 0]);
+    addPhoto(room, C, 1);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 1 }));
+    expect(errorOf(g.startGame(room, A, 0, seededRng(1)))).toBe('NOT_ENOUGH_PLAYERS');
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 2 }));
+    unwrap(g.startGame(room, A, 0, seededRng(1)));
+    expect(game(room).ownerIds).toEqual([A, B, C]);
+  });
+
+  it('keeps the settings on playAgain, and clears the photos', () => {
+    const room = makeRoom(FOUR);
+    const settings = { voteSeconds: 15, anonymousVotes: false, theme: 'family', photosPerPlayer: 3 } as const;
+    unwrap(g.updateSettings(room, A, settings));
+    addPhotos(room, [3, 2, 1, 0]);
+    unwrap(g.startGame(room, A, 0, seededRng(2)));
+    expect(game(room).order).toHaveLength(6);
+    const end = revealAll(room, playAllRounds(room, allCorrect, 0));
+    unwrap(g.playAgain(room, A, end));
+    expect(room.phase).toBe('lobby');
+    expect(room.settings).toEqual(settings);
+    expect(room.photos).toEqual([]);
+  });
+
+  it('plays a whole childhood game with one photo each', () => {
+    const room = makeRoom(FOUR);
+    unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
+    expect(room.settings.photosPerPlayer).toBe(1);
+    for (const name of FOUR) addPhoto(room, idOf(name), 0);
+    expect(room.photos.map((ph) => ph.kind)).toEqual(['kid', 'kid', 'kid', 'kid']);
+
+    unwrap(g.startGame(room, A, 0, seededRng(9)));
+    expect(game(room).order).toHaveLength(4);
+    expect(game(room).ownerIds).toEqual([A, B, C, D]);
+    const owners = game(room).order.map((_, i) => g.gamePhoto(room, i).ownerId);
+    expect(new Set(owners).size).toBe(4);
+
+    revealAll(room, playAllRounds(room, allCorrect, 0));
+    expect(room.phase).toBe('results');
+    // Everybody guessed the 3 photos that are not theirs.
+    expect(g.computeRanking(room).map((r) => [r.score, r.correct, r.guesses, r.rank])).toEqual(
+      FOUR.map(() => [3 * POINTS_PER_CORRECT, 3, 3, 1]),
+    );
+    expect(awardOf(g.computeAwards(room), 'carbonCopy')).toMatchObject({ playerIds: [A, B, C, D], value: 100 });
   });
 });
 

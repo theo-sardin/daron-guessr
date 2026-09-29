@@ -6,7 +6,7 @@ import { Card } from '../../components/Card';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/util';
 import { CountUp } from './CountUp';
-import { AWARD_EMOJI, seedOf, shareTone, tiltOf } from './helpers';
+import { awardEmoji, flavorOfKinds, seedOf, shareTone, tiltOf, type Flavor } from './helpers';
 
 const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
@@ -22,7 +22,7 @@ function verdictOf(me: RankingEntry, ranking: RankingEntry[]): Verdict {
   return 'middle';
 }
 
-/** "Your game": personal rank, guesses, how many people recognised your parents, your awards. */
+/** "Your game": personal rank, guesses, how many people recognised your photos, your awards. */
 export function MyGame({
   me,
   player,
@@ -30,6 +30,8 @@ export function MyGame({
   photos,
   awards,
   seed,
+  flavor,
+  awardFlavor,
   onShare,
   sharing,
   onOpenPhoto,
@@ -41,6 +43,10 @@ export function MyGame({
   photos: PhotoResult[];
   awards: Award[];
   seed: string;
+  /** The game's flavor. */
+  flavor: Flavor;
+  /** Flavor of one award (its title and emoji depend on it). */
+  awardFlavor: (award: Award) => Flavor;
   onShare: () => void;
   sharing: boolean;
   onOpenPhoto: (photo: PhotoResult) => void;
@@ -50,6 +56,14 @@ export function MyGame({
   const found = photos.reduce((n, p) => n + p.correctVotes, 0);
   const votes = photos.reduce((n, p) => n + p.totalVotes, 0);
   const myAwards = awards.filter((a) => a.playerIds.includes(player.id));
+  const myFlavor = flavorOfKinds(
+    photos.map((p) => p.photo.kind),
+    flavor,
+  );
+  const verdictText =
+    verdict === 'first'
+      ? tpick(`results.mine.verdict.first.${flavor}`, seedOf(seed, player.id, 'verdict'))
+      : tpick(`results.mine.verdict.${verdict}`, seedOf(seed, player.id, 'verdict'));
 
   return (
     <Card
@@ -81,7 +95,7 @@ export function MyGame({
             <Avatar player={player} size="sm" crown={false} dimOffline={false} />
             <span className="truncate font-display text-2xl leading-tight">{player.name}</span>
           </div>
-          <p className="mt-1 leading-snug font-bold text-ink-soft">{tpick(`results.mine.verdict.${verdict}`, seedOf(seed, player.id, 'verdict'))}</p>
+          <p className="mt-1 leading-snug font-bold text-ink-soft">{verdictText}</p>
         </div>
       </div>
 
@@ -100,10 +114,10 @@ export function MyGame({
                 <CountUp to={found} delay={0.45} />
                 <span className="opacity-60">/{votes}</span>
               </div>
-              <div className="mt-1 text-xs font-extrabold text-ink/75">👀 {t('results.mine.recognised')}</div>
+              <div className="mt-1 text-xs font-extrabold text-ink/75">👀 {t(`results.mine.recognised.${myFlavor}`)}</div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-sm font-extrabold text-ink/75">🤷 {t('results.mine.noPhotos')}</div>
+            <div className="flex h-full items-center justify-center text-sm font-extrabold text-ink/75">🤷 {t(`results.mine.noPhotos.${flavor}`)}</div>
           )}
         </div>
       </div>
@@ -139,12 +153,15 @@ export function MyGame({
         <div className="mt-4">
           <div className="mb-1.5 text-xs font-extrabold tracking-wide text-ink/60 uppercase">{t('results.mine.yourAwards')}</div>
           <div className="flex flex-wrap gap-2">
-            {myAwards.map((a) => (
-              <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-white px-2.5 py-1 text-sm font-extrabold shadow-pop-sm">
-                <span aria-hidden>{AWARD_EMOJI[a.id]}</span>
-                {t(`results.awards.${a.id}.title`)}
-              </span>
-            ))}
+            {myAwards.map((a) => {
+              const f = awardFlavor(a);
+              return (
+                <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-white px-2.5 py-1 text-sm font-extrabold shadow-pop-sm">
+                  <span aria-hidden>{awardEmoji(a.id, f)}</span>
+                  {t(`results.awards.${a.id}.title.${f}`)}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

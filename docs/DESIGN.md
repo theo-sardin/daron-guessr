@@ -1,21 +1,27 @@
 # Daron Guessr — design
 
-"Daron" / "daronne" is French slang for dad / mom. Everyone in a room uploads a photo of
-each parent, then the group guesses, photo by photo, whose parent is whose. At the end every
-photo is revealed with its vote breakdown, and a recap hands out scores and awards.
+"Daron" / "daronne" is French slang for dad / mom. In the original game everyone in a room
+uploads a photo of each parent, then the group guesses, photo by photo, whose parent is
+whose. The host can pick another **theme** (siblings and friends, childhood photos, "who
+picked this picture?", or anything goes) and how many photos each player brings (1 to 3).
+At the end every photo is revealed with its vote breakdown, and a recap hands out scores
+and awards.
 
 ## Game flow
 
 1. **Home** — pick a nickname and an avatar emoji, then *Create a room* or *Join* with a
    4-letter code (links look like `https://host/ABCD`, which pre-fills the code).
-2. **Lobby** — players join with the code / link / QR code. Each player fills two photo
-   slots (default labels: slot 0 = daron, slot 1 = daronne; the label can be flipped).
-   Only you ever see your own photos in the lobby. The host picks the settings
-   (seconds per photo, anonymous votes on/off) and starts once at least
-   `MIN_PHOTO_OWNERS` (3) players have at least one photo. Players without photos can
-   still play: they just guess. The host can kick players in the lobby.
-3. **Voting** — the server shuffles every photo (avoiding two photos of the same owner
-   back to back when possible). One photo at a time, everyone votes for whose parent it is.
+2. **Lobby** — players join with the code / link / QR code. Each player fills up to
+   `photosPerPlayer` photo slots and labels each photo with a kind the theme allows (see
+   *Themes, kinds and photos per player*). Only you ever see your own photos in the lobby.
+   The host picks the settings (theme, photos per player, seconds per photo, anonymous
+   votes on/off) and starts once at least `MIN_PHOTO_OWNERS` (3) players have at least one
+   photo in an active slot. Players without photos can still play: they just guess. The
+   host can kick players in the lobby.
+3. **Voting** — the server shuffles every photo in an active slot (avoiding two photos of
+   the same owner back to back when possible). One photo at a time, everyone votes for whose
+   photo it is; the question follows the photo's kind ("Whose daronne is this?", "Whose
+   sister is this?", "Who is this as a kid?", "Who picked this picture?").
    Candidates are the players that have photos in the game, minus the voter.
    - The **owner votes too**, as a decoy ("vote for someone else to throw them off"), so
      the "who has voted" indicators never give the owner away. Decoy votes never count.
@@ -36,9 +42,45 @@ photo is revealed with its vote breakdown, and a recap hands out scores and awar
 5. **Results** — podium + full ranking, awards (Sherlock, Needs glasses, Carbon copy,
    Master of disguise, Doppelgänger, Most confusing photo, Biggest mix-up), and a wall of
    every photo with its owner and how many people got it. The host can start a new round
-   (back to the lobby, same players, photos/votes/scores cleared).
+   (back to the lobby, same players and settings, photos/votes/scores cleared).
 
 Anyone can send floating emoji reactions at any time.
+
+### Themes, kinds and photos per player
+
+Every photo has a **kind** (`PhotoKind`): what it shows, relative to the player who
+uploaded it. The kind drives the voting question and every caption about the photo. Most
+kinds are a relative (`daron`, `daronne`, `brother`, `sister`, `grandpa`, `grandma`,
+`friend`, `partner`, `pet`); two are about the player themself: `kid` (the player as a
+child) and `pick` (any picture the player chose: a meme, a place, a dish…). For those the
+"owner" to guess is simply the player, so the engine treats every kind the same way.
+
+The host's **theme** (`Settings.theme`) decides which kinds players may use
+(`THEME_KINDS`) and the default number of photos (`THEME_DEFAULT_PHOTOS`):
+
+| Theme | Name in the UI | Allowed kinds | Default photos | Default kind per slot |
+| --- | --- | --- | --- | --- |
+| `parents` (default) | Parents | daron, daronne | 2 | daron, daronne, daron |
+| `family` | Friends & family | sister, brother, daron, daronne, grandpa, grandma, friend, partner, pet | 2 | sister, brother, friend |
+| `childhood` | Mini me | kid | 1 | kid |
+| `pick` | Who picked it? | pick | 1 | pick |
+| `mix` | Anything goes | all 11 kinds | 2 | daron, daronne, kid |
+
+`Settings.photosPerPlayer` (1, 2 or 3) is the number of **active** slots: slots
+`0 .. photosPerPlayer - 1`. Rules, all enforced by the server:
+
+- `photo:upload` and `photo:setKind` need an active slot and a kind the theme allows
+  (`BAD_REQUEST` otherwise). `photo:remove` works on any slot.
+- Lowering `photosPerPlayer` never deletes anything: photos in inactive slots are kept (and
+  still listed in the owner's `myPhotos`, so the UI can offer to bring them back), but they
+  do not count for readiness (`PublicPlayer.ready`) or for `MIN_PHOTO_OWNERS`, and they are
+  never played.
+- Switching to another theme relabels every uploaded photo whose kind the new theme does
+  not allow to `defaultKindForSlot(theme, slot)`, and resets `photosPerPlayer` to the
+  theme's default — unless the same `host:settings` update also sets `photosPerPlayer`.
+  Sending the current theme again changes nothing. An update with any invalid field is
+  rejected as a whole.
+- Settings survive `host:playAgain`; photos do not.
 
 ### Scoring
 
@@ -54,7 +96,7 @@ Anyone can send floating emoji reactions at any time.
 - **masterOfDisguise** — lowest share of correct votes on their photos; only if different
   from carbonCopy.
 - **doppelganger** — player that received the most wrong votes (people thought other
-  people's parents were theirs), needs >= 2.
+  people's photos were theirs), needs >= 2.
 - **mostConfusing** — photo whose votes were spread over the most distinct candidates
   (tie-break: fewest correct votes), needs >= 3 distinct candidates.
 - **biggestMixup** — (photo, wrong candidate) pair with the most votes, needs >= 2 votes
@@ -73,14 +115,16 @@ Single Node process, no database: rooms live in memory.
   - `socket.ts`: event handlers, payload validation (zod), acks, rate limits, timers,
     broadcasting per-player views. Abuse limits (everything lives in memory): per socket
     (events, reactions, uploads), per client IP (connections, room creation, room-code
-    lookups, uploaded bytes) and per room / server-wide photo byte caps.
+    lookups, uploaded bytes) and per room / server-wide photo byte caps (36 MiB per room:
+    1 MiB per slot on average for 12 players x 3 slots, while the client's JPEGs are
+    usually 100-400 KB).
   - `image.ts`: uploads are checked by their header (PNG / JPEG / WebP), not by the declared
     mime; dimensions above 4096 px per side are refused.
   - `index.ts`: HTTP server, `/photos/:code/:photoId`, `/api/health`, static client in
     production with SPA fallback.
 - `src/client/` — React 19 + Vite + Tailwind v4 + Motion (`motion/react`) +
   canvas-confetti. Mobile first.
-  - Photos are resized / re-encoded in the browser (max 1280px, JPEG), which also strips
+  - Photos are resized / re-encoded in the browser (max 1080px, JPEG), which also strips
     EXIF metadata, then sent as binary over the socket.
   - Sessions (`{code, playerId, token}`) are kept in `sessionStorage` (so several tabs can
     be several players) and mirrored in `localStorage` (so a phone that killed the tab can
@@ -90,7 +134,8 @@ Single Node process, no database: rooms live in memory.
 ## Anonymity rules (enforced in `views.ts`)
 
 - Before a photo is revealed, no view contains its owner.
-- A player's view never contains another player's photos in the lobby.
+- A player's view never contains another player's photos in the lobby, and photos in
+  inactive slots are never shown to anyone but their owner.
 - During voting, a view only contains the viewer's own vote; others appear only as
   "has voted" (owner decoys included).
 - `voters` in a `PhotoResult` is null when `anonymousVotes` is on, and public scores
