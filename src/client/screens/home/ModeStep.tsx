@@ -93,11 +93,12 @@ export function ModeStep({
         if (e.key === 'Escape' && !busy) onBack();
       }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} disabled={busy} icon={<span aria-hidden>←</span>}>
+      {/* Phones: Back + profile, title below. Desktop: one row, title in the middle. */}
+      <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-3 lg:grid-cols-[1fr_auto_1fr]">
+        <Button variant="ghost" size="sm" className="justify-self-start" onClick={onBack} disabled={busy} icon={<span aria-hidden>←</span>}>
           {t('home.mode.back')}
         </Button>
-        <span className="flex min-w-0 items-center gap-2 rounded-full border-2 border-white/20 bg-white/10 py-1 pr-3 pl-1 font-extrabold text-cream">
+        <span className="flex min-w-0 items-center gap-2 justify-self-end rounded-full border-2 border-white/20 bg-white/10 py-1 pr-3 pl-1 font-extrabold text-cream lg:col-start-3 lg:row-start-1">
           <span
             className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-sun text-lg leading-none"
             style={EMOJI_FONT}
@@ -111,23 +112,23 @@ export function ModeStep({
           <span aria-hidden>👑</span>
           <span className="sr-only">{t('home.mode.hostAs', { name })}</span>
         </span>
-      </div>
 
-      <div className="mt-3 text-center sm:mt-1">
-        <span className="inline-block -rotate-2 rounded-lg border-2 border-ink bg-sun px-2 py-0.5 font-display text-xs tracking-wider text-ink uppercase shadow-pop-sm">
-          {t('home.mode.step')}
-        </span>
-        <h1
-          ref={heading}
-          id="home-mode-title"
-          tabIndex={-1}
-          className="text-outline mt-2 font-display text-[2.1rem] leading-none text-cream outline-none sm:text-5xl"
-        >
-          {t('home.mode.title')}
-        </h1>
-        <p className="mt-1.5 text-sm font-bold text-grape-200 sm:text-base">
-          {t('home.mode.sub')} <span aria-hidden>📸</span>
-        </p>
+        <div className="col-span-2 text-center lg:col-span-1 lg:col-start-2 lg:row-start-1">
+          <span className="inline-block -rotate-2 rounded-lg border-2 border-ink bg-sun px-2 py-0.5 font-display text-xs tracking-wider text-ink uppercase shadow-pop-sm">
+            {t('home.mode.step')}
+          </span>
+          <h1
+            ref={heading}
+            id="home-mode-title"
+            tabIndex={-1}
+            className="text-outline mt-2 font-display text-[2.1rem] leading-none text-cream outline-none sm:text-5xl"
+          >
+            {t('home.mode.title')}
+          </h1>
+          <p className="mt-1.5 text-sm font-bold text-grape-200 sm:text-base">
+            {t('home.mode.sub')} <span aria-hidden>📸</span>
+          </p>
+        </div>
       </div>
 
       <motion.div
@@ -244,7 +245,7 @@ function ModeCard({
           aria-hidden
         >
           <motion.span
-            className={glyphCount(emoji) > 1 ? 'text-[1.35rem] sm:text-2xl' : 'text-3xl sm:text-4xl'}
+            className={cn('whitespace-nowrap', glyphCount(emoji) > 1 ? 'text-lg tracking-[-0.12em] sm:text-xl' : 'text-3xl sm:text-4xl')}
             style={EMOJI_FONT}
             animate={selected ? { scale: [1, 1.4, 1], rotate: [0, -14, 0] } : { scale: 1, rotate: 0 }}
             transition={{ duration: 0.45 }}
@@ -308,11 +309,11 @@ function PhotosPicker({ theme, photos, onPhotos }: { theme: Theme | null; photos
   return (
     <div
       className={cn(
-        'mx-auto mt-6 w-full max-w-md rounded-3xl border-3 border-ink bg-cream p-4 text-ink shadow-pop transition-opacity',
+        'mx-auto mt-6 w-full max-w-md rounded-3xl border-3 border-ink bg-cream p-4 text-ink shadow-pop transition-opacity lg:flex lg:max-w-3xl lg:items-center lg:gap-6 lg:py-3',
         off && 'opacity-60',
       )}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 lg:shrink-0 lg:gap-4">
         <span id="home-mode-photos" className="font-extrabold">
           <span aria-hidden>🖼️ </span>
           {t('home.mode.photosLabel')}
@@ -357,7 +358,7 @@ function PhotosPicker({ theme, photos, onPhotos }: { theme: Theme | null; photos
         <motion.p
           key={help}
           id="home-mode-photos-help"
-          className="mt-2 text-sm leading-snug font-semibold text-ink-soft"
+          className="mt-2 text-sm leading-snug font-semibold text-ink-soft lg:mt-0 lg:min-w-0 lg:flex-1"
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 4 }}
@@ -424,7 +425,7 @@ export function ModeConfirmBar({
                 <motion.span
                   key="none"
                   id="home-mode-hint"
-                  className="flex items-center gap-1.5 font-extrabold text-sun"
+                  className="flex items-center gap-1.5 rounded-full border-2 border-sun/50 bg-grape-950/90 px-3 py-1 text-sm font-extrabold text-sun"
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6, transition: { duration: 0.1 } }}
@@ -442,18 +443,21 @@ export function ModeConfirmBar({
               )}
             </AnimatePresence>
           </div>
-          <Button
-            ref={buttonRef}
-            variant="primary"
-            size="xl"
-            block
-            loading={loading}
-            disabled={theme === null}
-            aria-describedby={theme === null ? 'home-mode-hint' : undefined}
-            onClick={onConfirm}
-          >
-            {t('home.mode.confirm')} <span aria-hidden>🚀</span>
-          </Button>
+          {/* Solid backing: the dimmed (disabled) button must not show the cards through it. */}
+          <div className="w-full rounded-3xl bg-grape-950">
+            <Button
+              ref={buttonRef}
+              variant="primary"
+              size="xl"
+              block
+              loading={loading}
+              disabled={theme === null}
+              aria-describedby={theme === null ? 'home-mode-hint' : undefined}
+              onClick={onConfirm}
+            >
+              {t('home.mode.confirm')} <span aria-hidden>🚀</span>
+            </Button>
+          </div>
         </motion.div>
       </BottomBar>
     </motion.div>

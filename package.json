@@ -20,8 +20,13 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/caveat": "^5.3.0",
     "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource/dseg14-classic": "^5.3.0",
+    "@fontsource/dseg7-classic": "^5.3.0",
     "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
     "canvas-confetti": "^1.9.4",
     "express": "^5.2.1",
     "motion": "^13.4.6",
