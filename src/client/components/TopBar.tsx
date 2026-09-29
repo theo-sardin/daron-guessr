@@ -39,7 +39,7 @@ function LangPill({ lang, onSwitch, label }: { lang: Lang; onSwitch: () => void;
       className={cn('relative flex h-11 items-center gap-0.5 rounded-2xl p-1 font-mono text-[11px] font-bold tracking-[0.08em] transition-colors', CHROME)}
     >
       {(['fr', 'en'] as const).map((l) => (
-        <span key={l} className={cn('relative flex h-full w-8 items-center justify-center rounded-xl', l === lang ? 'text-ink' : 'text-cream/55')}>
+        <span key={l} className={cn('relative flex h-full w-7 items-center min-[380px]:w-8 justify-center rounded-xl', l === lang ? 'text-ink' : 'text-cream/55')}>
           {l === lang && (
             <motion.span
               layoutId="lang-pill"
@@ -76,15 +76,17 @@ export function TopBar() {
             onClick={copyCode}
             title={t('common.copyLink')}
             aria-label={`${t('common.roomCode')} ${view.code.split('').join(' ')}. ${t('common.copyLink')}`}
-            className="group flex h-11 items-center gap-2.5 rounded-2xl border-2 border-white/15 bg-ink/85 pr-2.5 pl-3 shadow-[inset_0_-12px_20px_-14px_rgb(255_122_26_/_0.45)] backdrop-blur transition-colors hover:border-stamp/50"
+            className="group flex h-11 shrink-0 items-center gap-2.5 rounded-2xl border-2 border-white/15 bg-ink/85 pr-2.5 pl-3 shadow-[inset_0_-12px_20px_-14px_rgb(255_122_26_/_0.45)] backdrop-blur transition-colors hover:border-stamp/50"
           >
-            <span className="label-mono text-cream/55" aria-hidden>
+            <span className="label-mono hidden text-cream/55 min-[350px]:inline" aria-hidden>
               {t('common.room')}
             </span>
             <span className="text-stamp font-stamp14 text-[1.2rem] leading-none tracking-[0.12em]" aria-hidden>
               {view.code}
             </span>
-            <Icon name="link" className="size-4 text-cream/45 transition-colors group-hover:text-cream" />
+            <span className="hidden text-cream/45 transition-colors group-hover:text-cream min-[380px]:block">
+              <Icon name="link" className="block size-4" />
+            </span>
           </motion.button>
         ) : (
           <button type="button" onClick={() => navigate('/')} className="flex h-11 items-center px-2" aria-label={t('common.backHome')}>

@@ -30,7 +30,7 @@ export function Lightbox({ src, onClose, caption }: { src: string | null; onClos
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 26 }}
           />
-          {caption && <p className="font-display text-xl text-cream">{caption}</p>}
+          {caption && <p className="text-hand text-3xl text-cream">{caption}</p>}
         </motion.div>
       )}
     </AnimatePresence>,

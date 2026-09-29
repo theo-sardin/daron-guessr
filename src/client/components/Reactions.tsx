@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { sfx } from '../lib/sfx';
 import { api, getState, onReaction, playersById } from '../lib/store';
 import { cn, vibrate } from '../lib/util';
+import { Icon } from './Icon';
 
 interface Floating {
   key: string;
@@ -125,7 +126,7 @@ export function ReactionBar({ className }: { className?: string }) {
         aria-expanded={open}
         className="flex size-14 items-center justify-center rounded-full border-3 border-ink bg-sun text-3xl shadow-pop"
       >
-        {open ? '✕' : '😂'}
+        {open ? <Icon name="x" className="size-6" strokeWidth={3} /> : '😂'}
       </motion.button>
     </div>
   );

@@ -179,6 +179,11 @@
     letter-spacing: 0;
     line-height: 1.05;
   }
+  /* <Icon>: inline by default; any display / size utility on it still wins (utilities layer). */
+  .icon {
+    display: inline-block;
+    flex-shrink: 0;
+  }
   /* Text with a chunky ink outline, for big titles on the dark background. */
   .text-outline {
     -webkit-text-stroke: 6px var(--color-ink);

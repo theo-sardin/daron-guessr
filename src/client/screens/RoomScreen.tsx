@@ -87,8 +87,10 @@ export function RoomScreen({ code }: { code: string }) {
 
   if (stage === 'resuming' || (stage === 'in-room' && !view)) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-grape-200">
-        <Spinner className="size-10 text-sun" />
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-5 text-grape-200">
+        <Viewfinder color="var(--color-cream)" length={12} thickness={3} gap={14} hunt>
+          <Spinner className="size-10 text-sun" />
+        </Viewfinder>
         <p className="font-bold">{status === 'connected' ? t('common.loading') : t('common.connecting')}</p>
       </div>
     );
@@ -148,7 +150,7 @@ function OfflineBanner({ show }: { show: boolean }) {
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-x-0 top-16 z-[65] flex justify-center px-4"
+          className="fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_3.75rem)] z-[65] flex justify-center px-4"
           initial={{ y: -30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -30, opacity: 0 }}

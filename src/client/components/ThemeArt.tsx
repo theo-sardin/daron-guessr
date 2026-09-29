@@ -31,6 +31,11 @@ function subjectShape(subject: Subject, w: number, h: number): ReactNode {
           <circle cx={cx} cy={cy} r={r} fill={INK} />
           {/* Short hair: a flat-top cap. */}
           <path d={`M${cx - r * 1.05} ${cy - r * 0.15}Q${cx - r * 1.1} ${cy - r * 1.3} ${cx} ${cy - r * 1.25}Q${cx + r * 1.1} ${cy - r * 1.3} ${cx + r * 1.05} ${cy - r * 0.15}z`} fill={INK} />
+          {/* Big round glasses catching the light. */}
+          <g fill="none" stroke={PAPER} strokeWidth={Math.max(1.1, r * 0.2)}>
+            <circle cx={cx - r * 0.42} cy={cy + r * 0.1} r={r * 0.34} />
+            <circle cx={cx + r * 0.42} cy={cy + r * 0.1} r={r * 0.34} />
+          </g>
         </>
       );
     }
