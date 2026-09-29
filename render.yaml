@@ -1,0 +1,18 @@
+# One-click deploy on Render (https://render.com): New > Blueprint > pick this repo.
+# The free plan sleeps when idle; rooms live in memory, so they vanish on restart.
+services:
+  - type: web
+    name: daron-guessr
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Behind Render's proxy: take client IPs from X-Forwarded-For (for rate limits).
+      - key: TRUST_PROXY
+        value: "1"

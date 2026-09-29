@@ -1,0 +1,148 @@
+@import 'tailwindcss';
+@import '@fontsource/lilita-one/latin-400.css';
+@import '@fontsource/lilita-one/latin-ext-400.css';
+@import '@fontsource-variable/nunito';
+
+/*
+ * Design tokens. The whole game sits on a deep grape night sky with bright "sticker"
+ * cards: cream surfaces, thick ink outlines and a hard drop shadow that buttons sink into.
+ */
+@theme {
+  /* Color emoji fonts come right after the web fonts so a system font's monochrome emoji never wins. */
+  --font-display: 'Lilita One', 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-ink: #1b1036;
+  --color-ink-soft: #3a2a63;
+  --color-cream: #fff8ec;
+  --color-paper: #ffffff;
+  --color-grape-950: #120828;
+  --color-grape-900: #1b0f3b;
+  --color-grape-800: #2a1760;
+  --color-grape-700: #3d2388;
+  --color-grape-600: #5530b8;
+  --color-grape-300: #b9a6ff;
+  --color-grape-200: #d8ccff;
+
+  --color-pink: #ff4fa3;
+  --color-pink-dark: #d92f82;
+  --color-sun: #ffd23f;
+  --color-sun-dark: #e0b000;
+  --color-mint: #3ddc97;
+  --color-mint-dark: #1fb576;
+  --color-sky: #4cc9f0;
+  --color-sky-dark: #1ea5d0;
+  --color-tangerine: #ff8c42;
+  --color-lilac: #b388ff;
+  --color-danger: #ff5d5d;
+  --color-danger-dark: #d93a3a;
+
+  --shadow-pop: 0 5px 0 0 var(--color-ink);
+  --shadow-pop-sm: 0 3px 0 0 var(--color-ink);
+  --shadow-pop-lg: 0 8px 0 0 var(--color-ink);
+  --shadow-glow: 0 0 0 4px rgb(255 210 63 / 0.55), 0 0 32px 4px rgb(255 210 63 / 0.45);
+
+  --radius-blob: 1.75rem;
+
+  --animate-wiggle: wiggle 0.5s ease-in-out;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shake: shake 0.35s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+
+  @keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-6deg); }
+    75% { transform: rotate(6deg); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-14px) rotate(3deg); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    20% { transform: translate(-3px, 1px) rotate(-1.5deg); }
+    40% { transform: translate(3px, -1px) rotate(1.5deg); }
+    60% { transform: translate(-2px, -1px) rotate(-1deg); }
+    80% { transform: translate(2px, 1px) rotate(1deg); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.75; transform: scale(0.97); }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    background: var(--color-grape-900);
+    color-scheme: dark;
+  }
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-cream);
+    background: radial-gradient(120% 80% at 50% 0%, var(--color-grape-700) 0%, var(--color-grape-900) 55%, var(--color-grape-950) 100%) fixed;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-sun);
+    outline-offset: 3px;
+  }
+  img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
+
+@layer components {
+  /* Text with a chunky ink outline, for big titles on the dark background. */
+  .text-outline {
+    -webkit-text-stroke: 6px var(--color-ink);
+    paint-order: stroke fill;
+  }
+  .text-outline-sm {
+    -webkit-text-stroke: 4px var(--color-ink);
+    paint-order: stroke fill;
+  }
+  .sticker {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    border: 3px solid var(--color-ink);
+    border-radius: var(--radius-blob);
+    box-shadow: var(--shadow-pop);
+  }
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+  .safe-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
