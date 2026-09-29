@@ -33,7 +33,7 @@ export function Background() {
         transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
       />
       {/* Vignette, like the dark corners of an old print. */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,transparent_45%,rgb(8_3_20_/_0.55)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,transparent_45%,rgb(8_3_20_/_0.42)_100%)]" />
       {/* Grain: an oversized tile that jumps around (steps, compositor-only transform). */}
       <div
         className="absolute -inset-[20%] animate-grain opacity-[0.16] will-change-transform"
