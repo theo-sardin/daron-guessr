@@ -228,7 +228,10 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
                 </AnimatePresence>
               </div>
 
-              <ScoreStrip players={view.players} meId={view.meId} gainers={revealed ? model.gainers : EMPTY} />
+              {/* With anonymous votes the server keeps scores hidden until the results (score changes would reveal who voted what). */}
+              {!view.settings.anonymousVotes && (
+                <ScoreStrip players={view.players} meId={view.meId} gainers={revealed ? model.gainers : EMPTY} />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

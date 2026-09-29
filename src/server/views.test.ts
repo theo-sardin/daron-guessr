@@ -35,6 +35,39 @@ function normalizeVoting(view: RoomView, ownerIds: string[]): RoomView {
   return { ...view, meId: '', myPhotos: [], voting: { ...view.voting!, candidates, myVote: null, isMine: false } };
 }
 
+const keys = (o: object) => Object.keys(o).sort();
+const ROOM_VIEW_KEYS = ['code', 'hostId', 'meId', 'myPhotos', 'phase', 'players', 'results', 'reveal', 'serverNow', 'settings', 'voting'];
+const PLAYER_KEYS = ['avatar', 'color', 'connected', 'id', 'isHost', 'name', 'ready', 'score'];
+const PHOTO_REF_KEYS = ['id', 'kind', 'url'];
+const VOTING_KEYS = ['candidates', 'endsAt', 'isMine', 'myVote', 'photo', 'round', 'startsAt', 'totalRounds', 'votedIds'];
+const REVEAL_KEYS = ['current', 'index', 'startedAt', 'total'];
+const PHOTO_RESULT_KEYS = ['correctVotes', 'index', 'myVote', 'ownerId', 'photo', 'tally', 'totalVotes', 'voters'];
+
+/**
+ * Exact shape of a view: a new field (e.g. an `owner` under another name, or every vote)
+ * cannot slip in unnoticed. Update these lists together with protocol.ts.
+ */
+function expectExactShape(view: RoomView): void {
+  expect(keys(view)).toEqual(ROOM_VIEW_KEYS);
+  expect(keys(view.settings)).toEqual(['anonymousVotes', 'voteSeconds']);
+  for (const p of view.players) expect(keys(p)).toEqual(PLAYER_KEYS);
+  for (const ph of view.myPhotos) expect(keys(ph)).toEqual([...PHOTO_REF_KEYS, 'slot'].sort());
+  if (view.voting) {
+    expect(keys(view.voting)).toEqual(VOTING_KEYS);
+    expect(keys(view.voting.photo)).toEqual(PHOTO_REF_KEYS);
+  }
+  const results = [...(view.reveal ? [view.reveal.current] : []), ...(view.results?.photos ?? [])];
+  if (view.reveal) expect(keys(view.reveal)).toEqual(REVEAL_KEYS);
+  if (view.results) expect(keys(view.results)).toEqual(['awards', 'photos', 'ranking']);
+  for (const r of results) {
+    expect(keys(r)).toEqual(PHOTO_RESULT_KEYS);
+    expect(keys(r.photo)).toEqual(PHOTO_REF_KEYS);
+    for (const n of Object.values(r.tally)) expect(typeof n).toBe('number');
+    if (r.voters) for (const ids of Object.values(r.voters)) expect(ids.every((id) => typeof id === 'string')).toBe(true);
+  }
+  for (const entry of view.results?.ranking ?? []) expect(keys(entry)).toEqual(['correct', 'guesses', 'playerId', 'rank', 'score']);
+}
+
 function expectIndistinguishable(room: g.Room, now: number): void {
   const [first, ...rest] = viewsOf(room, now).map((v) => normalizeVoting(v, game(room).ownerIds));
   for (const view of rest) expect(view).toEqual(first);
@@ -52,6 +85,7 @@ describe('lobby views', () => {
       expect(view.voting).toBeNull();
       expect(view.reveal).toBeNull();
       expect(view.results).toBeNull();
+      expectExactShape(view);
     }
   });
 
@@ -87,11 +121,48 @@ describe('voting views', () => {
         expectIndistinguishable(room, t + i);
       }
       for (const view of viewsOf(room, t)) {
+        expectExactShape(view);
         expect(view.voting!.isMine).toBe(view.meId === photoOwner);
         expect(view.voting!.votedIds).toEqual(room.players.map((p) => p.id));
-        expect(JSON.stringify(view)).not.toContain('ownerId');
+        const json = JSON.stringify(view);
+        expect(json).not.toContain('ownerId');
+        // Only the current photo and the viewer's own photos: no URL of what is still to come.
+        const current = g.gamePhoto(room, round);
+        for (const photo of room.photos) {
+          if (photo.id !== current.id && photo.ownerId !== view.meId) expect(json).not.toContain(photo.id);
+        }
+        // No score before the reveal, even after rounds with correct votes closed.
+        expect(view.players.every((p) => p.score === 0)).toBe(true);
       }
       g.tick(room, game(room).roundCloseAt!);
+    }
+  });
+
+  it('do not depend on who owns the current photo (for a viewer who does not own it)', () => {
+    // Two rooms identical except for the owner of the photo on screen.
+    const room1 = startedRoom();
+    const room2 = structuredClone(room1);
+    const t = game(room1).roundStartsAt;
+    const owner1 = owner(room1);
+    const others = game(room1).ownerIds.filter((id) => id !== owner1);
+    const swap = others[0];
+    g.gamePhoto(room2, 0).ownerId = swap;
+    g.gamePhoto(room2, game(room2).order.indexOf(room1.photos.find((ph) => ph.ownerId === swap)!.id)).ownerId = owner1;
+    const viewers = room1.players.map((p) => p.id).filter((id) => id !== owner1 && id !== swap);
+    const expectSame = () => {
+      for (const viewer of viewers) {
+        const v1 = buildView(room1, viewer, t);
+        const v2 = buildView(room2, viewer, t);
+        // Own photos are personal (and legitimately differ if the viewer owns a swapped one).
+        expect({ ...v2, myPhotos: [] }).toEqual({ ...v1, myPhotos: [] });
+      }
+    };
+    expectSame();
+    // Same votes in both rooms (the owners' decoys included).
+    for (const [i, p] of room1.players.entries()) {
+      const candidates = game(room1).ownerIds.filter((id) => id !== p.id);
+      for (const room of [room1, room2]) unwrap(g.castVote(room, p.id, 0, candidates[i % candidates.length], t + i));
+      expectSame();
     }
   });
 
@@ -171,7 +242,9 @@ describe('reveal and results views', () => {
           if (anonymousVotes) expect(voters).toBeNull();
           else expect(Object.values(voters!).flat().length).toBe(view.reveal!.current.totalVotes);
           expect(view.reveal!.current.myVote).toBe(game(room).votes[index].get(view.meId)?.candidateId ?? null);
-          expect(view.players.map((p) => p.score)).toEqual(stats.map((s) => s.score));
+          expectExactShape(view);
+          // Anonymous: scores stay frozen during the reveal, or their changes would show who voted right.
+          expect(view.players.map((p) => p.score)).toEqual(anonymousVotes ? stats.map(() => 0) : stats.map((s) => s.score));
         }
         unwrap(g.nextReveal(room, A, index, startedAt + room.timing.revealOwnerAtMs));
       }
@@ -187,6 +260,7 @@ describe('reveal and results views', () => {
           if (photo.voters) expect(Object.values(photo.voters).flat()).not.toContain(photo.ownerId);
         }
         expect(results.ranking).toHaveLength(NAMES.length);
+        expectExactShape(view);
         expect(view.players.map((p) => p.score)).toEqual(g.playerStats(room, 5).map((s) => s.score));
       }
     });

@@ -30,7 +30,9 @@ photo is revealed with its vote breakdown, and a recap hands out scores and awar
    the owner is revealed with confetti and a caption that fits the result (everybody got
    it / nobody did / everybody picked the same wrong person…). Each player privately sees
    whether they got it right. The host moves to the next photo. Scores in the player list
-   only include fully revealed photos.
+   only include fully revealed photos — and with anonymous votes on, they stay at 0 for the
+   whole reveal (each player only sees their own points go up), since score changes would
+   tell everybody who guessed each photo right. Final scores appear in the results.
 5. **Results** — podium + full ranking, awards (Sherlock, Needs glasses, Carbon copy,
    Master of disguise, Doppelgänger, Most confusing photo, Biggest mix-up), and a wall of
    every photo with its owner and how many people got it. The host can start a new round
@@ -69,7 +71,11 @@ Single Node process, no database: rooms live in memory.
   - `views.ts`: builds the per-player `RoomView` (the anonymity boundary) — unit tested.
   - `rooms.ts`: room registry, codes, cleanup of idle rooms.
   - `socket.ts`: event handlers, payload validation (zod), acks, rate limits, timers,
-    broadcasting per-player views.
+    broadcasting per-player views. Abuse limits (everything lives in memory): per socket
+    (events, reactions, uploads), per client IP (connections, room creation, room-code
+    lookups, uploaded bytes) and per room / server-wide photo byte caps.
+  - `image.ts`: uploads are checked by their header (PNG / JPEG / WebP), not by the declared
+    mime; dimensions above 4096 px per side are refused.
   - `index.ts`: HTTP server, `/photos/:code/:photoId`, `/api/health`, static client in
     production with SPA fallback.
 - `src/client/` — React 19 + Vite + Tailwind v4 + Motion (`motion/react`) +
@@ -87,6 +93,7 @@ Single Node process, no database: rooms live in memory.
 - A player's view never contains another player's photos in the lobby.
 - During voting, a view only contains the viewer's own vote; others appear only as
   "has voted" (owner decoys included).
-- `voters` in a `PhotoResult` is null when `anonymousVotes` is on.
+- `voters` in a `PhotoResult` is null when `anonymousVotes` is on, and public scores
+  (`PublicPlayer.score`) stay at 0 until the results.
 - Photo ids are random and unrelated to owners; photo URLs are only handed out once
   the photo is shown.

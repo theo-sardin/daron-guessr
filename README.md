@@ -66,7 +66,14 @@ server restarts.
 - **A VPS**: `npm ci && npm run build && PORT=80 npm start` (behind a reverse proxy with WebSocket
   support if you add HTTPS, e.g. Caddy).
 
-Environment variables: `PORT` (default 3001).
+Environment variables:
+- `PORT` (default 3001).
+- `TRUST_PROXY=1` when the server runs behind exactly one reverse proxy that appends the client IP
+  to `X-Forwarded-For` (Render, Caddy, nginx…; already set in `render.yaml`). Per-IP limits then
+  use the last entry of that header. Leave it unset when clients connect directly, or every
+  client could pick its own IP.
+- `MAX_PHOTO_MEMORY_MB` (default 256): memory allowed for the photos of all rooms together; uploads
+  past it are refused. Keep it well under the machine's RAM.
 
 ## Privacy
 

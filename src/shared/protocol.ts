@@ -106,7 +106,9 @@ export interface PublicPlayer {
   /**
    * Score visible to everyone. During `reveal` this only includes photos whose reveal
    * index is strictly lower than the current one (the client adds the current photo's
-   * points itself once the owner is revealed). In `results` it is the final score.
+   * points itself once the owner is revealed) — except when `settings.anonymousVotes` is
+   * true: then it stays 0 for the whole reveal, since score changes would tell who guessed
+   * which photo right. In `results` it is the final score.
    */
   score: number;
 }
@@ -349,14 +351,30 @@ export function isValidRoomCode(code: string): boolean {
   return true;
 }
 
-/** Trims, collapses whitespace and strips control / invisible characters. Returns '' when unusable. */
+/**
+ * Control, format (zero-width, bidi, soft hyphen, tag…) and other default-ignorable characters
+ * (Hangul fillers, combining grapheme joiner, variation selectors…). U+FE0F is kept on its own
+ * below: it only asks for the emoji presentation of the previous character.
+ */
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/gu;
+/** Characters that render as blank space without being whitespace (braille blank, fillers). */
+const BLANK = /[\u2800\u3164\uffa0\u115f\u1160]/g;
+/** A name must contain at least one of these to be visible. */
+const VISIBLE = /[\p{L}\p{N}\p{P}\p{S}]/u;
+
+/**
+ * Trims, collapses whitespace and strips control / invisible characters. Returns '' when
+ * unusable (empty, or nothing visible left).
+ */
 export function sanitizeName(input: string): string {
   const cleaned = input
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, '')
+    .replace(INVISIBLE, (ch) => (ch === '\ufe0f' ? ch : ''))
+    .replace(BLANK, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   // Slice by code points so an emoji is never cut in half.
-  return Array.from(cleaned).slice(0, MAX_NAME_LENGTH).join('').trim();
+  const name = Array.from(cleaned).slice(0, MAX_NAME_LENGTH).join('').trim();
+  return VISIBLE.test(name) ? name : '';
 }
 
 export function photoUrl(code: string, photoId: string): string {

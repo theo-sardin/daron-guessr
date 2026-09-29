@@ -18,11 +18,15 @@ function resolveClientDir(): string | undefined {
   return PRODUCTION || fs.existsSync(dir) ? dir : undefined;
 }
 
+/** Optional cap on the memory used by photos of all rooms together (MiB). */
+const photoMemoryMb = Number(process.env.MAX_PHOTO_MEMORY_MB);
+
 const clientDir = resolveClientDir();
 const app = createApp({
   clientDir,
   corsAnyOrigin: !PRODUCTION,
   trustProxy: process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true',
+  maxTotalPhotoBytes: photoMemoryMb > 0 ? photoMemoryMb * 1024 * 1024 : undefined,
 });
 
 app.httpServer.listen(PORT, () => {

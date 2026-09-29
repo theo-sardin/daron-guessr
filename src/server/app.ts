@@ -2,12 +2,14 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import express, { type Express } from 'express';
+import express, { type Express, type Request } from 'express';
 import { Server } from 'socket.io';
+import * as parser from 'socket.io-parser';
 import { MAX_PHOTO_BYTES, normalizeRoomCode, type RoomPeek } from '../shared/protocol';
 import { DEFAULT_TIMING, type Rng, type Timing } from './game';
+import { KeyedRateLimiter, clientIp } from './rateLimit';
 import { RoomRegistry } from './rooms';
-import { attachGameServer, type IoServer, type Logger, type RateLimits } from './socket';
+import { DEFAULT_RATE_LIMITS, attachGameServer, type IoServer, type Logger, type RateLimits } from './socket';
 import { peekRoom } from './views';
 
 export interface AppOptions {
@@ -23,6 +25,9 @@ export interface AppOptions {
   corsAnyOrigin?: boolean;
   /** Trust X-Forwarded-For (behind a reverse proxy). */
   trustProxy?: boolean;
+  /** In-memory photo caps (all rooms / per room), in bytes. */
+  maxTotalPhotoBytes?: number;
+  maxRoomPhotoBytes?: number;
   sweepIntervalMs?: number;
   logger?: Logger;
 }
@@ -38,18 +43,37 @@ const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 /** Room for the Socket.IO envelope around the largest accepted photo. */
 const SOCKET_BUFFER_BYTES = MAX_PHOTO_BYTES + 256 * 1024;
 
+/**
+ * Only `photo:upload` carries binary data, as a single attachment. The default decoder
+ * accepts 10 per packet and keeps the pieces of an unfinished packet in memory, so one
+ * connection could pin 10 x SOCKET_BUFFER_BYTES: allow 1.
+ */
+class SingleAttachmentDecoder extends parser.Decoder {
+  constructor() {
+    super({ maxAttachments: 1 });
+  }
+}
+const socketParser = { ...parser, Decoder: SingleAttachmentDecoder };
+
 export function createApp(options: AppOptions = {}): App {
   const logger = options.logger ?? console;
   const registry = new RoomRegistry({ maxRooms: options.maxRooms, timing: { ...DEFAULT_TIMING, ...options.timing } });
   const app = express();
   app.disable('x-powered-by');
-  if (options.trustProxy) app.set('trust proxy', true);
-  mountApi(app, registry);
+  const now = options.now ?? Date.now;
+  const trustProxy = options.trustProxy ?? false;
+  // Only the proxy right in front of us is trusted (req.ip = last X-Forwarded-For entry).
+  if (trustProxy) app.set('trust proxy', 1);
+  const peeksPerMinute = { ...DEFAULT_RATE_LIMITS, ...options.rateLimits }.roomPeeksPerMinute;
+  const peeks = new KeyedRateLimiter(peeksPerMinute, peeksPerMinute / 60);
+  const allowPeek = (req: Request) => peeks.take(clientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress, trustProxy), now());
+  mountApi(app, registry, allowPeek);
   if (options.clientDir) mountClient(app, options.clientDir, logger);
 
   const httpServer = http.createServer(app);
   const io: IoServer = new Server(httpServer, {
     maxHttpBufferSize: SOCKET_BUFFER_BYTES,
+    parser: socketParser,
     serveClient: false,
     pingInterval: 15_000,
     pingTimeout: 10_000,
@@ -60,10 +84,15 @@ export function createApp(options: AppOptions = {}): App {
     now: options.now,
     rng: options.rng,
     rateLimits: options.rateLimits,
-    trustProxy: options.trustProxy,
+    trustProxy,
+    maxTotalPhotoBytes: options.maxTotalPhotoBytes,
+    maxRoomPhotoBytes: options.maxRoomPhotoBytes,
     logger,
   });
-  const sweeper = setInterval(() => game.sweep(), options.sweepIntervalMs ?? DEFAULT_SWEEP_INTERVAL_MS);
+  const sweeper = setInterval(() => {
+    game.sweep();
+    peeks.sweep(now());
+  }, options.sweepIntervalMs ?? DEFAULT_SWEEP_INTERVAL_MS);
   sweeper.unref();
 
   return {
@@ -79,12 +108,17 @@ export function createApp(options: AppOptions = {}): App {
   };
 }
 
-function mountApi(app: Express, registry: RoomRegistry): void {
+function mountApi(app: Express, registry: RoomRegistry, allowPeek: (req: Request) => boolean): void {
   app.get('/api/health', (_req, res) => {
     res.set('Cache-Control', 'no-store').json({ ok: true, rooms: registry.size });
   });
 
+  // Rate limited per IP: there are only 24^4 codes, they must not be enumerable.
   app.get('/api/rooms/:code', (req, res) => {
+    if (!allowPeek(req)) {
+      res.status(429).set({ 'Cache-Control': 'no-store', 'Retry-After': '60' }).json({ ok: false, error: 'RATE_LIMITED' });
+      return;
+    }
     const code = normalizeRoomCode(req.params.code);
     const room = registry.get(code);
     const peek: RoomPeek = room ? peekRoom(room) : { code, exists: false };

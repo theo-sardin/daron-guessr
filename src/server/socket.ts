@@ -42,8 +42,8 @@ import {
   type Rng,
   type Room,
 } from './game';
-import { detectImageMime, normalizeMime, toBuffer } from './image';
-import { KeyedRateLimiter, TokenBucket } from './rateLimit';
+import { inspectImage, normalizeMime, toBuffer } from './image';
+import { KeyedRateLimiter, TokenBucket, clientIp } from './rateLimit';
 import { newPhotoId, newPlayerId, newReactionId, newToken, type RoomRegistry } from './rooms';
 import { buildView, toMyPhoto } from './views';
 
@@ -64,7 +64,20 @@ export interface RateLimits {
   reactionsPerSecond: number;
   /** Per client IP. */
   roomCreatesPerMinute: number;
+  /** Per client IP: GET /api/rooms/:code (burst and refill per minute). */
+  roomPeeksPerMinute: number;
+  /** Per client IP: room:join / room:rejoin naming a room that does not exist (code guessing). */
+  roomMissesPerMinute: number;
+  /** Per socket: photo uploads (burst, then refill). */
+  uploadBurst: number;
+  uploadsPerSecond: number;
+  /** Per client IP: uploaded bytes (burst), refilled over 30 minutes. */
+  uploadBytesPerIp: number;
+  /** Per client IP: concurrent connections. */
+  connectionsPerIp: number;
 }
+
+const MIB = 1024 * 1024;
 
 export const DEFAULT_RATE_LIMITS: RateLimits = {
   eventBurst: 30,
@@ -72,10 +85,20 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
   reactionBurst: 4,
   reactionsPerSecond: 4,
   roomCreatesPerMinute: 10,
+  roomPeeksPerMinute: 60,
+  roomMissesPerMinute: 20,
+  uploadBurst: 8,
+  uploadsPerSecond: 0.1,
+  uploadBytesPerIp: 64 * MIB,
+  // Generous: a party shares one Wi-Fi IP, and some proxies collapse clients onto one address.
+  connectionsPerIp: 100,
 };
 
-/** Every photo of every room is kept in memory: refuse uploads past this. */
-export const DEFAULT_MAX_TOTAL_PHOTO_BYTES = 1024 * 1024 * 1024;
+/** Every photo of every room is kept in memory: refuse uploads past this (all rooms together). */
+export const DEFAULT_MAX_TOTAL_PHOTO_BYTES = 256 * MIB;
+/** Per room. Real clients send JPEGs of at most 1280 px, well under 1 MiB each (12 players x 2 slots). */
+export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 24 * MIB;
+const UPLOAD_BYTES_REFILL_SECONDS = 30 * 60;
 /** setTimeout overflows past ~24.8 days; waking up early is harmless (tick is a no-op). */
 const MAX_TIMER_DELAY_MS = 60 * 60_000;
 
@@ -94,6 +117,7 @@ export interface GameServerOptions {
   /** Read the client IP from X-Forwarded-For. Only behind a trusted reverse proxy. */
   trustProxy?: boolean;
   maxTotalPhotoBytes?: number;
+  maxRoomPhotoBytes?: number;
   logger?: Logger;
 }
 
@@ -106,11 +130,39 @@ export interface GameServer {
 
 const cryptoRng: Rng = () => randomInt(2 ** 32) / 2 ** 32;
 
+/** The engine.io connection behind a socket (only what is used here). */
+interface EngineConnection {
+  request: { headers: Record<string, string | string[] | undefined> };
+  remoteAddress: string;
+  once(event: 'close', listener: () => void): void;
+  close(): void;
+}
+
+/**
+ * Caps concurrent connections per client IP, at the engine.io level: every connection can
+ * hold a partly received packet in memory, even before it joins a Socket.IO namespace.
+ */
+function limitConnectionsPerIp(io: IoServer, max: number, trustProxy: boolean): void {
+  const counts = new Map<string, number>();
+  io.engine.on('connection', (conn: EngineConnection) => {
+    const ip = clientIp(conn.request.headers['x-forwarded-for'], conn.remoteAddress, trustProxy);
+    const count = (counts.get(ip) ?? 0) + 1;
+    counts.set(ip, count);
+    conn.once('close', () => {
+      const left = (counts.get(ip) ?? 1) - 1;
+      if (left > 0) counts.set(ip, left);
+      else counts.delete(ip);
+    });
+    if (count > max) conn.close();
+  });
+}
+
 export function attachGameServer(io: IoServer, options: GameServerOptions): GameServer {
   const now = options.now ?? Date.now;
   const logger = options.logger ?? console;
   const limits = { ...DEFAULT_RATE_LIMITS, ...options.rateLimits };
   const hub = new RoomHub(io, options.registry, now, logger);
+  const trustProxy = options.trustProxy ?? false;
   const deps: Deps = {
     hub,
     registry: options.registry,
@@ -119,9 +171,13 @@ export function attachGameServer(io: IoServer, options: GameServerOptions): Game
     logger,
     limits,
     createLimiter: new KeyedRateLimiter(limits.roomCreatesPerMinute, limits.roomCreatesPerMinute / 60),
-    trustProxy: options.trustProxy ?? false,
+    missLimiter: new KeyedRateLimiter(limits.roomMissesPerMinute, limits.roomMissesPerMinute / 60),
+    uploadBytesLimiter: new KeyedRateLimiter(limits.uploadBytesPerIp, limits.uploadBytesPerIp / UPLOAD_BYTES_REFILL_SECONDS),
+    trustProxy,
     maxTotalPhotoBytes: options.maxTotalPhotoBytes ?? DEFAULT_MAX_TOTAL_PHOTO_BYTES,
+    maxRoomPhotoBytes: options.maxRoomPhotoBytes ?? DEFAULT_MAX_ROOM_PHOTO_BYTES,
   };
+  limitConnectionsPerIp(io, limits.connectionsPerIp, trustProxy);
   io.on('connection', (socket) => {
     socket.data.code = null;
     socket.data.playerId = null;
@@ -130,7 +186,7 @@ export function attachGameServer(io: IoServer, options: GameServerOptions): Game
   return {
     sweep() {
       hub.sweep();
-      deps.createLimiter.sweep(now());
+      for (const limiter of [deps.createLimiter, deps.missLimiter, deps.uploadBytesLimiter]) limiter.sweep(now());
     },
     dispose() {
       hub.dispose();
@@ -251,12 +307,17 @@ class RoomHub {
     this.timers.delete(code);
   }
 
-  /** Drops timer and sockets of a room that left the registry. */
+  /**
+   * Drops timer and sockets of a room that left the registry. Sockets still attached (a room
+   * swept for its age while a tab is open) are told, like kicked players, so they go home.
+   */
   private forget(room: Room): void {
     this.clearTimer(room.code);
     for (const player of room.players) {
       const socket = this.socketOf(room.code, player.id);
-      if (socket) this.detach(socket);
+      if (!socket) continue;
+      socket.emit('room:kicked');
+      this.detach(socket);
     }
   }
 }
@@ -300,8 +361,13 @@ interface Deps {
   logger: Logger;
   limits: RateLimits;
   createLimiter: KeyedRateLimiter;
+  /** Per IP: joins / rejoins naming an unknown room. */
+  missLimiter: KeyedRateLimiter;
+  /** Per IP: uploaded bytes. */
+  uploadBytesLimiter: KeyedRateLimiter;
   trustProxy: boolean;
   maxTotalPhotoBytes: number;
+  maxRoomPhotoBytes: number;
 }
 
 type IntentEvent = Exclude<keyof ClientToServerEvents, 'react'>;
@@ -315,6 +381,18 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   const { hub, registry, now, logger, limits } = deps;
   const events = new TokenBucket(limits.eventBurst, limits.eventsPerSecond, now());
   const reactions = new TokenBucket(limits.reactionBurst, limits.reactionsPerSecond, now());
+  const uploads = new TokenBucket(limits.uploadBurst, limits.uploadsPerSecond, now());
+  const ip = clientIp(socket.handshake.headers['x-forwarded-for'], socket.handshake.address, deps.trustProxy);
+
+  /** Looks up a room by code; unknown codes count against the IP (they are how codes get guessed). */
+  const findRoom = (code: string): Room | Reply => {
+    if (!deps.missLimiter.has(ip, now())) return failure('RATE_LIMITED');
+    const room = registry.get(code);
+    if (room) return room;
+    deps.missLimiter.take(ip, now());
+    return failure('ROOM_NOT_FOUND');
+  };
+  const isReply = (v: Room | Reply): v is Reply => 'ok' in v;
 
   /**
    * Payloads are untrusted: the listener takes raw args, validates them, always acks when
@@ -371,7 +449,7 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   const session = (room: Room, player: Player): Session => ({ code: room.code, playerId: player.id, token: player.token });
 
   bind('room:create', schemas.create, (p, dirty) => {
-    if (!deps.createLimiter.take(clientIp(socket, deps.trustProxy), now())) return failure('RATE_LIMITED');
+    if (!deps.createLimiter.take(ip, now())) return failure('RATE_LIMITED');
     const created = registry.create(p, now());
     if (!created.ok) return created;
     const { room, player } = created.value;
@@ -380,8 +458,8 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   });
 
   bind('room:join', schemas.join, (p, dirty) => {
-    const room = registry.get(p.code);
-    if (!room) return failure('ROOM_NOT_FOUND');
+    const room = findRoom(p.code);
+    if (isReply(room)) return room;
     const joined = joinRoom(room, { id: newPlayerId(), token: newToken(), name: p.name, avatar: p.avatar }, now());
     if (!joined.ok) return joined;
     enter(room, joined.value, dirty);
@@ -389,8 +467,8 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   });
 
   bind('room:rejoin', schemas.rejoin, (p, dirty) => {
-    const room = registry.get(p.code);
-    if (!room) return failure('ROOM_NOT_FOUND');
+    const room = findRoom(p.code);
+    if (isReply(room)) return room;
     const player = findPlayerByToken(room, p.token);
     if (!player) return failure('NOT_IN_ROOM');
     const holder = hub.socketOf(room.code, player.id);
@@ -402,7 +480,7 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
       if (holder) hub.detach(holder);
       enter(room, player, dirty);
     }
-    reconnectPlayer(room, player.id);
+    reconnectPlayer(room, player.id, now());
     dirty.add(room);
     return { ok: true, session: session(room, player) };
   });
@@ -423,13 +501,20 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
 
   bind('photo:upload', schemas.upload, (p, dirty) =>
     seated((room, player) => {
-      if (p.data.byteLength > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');
+      if (!uploads.take(now())) return failure('RATE_LIMITED');
+      const size = p.data.byteLength;
+      if (size > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');
+      const info = inspectImage(p.data instanceof ArrayBuffer ? new Uint8Array(p.data) : p.data);
+      if (!info || info.mime !== normalizeMime(p.mime)) return failure('INVALID_PHOTO');
+      // Room quota; the photo this one replaces (same slot) is freed.
+      const kept = room.photos.filter((ph) => !(ph.ownerId === player.id && ph.slot === p.slot));
+      if (kept.reduce((sum, ph) => sum + ph.data.byteLength, 0) + size > deps.maxRoomPhotoBytes) return failure('PHOTO_TOO_LARGE');
+      if (registry.photoBytes() + size > deps.maxTotalPhotoBytes) return failure('SERVER_BUSY');
+      if (!deps.uploadBytesLimiter.has(ip, now(), size)) return failure('RATE_LIMITED');
       const data = toBuffer(p.data);
-      const mime = detectImageMime(data);
-      if (!mime || mime !== normalizeMime(p.mime)) return failure('INVALID_PHOTO');
-      if (registry.photoBytes() + data.byteLength > deps.maxTotalPhotoBytes) return failure('SERVER_BUSY');
-      const uploaded = uploadPhoto(room, player.id, { id: newPhotoId(), slot: p.slot, kind: p.kind, mime, data }, now());
+      const uploaded = uploadPhoto(room, player.id, { id: newPhotoId(), slot: p.slot, kind: p.kind, mime: info.mime, data }, now());
       if (!uploaded.ok) return uploaded;
+      deps.uploadBytesLimiter.take(ip, now(), size);
       dirty.add(room);
       return { ok: true, photo: toMyPhoto(room.code, uploaded.value) };
     }),
@@ -474,7 +559,7 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   );
 
   bind('host:playAgain', schemas.none, (_p, dirty) =>
-    seated((room, player) => applied(playAgain(room, player.id), room, dirty)),
+    seated((room, player) => applied(playAgain(room, player.id, now()), room, dirty)),
   );
 
   bind('vote:cast', schemas.vote, (p, dirty) =>
@@ -504,11 +589,4 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
       logger.error('[socket] disconnect failed', err);
     }
   });
-}
-
-function clientIp(socket: IoSocket, trustProxy: boolean): string {
-  const forwarded = socket.handshake.headers['x-forwarded-for'];
-  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  if (trustProxy && first) return first.split(',')[0].trim();
-  return socket.handshake.address;
 }

@@ -126,7 +126,7 @@ describe('full game flow', () => {
     expect(scoreOf(D)).toBe(5 * POINTS_PER_CORRECT);
     expect(ranking.map((r) => r.rank)).toEqual([1, 1, 3, 3]);
 
-    unwrap(g.playAgain(room, A));
+    unwrap(g.playAgain(room, A, end));
     expect(room.phase).toBe('lobby');
     expect(room.photos).toEqual([]);
     expect(room.game).toBeNull();
@@ -247,7 +247,7 @@ describe('voting', () => {
 
     g.tick(room, start + 10 + ALL_VOTED_GRACE_MS);
     const round1Start = game(room).roundStartsAt;
-    unwrap(g.reconnectPlayer(room, absent.id));
+    unwrap(g.reconnectPlayer(room, absent.id, round1Start - 1));
     // Round 1: the absent player is back, so the others voting is not enough.
     const owner = currentOwner(room);
     for (const p of room.players.filter((pl) => pl.id !== absent.id)) {
@@ -258,7 +258,7 @@ describe('voting', () => {
     g.disconnectPlayer(room, absent.id, round1Start + 30);
     expect(game(room).roundCloseAt).toBe(round1Start + 30 + ALL_VOTED_GRACE_MS);
     g.tick(room, round1Start + 30 + ALL_VOTED_GRACE_MS);
-    unwrap(g.reconnectPlayer(room, absent.id));
+    unwrap(g.reconnectPlayer(room, absent.id, round1Start + 31 + ALL_VOTED_GRACE_MS));
     const owner2 = currentOwner(room);
     const target = absent.id === owner2 ? game(room).ownerIds.find((id) => id !== absent.id)! : owner2;
     expect(errorOf(g.castVote(room, absent.id, 2, target, game(room).roundStartsAt))).toBeNull();
@@ -273,6 +273,57 @@ describe('voting', () => {
     expect(g.tick(room, start + 10 * 60_000)).toBe(false);
     expect(game(room).round).toBe(0);
     expect(room.phase).toBe('voting');
+  });
+
+  it('re-checks "everybody voted" when players come back or leave (timer-less round)', () => {
+    const room = startedRoom([1, 1, 1, 1], 0, { voteSeconds: 0 });
+    const start = game(room).roundStartsAt;
+    const owner = currentOwner(room);
+    const pick = (id: string) => (id === owner ? game(room).ownerIds.find((o) => o !== id)! : owner);
+    unwrap(g.castVote(room, A, 0, pick(A), start));
+    unwrap(g.castVote(room, B, 0, pick(B), start));
+    // Everybody drops, the last one being a non-voter: nobody connected, the round waits.
+    for (const id of [A, B, C, D]) g.disconnectPlayer(room, id, start + 10);
+    expect(game(room).roundCloseAt).toBeNull();
+    // A non-voter coming back alone does not close it.
+    unwrap(g.reconnectPlayer(room, C, start + 20));
+    expect(game(room).roundCloseAt).toBeNull();
+    g.disconnectPlayer(room, C, start + 30);
+    // Voters coming back: everybody connected has voted.
+    unwrap(g.reconnectPlayer(room, A, start + 100));
+    expect(game(room).roundCloseAt).toBe(start + 100 + ALL_VOTED_GRACE_MS);
+    expect(g.nextWakeAt(room)).toBe(start + 100 + ALL_VOTED_GRACE_MS);
+    unwrap(g.reconnectPlayer(room, B, start + 200));
+    expect(game(room).roundCloseAt).toBe(start + 100 + ALL_VOTED_GRACE_MS); // never later
+    expect(g.tick(room, start + 100 + ALL_VOTED_GRACE_MS)).toBe(true);
+    expect(game(room).round).toBe(1);
+
+    // Round 1: C and D are back, everybody but D votes, then D leaves for good.
+    unwrap(g.reconnectPlayer(room, C, start + 2000));
+    unwrap(g.reconnectPlayer(room, D, start + 2000));
+    const t1 = game(room).roundStartsAt;
+    const owner1 = currentOwner(room);
+    for (const id of [A, B, C]) unwrap(g.castVote(room, id, 1, id === owner1 ? game(room).ownerIds.find((o) => o !== id)! : owner1, t1));
+    expect(game(room).roundCloseAt).toBeNull();
+    unwrap(g.leaveRoom(room, D, t1 + 5));
+    expect(game(room).roundCloseAt).toBe(t1 + 5 + ALL_VOTED_GRACE_MS);
+  });
+
+  it('answers ok to a stale skip of the last round once voting is over', () => {
+    const room = startedRoom([1, 1, 1, 1], 0, { voteSeconds: 15 });
+    const last = game(room).order.length - 1;
+    for (let round = 0; round < last; round++) unwrap(g.skipRound(room, A, round, game(room).roundStartsAt));
+    const closeAt = game(room).roundCloseAt!;
+    g.tick(room, closeAt); // the timer wins the race against the host's skip
+    expect(room.phase).toBe('reveal');
+    const reveal = { ...game(room).reveal! };
+    expect(g.skipRound(room, A, last, closeAt + 5)).toEqual({ ok: true, value: undefined });
+    expect(room.phase).toBe('reveal');
+    expect(game(room).reveal).toEqual(reveal);
+    expect(errorOf(g.skipRound(room, B, last, closeAt + 5))).toBe('NOT_HOST');
+    revealAll(room, closeAt);
+    expect(errorOf(g.skipRound(room, A, last, closeAt + 60_000))).toBeNull();
+    expect(room.phase).toBe('results');
   });
 
   it('closes overdue rounds at their planned time when the timer fires late', () => {
@@ -301,7 +352,7 @@ describe('host migration', () => {
   it('keeps the crown when the host comes back in time', () => {
     const room = makeRoom(FOUR);
     g.disconnectPlayer(room, A, 100);
-    unwrap(g.reconnectPlayer(room, A));
+    unwrap(g.reconnectPlayer(room, A, 200));
     expect(room.hostDisconnectedSince).toBeNull();
     expect(g.tick(room, 100 + HOST_GRACE_MS)).toBe(false);
     expect(room.hostId).toBe(A);
@@ -312,7 +363,7 @@ describe('host migration', () => {
     for (const p of room.players) g.disconnectPlayer(room, p.id, 100);
     expect(g.nextWakeAt(room)).toBe(100 + g.DEFAULT_TIMING.lobbyDropMs);
     expect(g.tick(room, 100 + HOST_GRACE_MS)).toBe(false);
-    unwrap(g.reconnectPlayer(room, D));
+    unwrap(g.reconnectPlayer(room, D, 100 + HOST_GRACE_MS));
     expect(g.nextWakeAt(room)).toBe(100 + HOST_GRACE_MS);
     expect(g.tick(room, 100 + HOST_GRACE_MS + 5)).toBe(true);
     expect(room.hostId).toBe(D);
@@ -353,6 +404,19 @@ describe('lobby rules', () => {
     expect(errorOf(join('Zed', 'not-an-avatar'))).toBe('BAD_REQUEST');
     expect(unwrap(join('A very very long name indeed')).name).toBe('A very very long');
     expect(errorOf(g.createRoom('WXYZ', newPlayer(''), 0))).toBe('INVALID_NAME');
+  });
+
+  it('ignores invisible characters: no blank names, no invisible copies of a taken name', () => {
+    const room = makeRoom(['Bob']);
+    const join = (name: string) => g.joinRoom(room, { ...newPlayer(name), id: `x-${name}`, token: `t-${name}` }, 1);
+    for (const copy of ['Bob\u2060', 'B\u00adob', 'Bob\u034f', 'Bob\ufe0f', 'Bob\u{E0020}', '\u2800Bob', 'Bob\u180e']) {
+      expect(errorOf(join(copy))).toBe('NAME_TAKEN');
+    }
+    for (const blank of ['\u3164', '\u2800', '\u2060\u200d', '\ufe0f', '\u0301\u0301', '\u115f\uffa0']) {
+      expect(errorOf(join(blank))).toBe('INVALID_NAME');
+    }
+    expect(unwrap(join('Maman ❤️')).name).toBe('Maman ❤️');
+    expect(unwrap(join('\u2800Zo\u2060é ')).name).toBe('Zoé');
   });
 
   it('assigns the first unused color', () => {
@@ -511,7 +575,7 @@ describe('shuffle', () => {
 
 describe('reveal and scoring', () => {
   it('only counts fully revealed photos in public scores during the reveal', () => {
-    const room = startedRoom([1, 1, 1, 1]);
+    const room = startedRoom([1, 1, 1, 1], 1000, { anonymousVotes: false });
     expect([...g.publicScores(room).values()]).toEqual([0, 0, 0, 0]);
     const t = playAllRounds(room, allCorrect, 0);
     expect(room.phase).toBe('reveal');
@@ -526,6 +590,35 @@ describe('reveal and scoring', () => {
     revealAll(room, t);
     expect(room.phase).toBe('results');
     for (const score of g.publicScores(room).values()) expect(score).toBe(3 * POINTS_PER_CORRECT);
+  });
+
+  it('keeps public scores at 0 for the whole reveal when votes are anonymous', () => {
+    const room = startedRoom([1, 1, 1, 1]);
+    expect(room.settings.anonymousVotes).toBe(true);
+    const t = playAllRounds(room, allCorrect, 0);
+    let steps = 0;
+    while (room.phase === 'reveal') {
+      // Score changes between photos would tell everybody who guessed the previous one right.
+      expect([...g.publicScores(room).values()]).toEqual([0, 0, 0, 0]);
+      const reveal = game(room).reveal!;
+      unwrap(g.nextReveal(room, A, reveal.index, Math.max(t, reveal.startedAt + REVEAL_OWNER_AT_MS)));
+      steps += 1;
+    }
+    expect(steps).toBe(4);
+    expect(room.phase).toBe('results');
+    for (const score of g.publicScores(room).values()) expect(score).toBe(3 * POINTS_PER_CORRECT);
+  });
+
+  it('keeps public scores at 0 during voting, even after rounds with correct votes', () => {
+    for (const anonymousVotes of [true, false]) {
+      const room = startedRoom([1, 1, 1, 1], 0, { anonymousVotes });
+      for (let round = 0; round < 3; round++) {
+        everybodyVotes(room, game(room).roundStartsAt);
+        unwrap(g.skipRound(room, A, round, game(room).roundStartsAt + 1));
+        expect(room.phase).toBe('voting');
+        expect([...g.publicScores(room).values()]).toEqual([0, 0, 0, 0]);
+      }
+    }
   });
 
   it('refuses nextReveal before the owner is revealed and ignores stale indexes', () => {
@@ -550,14 +643,39 @@ describe('reveal and scoring', () => {
 
   it('playAgain is host-only and results-only', () => {
     const room = startedRoom([1, 1, 1, 1]);
-    expect(errorOf(g.playAgain(room, A))).toBe('WRONG_PHASE');
-    revealAll(room, playAllRounds(room, allCorrect, 0));
-    expect(errorOf(g.playAgain(room, B))).toBe('NOT_HOST');
+    expect(errorOf(g.playAgain(room, A, 0))).toBe('WRONG_PHASE');
+    const end = revealAll(room, playAllRounds(room, allCorrect, 0));
+    expect(errorOf(g.playAgain(room, B, end))).toBe('NOT_HOST');
     const settings = { ...room.settings };
-    unwrap(g.playAgain(room, A));
+    unwrap(g.playAgain(room, A, end));
     expect(room.settings).toEqual(settings);
     expect(room.phase).toBe('lobby');
     expect(g.computeRanking(room).every((r) => r.score === 0)).toBe(true);
+  });
+
+  it('playAgain keeps disconnected players, with a fresh lobby grace period', () => {
+    const room = startedRoom([1, 1, 1, 1], 0);
+    g.disconnectPlayer(room, D, 10); // phone locked early in the game
+    const end = revealAll(room, playAllRounds(room, allCorrect, 0));
+    const later = end + 6 * 60_000; // more than lobbyDropMs after D left
+    unwrap(g.playAgain(room, A, later));
+    const dropAt = later + g.DEFAULT_TIMING.lobbyDropMs;
+    expect(g.nextWakeAt(room)).toBe(dropAt);
+    expect(g.tick(room, later)).toBe(false);
+    expect(room.players.map((p) => p.id)).toEqual([A, B, C, D]);
+    // D comes back within the grace period: still seated.
+    unwrap(g.reconnectPlayer(room, D, dropAt - 1));
+    expect(g.tick(room, dropAt)).toBe(false);
+    expect(room.players.map((p) => p.id)).toEqual([A, B, C, D]);
+
+    // Without coming back, the usual lobby rule applies from the moment of playAgain.
+    const other = startedRoom([1, 1, 1, 1], 0);
+    g.disconnectPlayer(other, D, 10);
+    const otherEnd = revealAll(other, playAllRounds(other, allCorrect, 0)) + 6 * 60_000;
+    unwrap(g.playAgain(other, A, otherEnd));
+    expect(g.tick(other, otherEnd + g.DEFAULT_TIMING.lobbyDropMs - 1)).toBe(false);
+    expect(g.tick(other, otherEnd + g.DEFAULT_TIMING.lobbyDropMs)).toBe(true);
+    expect(other.players.map((p) => p.id)).toEqual([A, B, C]);
   });
 
   it('ranks with shared ranks on ties', () => {
@@ -665,6 +783,41 @@ describe('awards', () => {
     expect(awardOf(awards, 'needsGlasses')).toEqual({ id: 'needsGlasses', playerIds: [idOf('D')], value: 0, total: 3 });
   });
 
+  it('breaks biggestMixup ties on the margin over the correct votes, not on photo order', () => {
+    // Photo order (seed 7) is A, B, E, D, C: the smaller margin (photo A) comes first.
+    const room = playMatrix(['A', 'B', 'C', 'D', 'E'], {
+      A: { B: 'B', C: 'D', D: 'D', E: 'E' },
+      B: { A: 'E', C: 'D', D: 'D', E: 'E' },
+      C: { A: 'B', B: 'B', D: 'D', E: 'E' },
+      D: { A: 'B', B: 'B', C: 'E', E: 'E' },
+      E: { A: 'A', B: 'B', C: 'A', D: 'D' },
+    });
+    const owners = game(room).order.map((_, i) => g.gamePhoto(room, i).ownerId);
+    expect(owners.indexOf(idOf('A'))).toBeLessThan(owners.indexOf(idOf('C')));
+    const photoOf = (owner: string) => room.photos.find((ph) => ph.ownerId === idOf(owner))!.id;
+    // Photo A: 2 votes for B, 1 correct (margin 1). Photo C: 2 votes for D, 0 correct (margin 2).
+    expect(awardOf(g.computeAwards(room), 'biggestMixup')).toEqual({
+      id: 'biggestMixup',
+      playerIds: [idOf('C')],
+      photoId: photoOf('C'),
+      otherPlayerId: idOf('D'),
+      value: 2,
+      total: 4,
+    });
+  });
+
+  it('gives sherlock the highest guess count of the tied winners as total', () => {
+    const awards = g.computeAwards(
+      playMatrix(['A', 'B', 'C', 'D'], {
+        A: { B: 'B', C: 'C' }, // 2 / 2 (abstains on D)
+        B: { A: 'A', C: 'C', D: 'A' }, // 2 / 3
+        C: { A: 'B', B: 'B', D: 'A' },
+        D: { A: 'C', B: 'A', C: 'C' },
+      }),
+    );
+    expect(awardOf(awards, 'sherlock')).toEqual({ id: 'sherlock', playerIds: [idOf('A'), idOf('B')], value: 2, total: 3 });
+  });
+
   it('ignores players without votes and photos without votes', () => {
     // Nobody ever votes on anything: no award at all.
     const awards = g.computeAwards(playMatrix(['A', 'B', 'C', 'D'], {}));
@@ -700,7 +853,7 @@ describe('time bookkeeping', () => {
 
     const lobby = makeRoom(FOUR);
     for (const p of lobby.players) g.disconnectPlayer(lobby, p.id, 5);
-    unwrap(g.reconnectPlayer(lobby, C));
+    unwrap(g.reconnectPlayer(lobby, C, 5));
     for (let t = 0; t < 400_000; t += 3333) expectWakeAfterTick(lobby, t);
     expect(lobby.players.map((p) => p.id)).toEqual([C]);
     expect(lobby.hostId).toBe(C);

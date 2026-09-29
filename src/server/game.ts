@@ -193,7 +193,8 @@ export function gamePhoto(room: Room, index: number): Photo {
 const isSlot = (slot: number): slot is PhotoSlot => (PHOTO_SLOTS as readonly number[]).includes(slot);
 const isKind = (kind: string): kind is ParentKind => kind === 'daron' || kind === 'daronne';
 const isAvatar = (avatar: string) => (AVATARS as readonly string[]).includes(avatar);
-const nameKey = (name: string) => name.normalize('NFC').toLowerCase();
+/** Comparison key for names: case-insensitive, ignoring emoji variation selectors. */
+const nameKey = (name: string) => name.normalize('NFC').replace(/[\ufe0e\ufe0f]/g, '').toLowerCase();
 
 /** Validates a name / avatar pair; returns the sanitized name. */
 function checkIdentity(room: Room | null, rawName: string, avatar: string, selfId?: string): Result<string> {
@@ -274,12 +275,15 @@ export function joinRoom(room: Room, input: NewPlayer, now: number): Result<Play
 }
 
 /** Marks a player connected again (session resumed). */
-export function reconnectPlayer(room: Room, playerId: string): Result<Player> {
+export function reconnectPlayer(room: Room, playerId: string, now: number): Result<Player> {
   const player = findPlayer(room, playerId);
   if (!player) return fail('NOT_IN_ROOM');
   player.connected = true;
   player.disconnectedAt = null;
   if (room.hostId === playerId) room.hostDisconnectedSince = null;
+  // The connected set changed: if everybody connected has now voted, the round can close
+  // (e.g. voters coming back to a timer-less round that stalled while nobody was connected).
+  applyAllVoted(room, now);
   return ok(player);
 }
 
@@ -501,10 +505,13 @@ function applyAllVoted(room: Room, now: number): boolean {
   return true;
 }
 
-/** Host: close `round` now. A stale round number is ignored. */
+/** Host: close `round` now. A stale round number is ignored, also once voting is over. */
 export function skipRound(room: Room, playerId: string, round: number, now: number): Result {
-  const auth = host(room, playerId, 'voting');
+  const auth = host(room, playerId);
   if (!auth.ok) return auth;
+  // A skip that raced the close of the last round: that round is already over.
+  if (room.phase === 'reveal' || room.phase === 'results') return DONE;
+  if (room.phase !== 'voting') return fail('WRONG_PHASE');
   if (round === requireGame(room).round) closeRound(room, now);
   return DONE;
 }
@@ -544,13 +551,18 @@ export function nextReveal(room: Room, playerId: string, index: number, now: num
   return DONE;
 }
 
-/** Host, results: back to the lobby with the same players and settings. */
-export function playAgain(room: Room, playerId: string): Result {
+/**
+ * Host, results: back to the lobby with the same players and settings. Players who are
+ * disconnected get a fresh lobby grace period (`lobbyDropMs` from now) instead of being
+ * dropped at once for having been away during the game.
+ */
+export function playAgain(room: Room, playerId: string, now: number): Result {
   const auth = host(room, playerId, 'results');
   if (!auth.ok) return auth;
   room.phase = 'lobby';
   room.photos = [];
   room.game = null;
+  for (const p of room.players) if (!p.connected) p.disconnectedAt = now;
   return DONE;
 }
 
@@ -682,8 +694,13 @@ export function revealedRounds(room: Room): number {
   return 0;
 }
 
+/**
+ * Scores everybody may see. With anonymous votes, they stay frozen (at 0) during the reveal:
+ * otherwise who gained points on the previous photo would tell everybody who guessed it right.
+ */
 export function publicScores(room: Room): Map<string, number> {
-  return new Map(playerStats(room, revealedRounds(room)).map((s) => [s.playerId, s.score]));
+  const rounds = room.phase === 'reveal' && room.settings.anonymousVotes ? 0 : revealedRounds(room);
+  return new Map(playerStats(room, rounds).map((s) => [s.playerId, s.score]));
 }
 
 /** Final ranking; ties share a rank (1, 1, 3). */
