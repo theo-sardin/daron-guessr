@@ -10,8 +10,12 @@ import {
   REVEAL_INTRO_MS,
   REVEAL_OWNER_AT_MS,
   ROUND_GAP_MS,
+  THEMES,
+  THEME_DEFAULT_PHOTOS,
   type Award,
   type AwardId,
+  type PhotoSlot,
+  type RoomSetup,
 } from '../shared/protocol';
 import * as g from './game';
 import {
@@ -600,6 +604,64 @@ describe('themes and photos per player', () => {
     for (const patch of bad) expect(errorOf(g.updateSettings(room, A, patch))).toBe('BAD_REQUEST');
     expect(room.settings).toEqual(before);
     expect(errorOf(g.updateSettings(room, B, { theme: 'mix' }))).toBe('NOT_HOST');
+  });
+
+  describe('game mode picked when creating the room', () => {
+    const create = (setup?: RoomSetup, name = 'Alice') => g.createRoom('WXYZ', newPlayer(name), 0, g.DEFAULT_TIMING, setup);
+
+    it("starts with the picked theme and that theme's default photo count", () => {
+      for (const theme of THEMES) {
+        expect(unwrap(create({ theme })).settings).toEqual({ ...DEFAULT_SETTINGS, theme, photosPerPlayer: THEME_DEFAULT_PHOTOS[theme] });
+      }
+      expect(unwrap(create({ theme: 'childhood' })).settings).toEqual({
+        voteSeconds: 30,
+        anonymousVotes: true,
+        theme: 'childhood',
+        photosPerPlayer: 1,
+      });
+    });
+
+    it('keeps an explicit photo count', () => {
+      expect(unwrap(create({ theme: 'childhood', photosPerPlayer: 3 })).settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 3 });
+      expect(unwrap(create({ theme: 'family', photosPerPlayer: 1 })).settings).toMatchObject({ theme: 'family', photosPerPlayer: 1 });
+      expect(unwrap(create({ theme: 'parents', photosPerPlayer: 2 })).settings).toEqual(DEFAULT_SETTINGS);
+    });
+
+    it('falls back to DEFAULT_SETTINGS without a setup, never sharing the object', () => {
+      const room = unwrap(create());
+      expect(room.settings).toEqual(DEFAULT_SETTINGS);
+      expect(room.settings).not.toBe(DEFAULT_SETTINGS);
+      unwrap(g.updateSettings(room, idOf('Alice'), { theme: 'mix' }));
+      expect(DEFAULT_SETTINGS).toMatchObject({ theme: 'parents', photosPerPlayer: 2 });
+    });
+
+    it('rejects an invalid theme or photo count with BAD_REQUEST, after the name check', () => {
+      const bad = [
+        {},
+        { theme: 'cousins' },
+        { theme: 'Mix' },
+        { photosPerPlayer: 2 },
+        { theme: 'mix', photosPerPlayer: 4 },
+        { theme: 'mix', photosPerPlayer: 0 },
+        { theme: 'pick', photosPerPlayer: 1.5 },
+        { theme: 'pick', photosPerPlayer: '2' },
+        { theme: 'pick', photosPerPlayer: null },
+      ] as unknown as RoomSetup[];
+      for (const setup of bad) expect(errorOf(create(setup))).toBe('BAD_REQUEST');
+      expect(errorOf(create({ theme: 'mix' }, '   '))).toBe('INVALID_NAME');
+    });
+
+    it('applies the picked mode in the lobby, where the host can still change it', () => {
+      const room = unwrap(create({ theme: 'childhood' }));
+      unwrap(g.joinRoom(room, newPlayer('Bob'), 1));
+      const upload = (slot: PhotoSlot, kind: g.Photo['kind']) => errorOf(g.uploadPhoto(room, idOf('Bob'), newPhoto(room, slot, kind), 2));
+      expect(upload(0, 'daron')).toBe('BAD_REQUEST'); // not a childhood kind
+      expect(upload(1, 'kid')).toBe('BAD_REQUEST'); // 1 photo per player
+      expect(upload(0, 'kid')).toBeNull();
+      unwrap(g.updateSettings(room, idOf('Alice'), { theme: 'mix' }));
+      expect(room.settings).toMatchObject({ theme: 'mix', photosPerPlayer: 2 });
+      expect(g.playerPhotos(room, idOf('Bob')).map((ph) => ph.kind)).toEqual(['kid']);
+    });
   });
 
   it('only accepts uploads and relabels in an active slot, with a kind the theme allows', () => {

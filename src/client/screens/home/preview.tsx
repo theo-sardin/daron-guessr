@@ -82,6 +82,18 @@ const previews: PreviewRegistry = {
       return <HomeScreen />;
     },
   },
+  'mode-step': {
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🦊' });
+      return <HomeScreen initialStep="mode" />;
+    },
+  },
+  'mode-picked': {
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🦊' });
+      return <HomeScreen initialStep="mode" initialTheme="childhood" />;
+    },
+  },
   'home-seated': {
     // A real seated player also has a room view (the TopBar then shows the room code).
     view: () => fakeView(fakePlayers(4), 1),
