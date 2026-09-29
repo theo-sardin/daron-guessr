@@ -98,7 +98,7 @@ export function ModeStep({
         <Button variant="ghost" size="sm" className="justify-self-start" onClick={onBack} disabled={busy} icon={<span aria-hidden>←</span>}>
           {t('home.mode.back')}
         </Button>
-        <span className="flex min-w-0 items-center gap-2 justify-self-end rounded-full border-2 border-white/20 bg-white/10 py-1 pr-3 pl-1 font-extrabold text-cream lg:col-start-3 lg:row-start-1">
+        <span className="flex max-w-full min-w-0 items-center gap-2 justify-self-end rounded-full border-2 border-white/20 bg-white/10 py-1 pr-3 pl-1 font-extrabold text-cream lg:col-start-3 lg:row-start-1">
           <span
             className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-ink bg-sun text-lg leading-none"
             style={EMOJI_FONT}
@@ -126,7 +126,7 @@ export function ModeStep({
             {t('home.mode.title')}
           </h1>
           <p className="mt-1.5 text-sm font-bold text-grape-200 sm:text-base">
-            {t('home.mode.sub')} <span aria-hidden>📸</span>
+            {t('home.mode.sub')}{'\u00a0'}<span aria-hidden>📸</span>
           </p>
         </div>
       </div>

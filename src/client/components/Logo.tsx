@@ -6,7 +6,7 @@ import { Viewfinder } from './Viewfinder';
 const SIZES = {
   sm: { text: 'text-[1.35rem]', stroke: 'text-outline-sm', bracket: { length: 8, thickness: 2.5, gap: 5 } },
   md: { text: 'text-[3.4rem]', stroke: 'text-outline', bracket: { length: 16, thickness: 3.5, gap: 12 } },
-  lg: { text: 'text-[4.4rem] sm:text-[5.4rem]', stroke: 'text-outline', bracket: { length: 22, thickness: 4.5, gap: 14 } },
+  lg: { text: 'text-[4.75rem] sm:text-[5.75rem]', stroke: 'text-outline', bracket: { length: 22, thickness: 4.5, gap: 14 } },
 } as const;
 
 /** 4-point glint of the camera flash. */
@@ -26,10 +26,10 @@ function FlashGlint({ className, delay }: { className?: string; delay: number })
       aria-hidden
     >
       <path
-        d="M20 1Q22.4 17.6 39 20Q22.4 22.4 20 39Q17.6 22.4 1 20Q17.6 17.6 20 1z"
+        d="M20 1.5Q23.6 16.4 38.5 20Q23.6 23.6 20 38.5Q16.4 23.6 1.5 20Q16.4 16.4 20 1.5z"
         fill="#fff"
         stroke="var(--color-ink)"
-        strokeWidth="3.5"
+        strokeWidth="2.6"
         strokeLinejoin="round"
       />
     </motion.svg>

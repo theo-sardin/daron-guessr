@@ -32,9 +32,9 @@ async function createRoom(page: Page, name: string, mode: string, photos: number
   await page.getByRole('button', { name: /Create a room/ }).click();
 
   // The mode step: no room yet, nothing picked, the confirm button is locked.
-  await expect(page.getByRole('heading', { name: 'Pick a game mode' })).toBeVisible();
-  const modes = page.getByRole('radiogroup', { name: 'Game mode' });
-  const confirm = page.getByRole('button', { name: 'Create the room' });
+  await expect(page.getByRole('heading', { name: 'Pick a game mode', exact: true })).toBeVisible();
+  const modes = page.getByRole('radiogroup', { name: 'Game mode', exact: true });
+  const confirm = page.getByRole('button', { name: 'Create the room', exact: true });
   await expect(modes.getByRole('radio')).toHaveCount(5);
   await expect(modes.getByRole('radio', { checked: true })).toHaveCount(0);
   await expect(confirm).toBeDisabled();
@@ -46,7 +46,7 @@ async function createRoom(page: Page, name: string, mode: string, photos: number
   await card.click();
   await expect(card).toBeChecked();
   await expect(modes.getByRole('radio', { checked: true })).toHaveCount(1);
-  const perPlayer = page.getByRole('radiogroup', { name: 'Photos per player' });
+  const perPlayer = page.getByRole('radiogroup', { name: 'Photos per player', exact: true });
   await expect(perPlayer.getByRole('radio', { name: String(photos), exact: true })).toBeChecked();
   await expect(confirm).toBeEnabled();
   if (shot) await page.screenshot({ path: `${SHOTS}/${shot}-mode-picked.png` });
@@ -54,7 +54,7 @@ async function createRoom(page: Page, name: string, mode: string, photos: number
   await confirm.click();
   await page.waitForURL(/\/[A-Z]{4}$/);
   // The lobby opens on the mode picked at creation.
-  const lobbyTheme = page.getByRole('radiogroup', { name: 'Theme' });
+  const lobbyTheme = page.getByRole('radiogroup', { name: 'Theme', exact: true });
   await expect(lobbyTheme.getByRole('radio', { name: new RegExp(mode) })).toBeChecked();
   await expect(lobbyTheme.getByRole('radio', { checked: true })).toHaveCount(1);
   return new URL(page.url()).pathname.slice(1);
@@ -155,8 +155,8 @@ test('the game mode step is mandatory, and Back returns to the form', async ({ p
   await page.goto('/?lang=fr');
   const nickname = page.getByPlaceholder('Ton pseudo');
   const create = page.getByRole('button', { name: /Créer un salon/ });
-  const modes = page.getByRole('radiogroup', { name: 'Mode de jeu' });
-  const confirm = page.getByRole('button', { name: 'Créer le salon' });
+  const modes = page.getByRole('radiogroup', { name: 'Mode de jeu', exact: true });
+  const confirm = page.getByRole('button', { name: 'Créer le salon', exact: true });
 
   // No name: the step does not open.
   await nickname.fill('');

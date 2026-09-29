@@ -40,7 +40,7 @@ function subjectShape(subject: Subject, w: number, h: number): ReactNode {
       return (
         <>
           {/* Bob haircut behind the head. */}
-          <rect x={cx - r * 1.45} y={cy - r * 1.35} width={r * 2.9} height={r * 3} rx={r * 1.3} fill={INK} />
+          <rect x={cx - r * 1.55} y={cy - r * 1.35} width={r * 3.1} height={r * 3.4} rx={r * 1.45} fill={INK} />
           <ellipse cx={cx} cy={h * 1.05} rx={w * 0.42} ry={h * 0.34} fill={INK} />
           <circle cx={cx} cy={cy} r={r} fill={INK} />
         </>

@@ -81,7 +81,7 @@ export function TopBar() {
             <span className="label-mono text-cream/55" aria-hidden>
               {t('common.room')}
             </span>
-            <span className="text-stamp font-stamp14 text-[1.05rem] leading-none tracking-[0.1em]" aria-hidden>
+            <span className="text-stamp font-stamp14 text-[1.2rem] leading-none tracking-[0.12em]" aria-hidden>
               {view.code}
             </span>
             <Icon name="link" className="size-4 text-cream/45 transition-colors group-hover:text-cream" />

@@ -22,20 +22,34 @@ const SIZE: Record<StampSize, string> = {
 /** Unlit segments behind the digits (LCD look): every glyph position fully lit. */
 const ALL_ON: Record<Exclude<StampVariant, 'mono'>, string> = { seg7: '8', seg14: '~' };
 
-/** Characters DSEG7 has no glyph for (/ ' ? + …): drawn with DSEG14 so "03/08" or "'98" still read as segments. */
+/** Characters DSEG7 has no glyph for (/ ' ? + …): drawn with DSEG14 so they still read as segments. */
 const SEG7_MISSING = /([^0-9A-Za-z\-:. !])/;
+
+/** A lit segment drawn with CSS (for the slash and the apostrophe, narrower than a DSEG cell). */
+const SEGMENT = 'absolute rounded-full bg-current shadow-[0_0_6px_rgb(255_122_26_/_0.6)]';
 
 function renderSeg7(text: string): ReactNode {
   if (!SEG7_MISSING.test(text)) return text;
-  return text.split(SEG7_MISSING).map((part, i) =>
-    i % 2 ? (
+  return text.split(SEG7_MISSING).map((part, i) => {
+    if (i % 2 === 0) return part;
+    if (part === '/')
+      return (
+        <span key={i} className="relative inline-block h-[1em] w-[0.42em] align-baseline">
+          <span className={cn(SEGMENT, 'top-[4%] left-[42%] h-[92%] w-[0.1em] rotate-[18deg]')} />
+        </span>
+      );
+    if (part === "'")
+      return (
+        <span key={i} className="relative inline-block h-[1em] w-[0.3em] align-baseline">
+          <span className={cn(SEGMENT, 'top-0 left-[30%] h-[36%] w-[0.1em] rotate-[12deg]')} />
+        </span>
+      );
+    return (
       <span key={i} className="font-stamp14">
         {part}
       </span>
-    ) : (
-      part
-    ),
-  );
+    );
+  });
 }
 
 export interface StampProps {

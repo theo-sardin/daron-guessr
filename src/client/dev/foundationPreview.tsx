@@ -167,6 +167,19 @@ function Stamps() {
           {'12 PTS'}
         </Stamp>
       </div>
+      <div className="flex flex-col gap-2">
+        <span className="label-mono text-cream/50">room code alphabet (seg14)</span>
+        {['ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'].map((row) => (
+          <span key={row} className="flex items-end gap-5">
+            <Stamp variant="seg14" size="md">
+              {row}
+            </Stamp>
+            <Stamp variant="seg14" size="sm">
+              {row}
+            </Stamp>
+          </span>
+        ))}
+      </div>
       <div className="flex flex-wrap items-end gap-3">
         {(['xs', 'sm', 'md', 'lg', 'xl', '2xl'] as const).map((s) => (
           <Stamp key={s} size={s}>
@@ -268,9 +281,9 @@ function Timers() {
   const [base] = useState(() => serverNow());
   return (
     <div className="flex flex-wrap items-center gap-5">
-      <TimerRing startsAt={base - 10_000} endsAt={base + 50_000} size={80} ticking={false} />
-      <TimerRing startsAt={base - 30_000} endsAt={base + 12_000} ticking={false} />
-      <TimerRing startsAt={base - 40_000} endsAt={base + 4_500} ticking={false} />
+      <TimerRing startsAt={base - 30_000} endsAt={base + 90_000} size={80} ticking={false} />
+      <TimerRing startsAt={base - 80_000} endsAt={base + 40_000} ticking={false} />
+      <TimerRing startsAt={base - 100_000} endsAt={base + 20_000} ticking={false} />
       <TimerRing startsAt={base} endsAt={null} ticking={false} />
       <TimerRing startsAt={base - 10_000} endsAt={base + 99_000} size={48} ticking={false} />
     </div>
