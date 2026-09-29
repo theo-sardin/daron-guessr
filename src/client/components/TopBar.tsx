@@ -6,7 +6,7 @@ import { sfx, useMuted } from '../lib/sfx';
 import { api, useRoom } from '../lib/store';
 import { copyText, cn } from '../lib/util';
 import { Icon } from './Icon';
-import { Logo } from './Logo';
+import { Logo, useHeroLogoVisible } from './Logo';
 import { ConfirmDialog } from './Modal';
 import { toast } from './Toast';
 
@@ -27,30 +27,34 @@ function IconButton({ label, onClick, children, className }: { label: string; on
   );
 }
 
-/** "FR | EN" pill: the active language is lit, a tap switches to the other one. */
-function LangPill({ lang, onSwitch, label }: { lang: Lang; onSwitch: () => void; label: string }) {
+/**
+ * "FR | EN" segmented control: two real buttons, each sets its own language (tapping the lit
+ * one does nothing). The pill is 44px tall and each half ~40px wide, padding included.
+ */
+function LangSwitch({ lang, setLang, label }: { lang: Lang; setLang: (l: Lang) => void; label: string }) {
   return (
-    <motion.button
-      type="button"
-      whileTap={{ scale: 0.92 }}
-      onClick={onSwitch}
-      aria-label={label}
-      title={label}
-      className={cn('relative flex h-11 items-center gap-0.5 rounded-2xl p-1 font-mono text-[11px] font-bold tracking-[0.08em] transition-colors', CHROME)}
-    >
+    <div role="group" aria-label={label} className="flex h-11 items-center gap-0.5 rounded-2xl border-2 border-white/15 bg-white/8 p-1 text-cream backdrop-blur">
       {(['fr', 'en'] as const).map((l) => (
-        <span key={l} className={cn('relative flex h-full w-8 items-center justify-center rounded-xl', l === lang ? 'text-ink' : 'text-cream/55')}>
+        <motion.button
+          key={l}
+          type="button"
+          lang={l}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => l !== lang && setLang(l)}
+          aria-pressed={l === lang}
+          aria-label={l === 'fr' ? 'Français' : 'English'}
+          className={cn(
+            'relative flex h-full w-9 items-center justify-center rounded-xl font-mono text-[11px] font-bold tracking-[0.08em] transition-colors',
+            l === lang ? 'text-ink' : 'text-cream/55 hover:text-cream',
+          )}
+        >
           {l === lang && (
-            <motion.span
-              layoutId="lang-pill"
-              className="absolute inset-0 rounded-xl bg-cream"
-              transition={{ type: 'spring', stiffness: 600, damping: 36 }}
-            />
+            <motion.span layoutId="lang-pill" className="absolute inset-0 rounded-xl bg-cream" transition={{ type: 'spring', stiffness: 600, damping: 36 }} />
           )}
           <span className="relative">{l.toUpperCase()}</span>
-        </span>
+        </motion.button>
       ))}
-    </motion.button>
+    </div>
   );
 }
 
@@ -59,6 +63,7 @@ export function TopBar() {
   const { t, lang, setLang } = useI18n();
   const muted = useMuted();
   const view = useRoom();
+  const heroLogo = useHeroLogoVisible();
   const [confirmLeave, setConfirmLeave] = useState(false);
 
   const copyCode = async () => {
@@ -76,18 +81,29 @@ export function TopBar() {
             onClick={copyCode}
             title={t('common.copyLink')}
             aria-label={`${t('common.roomCode')} ${view.code.split('').join(' ')}. ${t('common.copyLink')}`}
-            className="group flex h-11 items-center gap-2.5 rounded-2xl border-2 border-white/15 bg-ink/85 pr-2.5 pl-3 shadow-[inset_0_-12px_20px_-14px_rgb(255_122_26_/_0.45)] backdrop-blur transition-colors hover:border-stamp/50"
+            className="group flex h-11 shrink-0 items-center gap-2.5 rounded-2xl border-2 border-white/15 bg-ink/85 pr-2.5 pl-3 shadow-[inset_0_-12px_20px_-14px_rgb(255_122_26_/_0.45)] backdrop-blur transition-colors hover:border-stamp/50"
           >
-            <span className="label-mono text-cream/55" aria-hidden>
+            <span className="label-mono hidden text-cream/55 min-[350px]:inline" aria-hidden>
               {t('common.room')}
             </span>
-            <span className="text-stamp font-stamp14 text-[1.05rem] leading-none tracking-[0.1em]" aria-hidden>
+            {/* Space Mono, not DSEG14: this is the one string people read aloud and type. */}
+            <span className="text-stamp -mr-[0.18em] font-mono text-[1.2rem] leading-none font-bold tracking-[0.18em]" aria-hidden>
               {view.code}
             </span>
-            <Icon name="link" className="size-4 text-cream/45 transition-colors group-hover:text-cream" />
+            <span className="hidden text-cream/45 transition-colors group-hover:text-cream min-[380px]:block">
+              <Icon name="link" className="block size-4" />
+            </span>
           </motion.button>
         ) : (
-          <button type="button" onClick={() => navigate('/')} className="flex h-11 items-center px-2" aria-label={t('common.backHome')}>
+          // Hidden (not unmounted) while Home's big logo is on screen: one wordmark above the fold.
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className={cn('flex h-11 items-center px-2 transition-opacity duration-300', heroLogo && 'pointer-events-none opacity-0')}
+            aria-label={t('common.backHome')}
+            aria-hidden={heroLogo || undefined}
+            tabIndex={heroLogo ? -1 : undefined}
+          >
             <Logo size="sm" />
           </button>
         )}
@@ -99,12 +115,12 @@ export function TopBar() {
               if (muted) sfx.play('pop');
             }}
           >
-            <Icon name={muted ? 'sound-off' : 'sound-on'} className="size-5.5" />
+            <Icon name={muted ? 'sound-off' : 'sound-on'} className="size-6" />
           </IconButton>
-          <LangPill lang={lang} label={t('common.language')} onSwitch={() => setLang(lang === 'fr' ? 'en' : 'fr')} />
+          <LangSwitch lang={lang} setLang={setLang} label={t('common.language')} />
           {view && (
             <IconButton label={t('common.leaveRoom')} onClick={() => setConfirmLeave(true)}>
-              <Icon name="leave" className="size-5.5" />
+              <Icon name="leave" className="size-6" />
             </IconButton>
           )}
         </div>

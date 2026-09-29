@@ -2,12 +2,24 @@ import { motion, useInView } from 'motion/react';
 import { useRef } from 'react';
 import type { PublicPlayer, RankingEntry } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
+import { IconBadge } from '../../components/IconBadge';
+import { Stamp } from '../../components/Stamp';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/util';
 import { CountUp } from './CountUp';
-import { playerOr } from './helpers';
+import { MEDAL_TONE, medalIcon, playerOr } from './helpers';
 
-const MEDALS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
+/** Trophy / medal sticker for the top three (when they scored), the rank number below. */
+function RankMark({ rank, scored }: { rank: number; scored: boolean }) {
+  const { t } = useI18n();
+  const icon = scored ? medalIcon(rank) : null;
+  if (icon) return <IconBadge name={icon} tone={MEDAL_TONE[rank]} size="sm" tilt={rank === 1 ? -8 : rank === 2 ? 6 : -4} label={t('results.mine.rank', { rank })} />;
+  return (
+    <span className="font-mono text-base leading-none font-bold tracking-tight text-ink/60">
+      {t('results.mine.rank', { rank })}
+    </span>
+  );
+}
 
 function Row({
   entry,
@@ -35,15 +47,15 @@ function Row({
     <motion.li
       ref={ref}
       className={cn(
-        'relative flex items-center gap-3 rounded-2xl border-3 border-ink px-3 py-2.5 text-ink shadow-pop-sm',
+        'relative flex items-center gap-3 rounded-2xl border-3 border-ink py-2.5 pr-2.5 pl-3 text-ink shadow-pop-sm',
         isMe ? 'bg-sun' : 'bg-cream',
       )}
       initial={{ opacity: 0, x: -40, scale: 0.9 }}
       animate={show ? { opacity: 1, x: 0, scale: 1 } : undefined}
       transition={{ type: 'spring', stiffness: 420, damping: 26, delay }}
     >
-      <span className="flex w-9 shrink-0 items-center justify-center font-display text-2xl leading-none">
-        {MEDALS[entry.rank] ?? <span className="text-xl text-ink/70">{t('results.mine.rank', { rank: entry.rank })}</span>}
+      <span className="flex w-8 shrink-0 items-center justify-center">
+        <RankMark rank={entry.rank} scored={entry.score > 0} />
       </span>
       <Avatar player={player} size="md" crown={false} />
       <div className="min-w-0 flex-1">
@@ -64,10 +76,10 @@ function Row({
           />
         </div>
       </div>
-      <div className="shrink-0 text-right leading-none">
-        <CountUp to={entry.score} start={show} delay={delay + 0.15} className="font-display text-2xl" />
-        <div className="text-[11px] font-extrabold tracking-wide text-ink/60 uppercase">{t('results.pts')}</div>
-      </div>
+      {/* Score: a lit date stamp on a small dark display */}
+      <Stamp plate size="md" label={t('results.pts')} className="min-w-[4.25rem] shrink-0 items-end!">
+        <CountUp to={entry.score} start={show} delay={delay + 0.15} plain />
+      </Stamp>
     </motion.li>
   );
 }

@@ -18,15 +18,24 @@ export interface PolaroidProps extends Omit<HTMLMotionProps<'figure'>, 'children
   onOpen?: () => void;
   /** Viewfinder brackets over the photo (true, or a bracket color). Snaps in on mount. */
   viewfinder?: boolean | string;
-  /** Orange date imprint in the photo's bottom-right corner, e.g. "'98 12 24". */
+  /**
+   * Orange date imprint in the photo's bottom-right corner. Give each print its own date:
+   * `dateStamp={fakeDateStamp(photo.id)}` (from Stamp). With `viewfinder` it moves inside the brackets.
+   */
   dateStamp?: string;
-  /** Hide the strip of tape (default shown). */
+  /**
+   * A strip of tape on the top edge (default off). One taped print per screen at most: it is a
+   * garnish, not the frame.
+   */
   tape?: boolean;
 }
 
+/** Bracket geometry when `viewfinder` is on (px). The date stamp tucks inside it. */
+const VF = { inset: 10, length: 22, thickness: 3.5 };
+
 /**
- * A photo in a white instant-camera frame with a strip of tape. The photo fades in once
- * loaded so slow networks show a pleasant placeholder instead of a broken image.
+ * A photo in a white instant-camera frame, handwritten caption underneath. The photo fades in
+ * once loaded so slow networks show a pleasant placeholder instead of a broken image.
  */
 export function Polaroid({
   src,
@@ -38,7 +47,7 @@ export function Polaroid({
   onOpen,
   viewfinder,
   dateStamp,
-  tape = true,
+  tape = false,
   className,
   ...rest
 }: PolaroidProps) {
@@ -58,6 +67,19 @@ export function Polaroid({
       <div
         className={cn('relative overflow-hidden rounded-sm bg-grape-200/40', imageClassName ?? 'aspect-square w-full', onOpen && 'cursor-zoom-in')}
         onClick={onOpen}
+        role={onOpen ? 'button' : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+        aria-label={onOpen ? alt || (typeof caption === 'string' ? caption : undefined) : undefined}
+        onKeyDown={
+          onOpen
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpen();
+                }
+              }
+            : undefined
+        }
       >
         {!loaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-grape-200/60 to-pink/20" />}
         <img
@@ -71,16 +93,23 @@ export function Polaroid({
           <Viewfinder
             className="pointer-events-none absolute inset-0"
             color={typeof viewfinder === 'string' ? viewfinder : '#ffffff'}
-            gap={-10}
-            length={22}
-            thickness={3.5}
+            gap={-VF.inset}
+            length={VF.length}
+            thickness={VF.thickness}
             snap
             shadow
           />
         )}
         {dateStamp && (
-          <span className="pointer-events-none absolute right-2 bottom-1.5" aria-hidden>
-            <Stamp size="xs">{dateStamp}</Stamp>
+          <span
+            className="pointer-events-none absolute leading-none"
+            // Inside the frame: clear of the bottom-right bracket (arm + 6px) when there is one.
+            style={viewfinder ? { right: VF.inset + VF.length + 6, bottom: VF.inset + 1 } : { right: 8, bottom: 7 }}
+            aria-hidden
+          >
+            <Stamp size="xs" valueClassName="stamp-on-photo">
+              {dateStamp}
+            </Stamp>
           </span>
         )}
         {overlay}

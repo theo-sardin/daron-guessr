@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PhotoResult, ResultsView, RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { flashScreen } from '../../components/Flash';
+import { Icon, type IconName } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
 import { BottomBar, ScreenShell, ScreenTitle } from '../../components/Layout';
 import { Lightbox } from '../../components/Lightbox';
 import { toast } from '../../components/Toast';
@@ -22,7 +25,7 @@ import { RankingList } from './RankingList';
 
 const EMPTY: ResultsView = { photos: [], ranking: [], awards: [] };
 
-function Section({ emoji, title, sub, children }: { emoji: string; title: string; sub?: string; children: ReactNode }) {
+function Section({ icon, title, sub, children }: { icon: IconName; title: string; sub?: string; children: ReactNode }) {
   return (
     <section className="mt-12">
       <motion.header
@@ -32,13 +35,11 @@ function Section({ emoji, title, sub, children }: { emoji: string; title: string
         viewport={{ once: true, amount: 0.8 }}
         transition={{ type: 'spring', stiffness: 400, damping: 22 }}
       >
-        <h2 className="text-outline-sm flex items-center gap-2 font-display text-3xl leading-tight text-cream">
-          <span className="text-3xl" aria-hidden>
-            {emoji}
-          </span>
+        <h2 className="text-outline-sm flex items-center gap-3 font-display text-3xl leading-tight text-cream">
+          <IconBadge name={icon} tone="cream" size="md" tilt={-6} />
           {title}
         </h2>
-        {sub && <p className="mt-0.5 font-semibold text-grape-200">{sub}</p>}
+        {sub && <p className="mt-1 font-semibold text-grape-200">{sub}</p>}
       </motion.header>
       {children}
     </section>
@@ -93,6 +94,8 @@ export function ResultsScreen({ view }: { view: RoomView }) {
           emojiRain('🙈', 36);
           return;
         }
+        // The winner's photo is taken: flash, then the fanfare.
+        flashScreen();
         sfx.play('fanfare');
         // Browsers block (and log) vibration before the first user gesture.
         if (navigator.userActivation?.hasBeenActive) vibrate([40, 60, 40]);
@@ -168,7 +171,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
           // Share sheet unavailable: fall back to copying.
         }
       }
-      if (await copyText(`${text} ${url}`)) toast(t('results.share.copied'), 'success', { emoji: '📋' });
+      if (await copyText(`${text} ${url}`)) toast(t('results.share.copied'), 'success', { icon: 'copy' });
       else toast(t('results.share.failed'), 'error');
     } finally {
       setSharing(false);
@@ -197,11 +200,11 @@ export function ResultsScreen({ view }: { view: RoomView }) {
           <Podium groups={groups} players={players} meId={meId} timeline={timeline} />
         </div>
 
-        <Section emoji="📊" title={t('results.ranking.title')}>
+        <Section icon="medal" title={t('results.ranking.title')}>
           <RankingList ranking={ranking} players={players} meId={meId} ready={podiumDone} />
         </Section>
 
-        <Section emoji="🏆" title={t('results.awards.title')} sub={t('results.awards.subtitle')}>
+        <Section icon="trophy" title={t('results.awards.title')} sub={t('results.awards.subtitle')}>
           <Awards
             awards={res.awards}
             players={players}
@@ -215,7 +218,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
         </Section>
 
         {meEntry && me && (
-          <Section emoji="🙋" title={t('results.mine.title')}>
+          <Section icon="user" title={t('results.mine.title')}>
             <MyGame
               me={meEntry}
               player={me}
@@ -233,7 +236,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
         )}
 
         {photos.length > 0 && (
-          <Section emoji="🖼️" title={t(`results.wall.title.${flavor}`)} sub={t('results.wall.subtitle')}>
+          <Section icon="images" title={t(`results.wall.title.${flavor}`)} sub={t('results.wall.subtitle')}>
             <PhotoWall photos={photos} players={players} meId={meId} onOpen={setZoom} />
           </Section>
         )}
@@ -241,7 +244,14 @@ export function ResultsScreen({ view }: { view: RoomView }) {
 
       <BottomBar>
         {isHost ? (
-          <Button size="lg" className="min-w-0 flex-1" onClick={playAgain} loading={busy === 'again'} disabled={busy !== null}>
+          <Button
+            size="lg"
+            className="min-w-0 flex-1"
+            onClick={playAgain}
+            loading={busy === 'again'}
+            disabled={busy !== null}
+            icon={<Icon name="refresh" weight="bold" className="size-6" />}
+          >
             {t('results.bar.playAgain')}
           </Button>
         ) : (
@@ -261,11 +271,20 @@ export function ResultsScreen({ view }: { view: RoomView }) {
             loading={sharing}
             aria-label={t('results.bar.share')}
             title={t('results.bar.share')}
-            icon={<span aria-hidden>📣</span>}
+            icon={<Icon name="share" weight="bold" className="size-6" />}
           />
         )}
-        <Button variant="ghost" size="lg" className="shrink-0 px-4!" onClick={leave} loading={busy === 'leave'} disabled={busy !== null}>
-          {t('common.leave')}
+        <Button
+          variant="ghost"
+          size="lg"
+          className="shrink-0 px-4!"
+          onClick={leave}
+          loading={busy === 'leave'}
+          disabled={busy !== null}
+          icon={<Icon name="leave" weight="bold" className="size-5" />}
+        >
+          {/* Icon only on very narrow phones: the name stays for screen readers. */}
+          <span className="max-[359px]:sr-only">{t('common.leave')}</span>
         </Button>
       </BottomBar>
 

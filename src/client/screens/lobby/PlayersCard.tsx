@@ -3,17 +3,21 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_PLAYERS, type PublicPlayer, type RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Card } from '../../components/Card';
+import { Icon, type IconName } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
 import { ConfirmDialog } from '../../components/Modal';
+import { pad, Stamp } from '../../components/Stamp';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
 import { errorText } from '../../lib/errors';
 import { sfx } from '../../lib/sfx';
 import { api } from '../../lib/store';
 import { cn, hashString } from '../../lib/util';
+import { CardTitle } from './CardTitle';
 import { useCopyInvite } from './InviteCard';
 import { ProfileModal } from './ProfileModal';
 
-/** How long a newcomer keeps its 👋 badge. */
+/** How long a newcomer keeps its waving-hand badge. */
 const FRESH_MS = 2600;
 
 /** Stable little tilt per player so the tiles look like stickers slapped on a wall. */
@@ -116,29 +120,37 @@ export function PlayersCard({ view }: { view: RoomView }) {
     if (!res.ok) toast(errorText(t, res.error), 'error');
     else {
       sfx.play('whoosh');
-      toast(t('lobby.players.kicked', { name: target.name }), 'info', { emoji: '🥾' });
+      toast(t('lobby.players.kicked', { name: target.name }), 'info', { icon: 'leave' });
     }
   };
 
   return (
-    <Card tone="cream" className="p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <h2 className="mr-auto font-display text-2xl leading-none">
-          <span aria-hidden>🎉 </span>
+    <Card tone="cream" className="@container p-4 sm:p-5">
+      {/* Narrow card: title + capacity on the first row, the ready count under the title. */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-2.5 gap-y-2">
+        <CardTitle icon="users" tone="mint" className="mr-auto">
           {t('lobby.players.title')}
-        </h2>
-        <span className="rounded-full border-2 border-ink bg-mint/80 px-2.5 py-0.5 text-xs font-extrabold">
-          📸 {t('lobby.players.readyCount', { n: readyCount })}
+        </CardTitle>
+        <span
+          className={cn(
+            'order-last flex h-7 items-center gap-1 rounded-full border-2 px-2 text-xs font-extrabold @sm:order-none',
+            readyCount ? 'border-ink bg-mint' : 'border-ink/30 text-ink-soft',
+          )}
+        >
+          <Icon name="check" weight="bold" className="size-3.5" />
+          {t('lobby.players.readyCount', { n: readyCount })}
         </span>
         <motion.span
           key={count}
           initial={{ scale: 1.6, rotate: -8 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 500, damping: 14 }}
-          className={cn('rounded-full border-2 border-ink px-2.5 py-0.5 font-display text-sm', full ? 'bg-pink text-white' : 'bg-sun')}
+          className="flex items-center gap-1.5"
         >
-          {full ? `${t('lobby.players.full')} ` : ''}
-          {t('lobby.players.capacity', { count, max: MAX_PLAYERS })}
+          {full && <span className="label-mono rounded-[5px] bg-ink px-1.5 py-1 text-cream">{t('lobby.players.full')}</span>}
+          <Stamp glow={false} size="md" ariaLabel={t('lobby.players.capacity', { count, max: MAX_PLAYERS })}>
+            {t('lobby.players.capacity', { count: pad(count), max: MAX_PLAYERS })}
+          </Stamp>
         </motion.span>
       </div>
 
@@ -173,8 +185,8 @@ export function PlayersCard({ view }: { view: RoomView }) {
                 aria-label={t('lobby.players.inviteSeat')}
                 className="group flex h-full min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-3 border-dashed border-ink/30 px-1.5 py-2 text-center text-ink-soft transition-colors hover:border-ink/60 hover:bg-ink/5"
               >
-                <span className="flex size-12 shrink-0 animate-pulse-soft items-center justify-center rounded-full border-3 border-dashed border-ink/35 font-display text-2xl transition-transform group-hover:scale-110">
-                  +
+                <span className="flex size-12 shrink-0 animate-pulse-soft items-center justify-center rounded-full border-3 border-dashed border-ink/35 transition-transform group-hover:scale-110">
+                  <Icon name="plus" weight="bold" className="size-5" />
                 </span>
                 <span className="text-xs leading-tight font-extrabold">
                   {tpick('lobby.players.waitingSeat', hashString(view.code) + count)}
@@ -221,42 +233,13 @@ function PlayerTile({
   const t = useI18n().t;
   const offline = !player.connected;
   const tilt = tiltOf(player.id);
+  const status: IconName = offline ? 'ghost' : player.ready ? 'check' : 'clock';
 
   const body = (
     <>
       <span className="relative shrink-0">
-        <Avatar player={player} size="md" crown={false} />
-        {player.isHost && (
-          // Worn on top of the head rather than on the corner, which holds the YOU tag.
-          <span className="pointer-events-none absolute -top-4.5 left-1/2 -translate-x-1/2">
-            <motion.span
-              className="block text-xl drop-shadow-[0_2px_0_rgba(27,16,54,0.7)]"
-              initial={{ scale: 0, rotate: -30 }}
-              animate={{ scale: 1, rotate: [-8, 6, -8] }}
-              transition={{
-                scale: { type: 'spring', stiffness: 500, damping: 12 },
-                rotate: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
-              }}
-              aria-hidden
-            >
-              👑
-            </motion.span>
-          </span>
-        )}
-        <AnimatePresence>
-          {offline && (
-            <motion.span
-              className="absolute -right-2 -bottom-1 text-base"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1, y: [0, -3, 0] }}
-              exit={{ scale: 0 }}
-              transition={{ y: { duration: 2, repeat: Infinity } }}
-              aria-hidden
-            >
-              💤
-            </motion.span>
-          )}
-        </AnimatePresence>
+        {/* The host's crown comes with the Avatar (an icon on the rim). */}
+        <Avatar player={player} size="md" />
       </span>
       <span className={cn('block w-full truncate text-sm leading-tight font-extrabold', offline && 'opacity-60')}>
         {player.name}
@@ -271,7 +254,7 @@ function PlayerTile({
           exit={{ scale: 0.5, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 500, damping: 18 }}
           className={cn(
-            'inline-flex max-w-full items-center gap-0.5 rounded-full border-2 px-1 py-px text-[11px] leading-tight font-extrabold whitespace-nowrap sm:px-1.5',
+            'inline-flex h-5.5 max-w-full items-center gap-1 rounded-full border-2 pr-1.5 pl-1 text-[11px] leading-none font-extrabold whitespace-nowrap sm:pr-2',
             offline
               ? 'border-ink/25 bg-ink/10 text-ink-soft'
               : player.ready
@@ -279,7 +262,7 @@ function PlayerTile({
                 : 'border-ink/30 bg-cream text-ink-soft',
           )}
         >
-          <span aria-hidden>{offline ? '💤' : player.ready ? '📸' : '⏳'}</span>
+          <Icon name={status} weight={player.ready && !offline ? 'bold' : 'regular'} className="size-3 shrink-0" />
           <span className="truncate">
             {offline ? t('lobby.players.offline') : player.ready ? t('lobby.players.ready') : t('lobby.players.notReady')}
           </span>
@@ -313,7 +296,7 @@ function PlayerTile({
           whileHover={{ y: -2 }}
           aria-label={`${player.name} ${t('common.youTag')}. ${t('lobby.players.edit')}`}
           title={t('lobby.players.edit')}
-          className={tileClass}
+          className={cn(tileClass, 'group')}
           style={{ backgroundColor: `color-mix(in srgb, ${player.color} 28%, white)` }}
         >
           {body}
@@ -324,10 +307,10 @@ function PlayerTile({
             {t('common.you')}
           </span>
           <span
-            className="absolute -top-2.5 -right-2 flex size-8 items-center justify-center rounded-full border-2 border-ink bg-sun text-sm shadow-pop-sm"
+            className="absolute -top-2.5 -right-2 flex size-8 items-center justify-center rounded-full border-2 border-ink bg-white text-ink shadow-pop-sm transition-colors group-hover:bg-sun"
             aria-hidden
           >
-            ✏️
+            <Icon name="edit" className="size-4" />
           </span>
         </motion.button>
       ) : (
@@ -348,8 +331,9 @@ function PlayerTile({
           // 44px hit area around a 30px visual badge on the tile's corner.
           className="group absolute -top-3.5 -right-3 flex size-11 items-center justify-center"
         >
-          <span className="flex size-7 items-center justify-center rounded-full border-2 border-ink bg-danger font-display text-sm leading-none text-white shadow-pop-sm transition-colors group-hover:bg-danger-dark">
-            ✕
+          {/* Ink, not red: a dozen red dots would shout over the players. It turns red on hover. */}
+          <span className="flex size-7 items-center justify-center rounded-full border-2 border-ink bg-ink text-cream shadow-[0_2px_0_0_rgb(27_16_54/0.35)] transition-colors group-hover:bg-danger group-hover:text-ink">
+            <Icon name="x" weight="bold" className="size-3.5" />
           </span>
         </motion.button>
       )}
@@ -357,14 +341,14 @@ function PlayerTile({
       <AnimatePresence>
         {isFresh && (
           <motion.span
-            className="pointer-events-none absolute -top-4 -left-1 z-10 rounded-full border-2 border-ink bg-sun px-2 py-0.5 text-sm font-extrabold shadow-pop-sm"
+            className="pointer-events-none absolute -top-4 -left-1 z-10"
             initial={{ scale: 0, y: 10, rotate: -20 }}
             animate={{ scale: 1, y: 0, rotate: [-10, 10, -10, 0] }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 500, damping: 14, rotate: { duration: 0.8 } }}
             aria-hidden
           >
-            👋
+            <IconBadge name="hand" tone="sun" size="sm" />
           </motion.span>
         )}
       </AnimatePresence>

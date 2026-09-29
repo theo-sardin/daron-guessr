@@ -1,4 +1,6 @@
 import type { Award, AwardId, PhotoKind, PhotoResult, PublicPlayer, RankingEntry, ResultsView, Theme } from '../../../shared/protocol';
+import type { IconName } from '../../components/Icon';
+import type { IconBadgeTone } from '../../components/IconBadge';
 import { hashString } from '../../lib/util';
 
 /** A podium step: every player sharing one rank (ties stand together). */
@@ -63,16 +65,6 @@ export function markCelebrated(key: string) {
   }
 }
 
-export const AWARD_EMOJI: Record<AwardId, string> = {
-  sherlock: '🕵️',
-  needsGlasses: '👓',
-  carbonCopy: '🧬',
-  masterOfDisguise: '🥸',
-  doppelganger: '👯',
-  mostConfusing: '🌀',
-  biggestMixup: '🔀',
-};
-
 /**
  * Which set of copy fits the photos being talked about (see i18n/strings/results.ts):
  * `parents` (only dads & moms), `childhood` (only players as kids), `pick` (only picked
@@ -115,40 +107,47 @@ export function awardFlavor(award: Award, photos: readonly PhotoResult[], game: 
   );
 }
 
-/** Emoji of an award, with a few flavor-specific twists. */
-export function awardEmoji(id: AwardId, flavor: Flavor): string {
-  if (flavor === 'childhood' && id === 'carbonCopy') return '👶';
-  if (flavor === 'childhood' && id === 'masterOfDisguise') return '🦋';
-  if (flavor === 'pick' && id === 'carbonCopy') return '📖';
-  if (flavor === 'pick' && id === 'sherlock') return '🔮';
-  if (flavor === 'pick' && id === 'masterOfDisguise') return '🃏';
-  return AWARD_EMOJI[id];
+/** Icon of an award (a sticker on its card), with a few flavor-specific twists. */
+export function awardIcon(id: AwardId, flavor: Flavor): IconName {
+  switch (id) {
+    case 'sherlock':
+      return flavor === 'pick' ? 'eye' : 'zoom';
+    case 'needsGlasses':
+      return 'eye-off';
+    case 'carbonCopy':
+      return 'copy';
+    case 'masterOfDisguise':
+      // "Glow-up of the year": the flash burst.
+      return flavor === 'childhood' ? 'sparkle' : 'mask';
+    case 'doppelganger':
+      // "Usual suspect": always in the crosshairs.
+      return flavor === 'pick' ? 'target' : 'users';
+    case 'mostConfusing':
+      return 'shuffle';
+    case 'biggestMixup':
+      return 'swap';
+  }
 }
 
-export type AwardTone = 'sun' | 'sky' | 'mint' | 'lilac' | 'pink' | 'cream' | 'white';
-
-export const AWARD_TONE: Record<AwardId, AwardTone> = {
+/** One accent per award: the color of its icon sticker. */
+export const AWARD_TONE: Record<AwardId, IconBadgeTone> = {
   sherlock: 'sun',
   needsGlasses: 'sky',
   carbonCopy: 'mint',
   masterOfDisguise: 'lilac',
   doppelganger: 'pink',
-  mostConfusing: 'white',
-  biggestMixup: 'cream',
+  mostConfusing: 'tangerine',
+  biggestMixup: 'sky',
 };
 
-/** Share of correct votes, 0..1 (0 when nobody voted). */
-export function correctShare(p: Pick<PhotoResult, 'correctVotes' | 'totalVotes'>): number {
-  return p.totalVotes > 0 ? p.correctVotes / p.totalVotes : 0;
-}
+/** Medal colors of the top three (podium caps, ranking badges). */
+export const MEDAL_TONE: Record<number, IconBadgeTone> = { 1: 'sun', 2: 'lilac', 3: 'tangerine' };
 
-/** Badge color for a photo depending on how many people found it. */
-export function shareTone(p: Pick<PhotoResult, 'correctVotes' | 'totalVotes'>): string {
-  if (p.totalVotes === 0) return 'bg-grape-200 text-ink';
-  const s = correctShare(p);
-  if (s >= 0.5) return 'bg-mint text-ink';
-  if (s > 0) return 'bg-sun text-ink';
-  return 'bg-danger text-white';
+/** Trophy for the winner, medals for 2nd and 3rd, nothing below. */
+export function medalIcon(rank: number): IconName | null {
+  if (rank === 1) return 'trophy';
+  if (rank <= 3) return 'medal';
+  return null;
 }
 
 /** Player lookup that never crashes on a player that left: falls back to a neutral ghost. */

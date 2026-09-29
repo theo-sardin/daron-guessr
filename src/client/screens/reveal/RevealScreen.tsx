@@ -2,10 +2,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { PublicPlayer, RevealView, RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
+import { LightLeak } from '../../components/Background';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import { BottomBar, ScreenShell } from '../../components/Layout';
 import { Lightbox } from '../../components/Lightbox';
 import { Spinner } from '../../components/Spinner';
+import { fakeDateStamp, pad, Stamp } from '../../components/Stamp';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
 import { errorText } from '../../lib/errors';
@@ -35,8 +38,9 @@ import {
 } from './timeline';
 
 /**
- * Reveal phase: photo by photo, the votes grow as bars, a drum roll, then the owner is
- * revealed with confetti and a caption that fits the result. The whole sequence is driven by
+ * Reveal phase: photo by photo, the votes grow as bars, a drum roll in the darkroom (the print
+ * develops under the red safelight), then the flash: the owner is revealed with confetti and
+ * a caption that fits the result. The whole sequence is driven by
  * the time elapsed since `reveal.startedAt` (server clock), so every screen stays in sync.
  */
 export function RevealScreen({ view }: { view: RoomView }) {
@@ -162,6 +166,8 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
   // The viewer's own pick is marked; the owner's decoy stops being marked once they are revealed.
   const myPickId = cur.myVote && !(revealed && view.meId === cur.ownerId) ? cur.myVote : null;
 
+  const dateStamp = useMemo(() => fakeDateStamp(cur.photo.id), [cur.photo.id]);
+
   const onZoom = useCallback(() => setZoom(true), []);
   const closeZoom = useCallback(() => setZoom(false), []);
 
@@ -182,11 +188,16 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <span className="shrink-0 rounded-full border-2 border-ink bg-cream px-3 py-1 font-display text-base text-ink shadow-pop-sm">
-                  📸 {t('reveal.photoOf', { i: reveal.index + 1, total: reveal.total })}
-                </span>
-                <ProgressDots index={reveal.index} total={reveal.total} label={t('reveal.progressLabel', { i: reveal.index + 1, total: reveal.total })} />
+              <div className="mb-3 flex items-end justify-between gap-4">
+                <Stamp
+                  label={t('reveal.photoLabel')}
+                  size="md"
+                  className="shrink-0 text-grape-200"
+                  ariaLabel={t('reveal.progressLabel', { i: reveal.index + 1, total: reveal.total })}
+                >
+                  {`${pad(reveal.index + 1)}/${pad(reveal.total)}`}
+                </Stamp>
+                <ProgressDots index={reveal.index} total={reveal.total} />
               </div>
 
               <Headline stage={stage} kind={kind} index={reveal.index} owner={owner} caption={caption} />
@@ -199,6 +210,7 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
                   tilt={tilt}
                   owner={owner}
                   stamp={stamp}
+                  dateStamp={dateStamp}
                   badge={revealed ? <PersonalBadge result={model.personal} /> : null}
                   zoomLabel={t('reveal.zoom')}
                   onZoom={onZoom}
@@ -215,7 +227,6 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
                     >
                       <VoteBars
                         rows={revealed ? model.rowsRevealed : model.rowsHidden}
-                        stage={stage}
                         totalVotes={cur.totalVotes}
                         byId={model.byId}
                         meId={view.meId}
@@ -255,28 +266,56 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
       </BottomBar>
 
       <Lightbox src={zoom ? cur.photo.url : null} onClose={closeZoom} caption={photoLabel} />
+      <Darkroom active={stage === 'drumroll'} />
     </>
   );
 });
 
 const EMPTY = new Set<string>();
 
-function ProgressDots({ index, total, label }: { index: number; total: number; label: string }) {
-  // Segments shrink to fit (24 photos still fit on one line on a phone).
+/**
+ * Lights out for the drum roll: the room goes dark (over the page, under the top bar, the
+ * bottom bar and the reaction button) and the safelight bleeds in from the edges. Only the
+ * print and the headline (z-[31]) stay above it. Back on in a snap at the reveal, under the flash.
+ */
+function Darkroom({ active }: { active: boolean }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-end gap-1" role="img" aria-label={label}>
+    <>
+      <AnimatePresence>
+        {active && (
+          <motion.div
+            key="dark"
+            className="pointer-events-none fixed inset-0 z-30 bg-grape-950"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.66 }}
+            exit={{ opacity: 0, transition: { duration: 0.12 } }}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+            aria-hidden
+          />
+        )}
+      </AnimatePresence>
+      <LightLeak active={active} className="fixed inset-0 z-30" />
+    </>
+  );
+}
+
+/** Film-strip frames: developed (cream), the one in the tray (orange, glowing), still to come. */
+function ProgressDots({ index, total }: { index: number; total: number }) {
+  // Frames shrink to fit (24 photos still fit on one line on a phone).
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-end gap-1 pb-1" aria-hidden>
       {Array.from({ length: total }, (_, i) => (
         <motion.span
           key={i}
           className={cn(
-            'block h-2.5 min-w-1 rounded-full',
-            i === index ? 'max-w-5 flex-[2] border-2 border-ink bg-sun' : 'max-w-2.5 flex-1',
-            i < index && 'border border-ink bg-mint',
-            i > index && 'bg-white/20',
+            'block h-2.5 min-w-1 rounded-[3px]',
+            i === index ? 'max-w-6 flex-[2.4] bg-stamp shadow-[0_0_10px_rgb(255_122_26/0.7)]' : 'max-w-2.5 flex-1',
+            i < index && 'bg-cream/75',
+            i > index && 'bg-white/15',
           )}
-          initial={i === index ? { scale: 0 } : false}
-          animate={i === index ? { scale: [1, 1.25, 1] } : { scale: 1 }}
-          transition={i === index ? { duration: 1.2, repeat: Infinity } : undefined}
+          initial={i === index ? { scaleX: 0 } : false}
+          animate={i === index ? { scaleX: 1, opacity: [1, 0.6, 1] } : undefined}
+          transition={i === index ? { scaleX: { type: 'spring', stiffness: 400, damping: 20 }, opacity: { duration: 1.4, repeat: Infinity } } : undefined}
         />
       ))}
     </div>
@@ -313,7 +352,10 @@ function NextButton({ index, isLast, enabled }: { index: number; isLast: boolean
       transition={{ duration: 0.45, ease: 'easeOut' }}
     >
       <Button block size="lg" variant={isLast ? 'sun' : 'primary'} disabled={!enabled} loading={busy} onClick={next}>
-        {isLast ? t('reveal.results') : t('reveal.next')}
+        <span className="inline-flex items-center gap-2">
+          {isLast ? t('reveal.results') : t('reveal.next')}
+          <Icon name={isLast ? 'trophy' : 'arrow-right'} className="size-6" />
+        </span>
       </Button>
     </motion.div>
   );

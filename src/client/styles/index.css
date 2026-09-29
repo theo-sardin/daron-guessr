@@ -50,8 +50,10 @@
   --color-lilac: #b388ff;
   --color-danger: #ff5d5d;
   --color-danger-dark: #d93a3a;
-  /* Orange imprint of disposable cameras ('98 12 24). */
+  /* Orange imprint of disposable cameras ('98 12 24): on photos and dark surfaces only. */
   --color-stamp: #ff7a1a;
+  /* The same imprint on light paper (cream / white cards): 4.65:1 on cream, AA for small text. */
+  --color-stamp-ink: #c24a00;
   /* Darkroom red light. */
   --color-safelight: #ff3b3b;
 
@@ -90,7 +92,7 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.75; transform: scale(0.97); }
   }
-  /* The iris spinner: turns a sixth of a revolution per beat, like a shutter blade. */
+  /* The iris spinner: turns a third of a revolution per beat, like a shutter blade. */
   @keyframes aperture {
     from { transform: rotate(0deg); }
     to { transform: rotate(120deg); }
@@ -107,10 +109,15 @@
 }
 
 @layer base {
+  /*
+   * The night gradient lives on the root (it paints the canvas, under <Background>'s fixed
+   * -z-10 layers). The body stays transparent: an in-flow body background would paint over
+   * every negative-z layer and hide the grain and the blobs.
+   */
   html {
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    background: var(--color-grape-900);
+    background: var(--color-grape-900) radial-gradient(120% 80% at 50% 0%, var(--color-grape-700) 0%, var(--color-grape-900) 55%, var(--color-grape-950) 100%) fixed;
     color-scheme: dark;
   }
   body {
@@ -118,7 +125,7 @@
     margin: 0;
     font-family: var(--font-sans);
     color: var(--color-cream);
-    background: radial-gradient(120% 80% at 50% 0%, var(--color-grape-700) 0%, var(--color-grape-900) 55%, var(--color-grape-950) 100%) fixed;
+    background: transparent;
     overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
   }
@@ -151,23 +158,36 @@
     font-stretch: 84%;
     letter-spacing: -0.012em;
   }
-  /* Orange camera date stamp with a soft glow (pair with font-stamp7 / font-stamp14). */
+  /*
+   * Orange camera date stamp, glowing like the LED imprint (pair with font-stamp7 or font-mono).
+   * For photos and dark surfaces only. The glow scales with the type: a 1-3px halo on small text
+   * (so 10-13px stays sharp), the soft outer bloom only from ~16px up.
+   */
   .text-stamp {
     color: var(--color-stamp);
     text-shadow:
-      0 0 1px rgb(255 122 26 / 0.9),
-      0 0 7px rgb(255 122 26 / 0.55),
-      0 0 16px rgb(255 72 0 / 0.35);
+      0 0 1px rgb(255 122 26 / 0.7),
+      0 0 clamp(1px, 0.24em, 6px) rgb(255 122 26 / 0.5),
+      0 0 clamp(0px, calc(0.9em - 12px), 16px) rgb(255 72 0 / 0.35);
   }
-  /* Same color without the glow, for stamps printed on light paper. */
-  .text-stamp-flat {
-    color: #f06400;
+  /* Burned into a photo: a dark hairline keeps it legible on pale or orange pictures. */
+  .stamp-on-photo {
+    text-shadow:
+      0 0 1px rgb(27 16 54 / 0.85),
+      0 1px 2px rgb(27 16 54 / 0.5),
+      0 0 5px rgb(255 122 26 / 0.45);
+  }
+  /* The imprint on light paper: darker ink, no glow (4.65:1 on cream). */
+  .text-stamp-flat,
+  .text-stamp-print {
+    color: var(--color-stamp-ink);
+    text-shadow: none;
   }
   /* Space Mono micro-label above a stamp number: "ROOM", "PHOTO", "SCORE". */
   .label-mono {
     font-family: var(--font-mono);
     font-weight: 700;
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     line-height: 1;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -178,6 +198,13 @@
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.05;
+  }
+  /* <Icon>: inline by default; any display / size utility on it still wins (utilities layer). */
+  .icon {
+    display: inline-block;
+    flex-shrink: 0;
+    /* Until <Icon> measures itself (and for a fixed `strokeWidth`, set inline). */
+    stroke-width: 2.25;
   }
   /* Text with a chunky ink outline, for big titles on the dark background. */
   .text-outline {

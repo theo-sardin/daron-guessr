@@ -1,8 +1,15 @@
 import { motion } from 'motion/react';
 import { useEffect, useRef } from 'react';
+import { useI18n, type Lang } from '../i18n';
 import { sfx } from '../lib/sfx';
 import { useServerNow } from '../lib/time';
 import { cn } from '../lib/util';
+
+/** Spoken label (kept here: the timer is the only component that needs these two strings). */
+const ARIA: Record<Lang, (s: number | null) => string> = {
+  en: (s) => (s === null ? 'No time limit' : `${s} second${s === 1 ? '' : 's'} left`),
+  fr: (s) => (s === null ? 'Pas de limite de temps' : `${s} seconde${s > 1 ? 's' : ''} restante${s > 1 ? 's' : ''}`),
+};
 
 /**
  * Circular countdown driven by server timestamps, drawn like a lens: a cream barrel with the
@@ -23,6 +30,7 @@ export function TimerRing({
   ticking?: boolean;
   className?: string;
 }) {
+  const { lang } = useI18n();
   const now = useServerNow(100);
   const total = endsAt === null ? 1 : Math.max(1, endsAt - startsAt);
   const remainingMs = endsAt === null ? total : Math.max(0, endsAt - Math.max(now, startsAt));
@@ -52,7 +60,8 @@ export function TimerRing({
       className={cn('relative inline-flex shrink-0 items-center justify-center rounded-full border-3 border-ink bg-cream shadow-pop-sm', urgent && 'animate-shake', className)}
       style={{ width: size, height: size }}
       role="timer"
-      aria-label={endsAt === null ? 'no timer' : `${seconds}s`}
+      // Only changes on whole seconds (the ring itself re-renders every 100ms).
+      aria-label={ARIA[lang](endsAt === null ? null : seconds)}
     >
       <svg width={size - 6} height={size - 6} className="absolute inset-0 -rotate-90">
         <circle cx={(size - 6) / 2} cy={(size - 6) / 2} r={r} fill="none" stroke="rgb(27 16 54 / 0.1)" strokeWidth={stroke} />

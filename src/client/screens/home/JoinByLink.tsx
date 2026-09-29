@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import { sanitizeName } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
 import { BottomBar, ScreenShell, ScreenTitle } from '../../components/Layout';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
@@ -84,16 +86,7 @@ export function JoinByLink({ code, notice }: { code: string; notice?: string | n
   return (
     <ScreenShell width="sm">
       <ScreenTitle sub={<span className="block text-balance">{t('home.join.sub')}</span>}>
-        {t('home.join.title')}{' '}
-        <motion.span
-          className="inline-block"
-          initial={{ scale: 0, rotate: -30 }}
-          animate={{ scale: 1, rotate: [0, -12, 12, 0] }}
-          transition={{ delay: 0.3, duration: 0.6 }}
-          aria-hidden
-        >
-          💌
-        </motion.span>
+        {t('home.join.title')}
       </ScreenTitle>
 
       <RoomTicket code={code} peek={peek} loading={state.status === 'loading'} />
@@ -104,9 +97,7 @@ export function JoinByLink({ code, notice }: { code: string; notice?: string | n
           animate={{ opacity: 1, y: 0 }}
           className="mb-4 flex items-center gap-3 rounded-2xl border-2 border-white/20 bg-white/10 p-3 text-sm font-bold text-cream backdrop-blur"
         >
-          <span className="text-2xl" aria-hidden>
-            📡
-          </span>
+          <IconBadge name="wifi" tone="ink" size="sm" shadow={false} />
           <p className="min-w-0 flex-1">{t('home.join.offline', { code })}</p>
           <Button variant="ghost" size="sm" loading={checking} onClick={() => refresh()} className="h-11">
             {t('home.join.checkAgain')}
@@ -121,10 +112,8 @@ export function JoinByLink({ code, notice }: { code: string; notice?: string | n
           className="mb-4 flex items-start gap-2 rounded-2xl border-3 border-ink bg-tangerine p-3 font-bold text-ink shadow-pop-sm"
           role="status"
         >
-          <span className="text-xl leading-6" aria-hidden>
-            ⚠️
-          </span>
-          <p className="min-w-0 leading-6">{notice}</p>
+          <IconBadge name="alert" tone="cream" size="xs" shadow={false} />
+          <p className="min-w-0 pt-0.5 leading-6">{notice}</p>
         </motion.div>
       )}
 
@@ -167,7 +156,7 @@ export function JoinByLink({ code, notice }: { code: string; notice?: string | n
           block
           loading={busy}
           onClick={() => void join()}
-          icon={<span aria-hidden>🚪</span>}
+          icon={<Icon name="arrow-right" className="size-7" weight="bold" />}
         >
           {t('home.join.button')}
         </Button>

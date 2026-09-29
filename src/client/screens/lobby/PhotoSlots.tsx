@@ -12,10 +12,15 @@ import {
   type Theme,
 } from '../../../shared/protocol';
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
+import { KindTag } from '../../components/KindTag';
 import { Lightbox } from '../../components/Lightbox';
 import { Polaroid } from '../../components/Polaroid';
 import { Spinner } from '../../components/Spinner';
+import { fakeDateStamp, Stamp } from '../../components/Stamp';
 import { toast } from '../../components/Toast';
+import { Viewfinder } from '../../components/Viewfinder';
 import { useI18n } from '../../i18n';
 import { burst } from '../../lib/confetti';
 import { errorText } from '../../lib/errors';
@@ -23,8 +28,8 @@ import { compressImage } from '../../lib/image';
 import { sfx } from '../../lib/sfx';
 import { api } from '../../lib/store';
 import { clamp, cn, hashString, vibrate } from '../../lib/util';
+import { CardTitle } from './CardTitle';
 import { KindPicker } from './KindPicker';
-import { kindChip, kindEmpty } from './look';
 
 type PerSlot<T> = Record<PhotoSlot, T>;
 const perSlot = <T,>(value: T): PerSlot<T> => ({ 0: value, 1: value, 2: value });
@@ -39,7 +44,7 @@ type Pending =
   | { stage: 'uploading'; kind: PhotoKind; preview: string }
   | { stage: 'landing'; kind: PhotoKind; preview: string; photoId: string };
 
-/** How the kind chip behaves: one kind (fixed label), two (tap toggles), more (tap opens a picker). */
+/** How the kind label behaves: one kind (fixed label), two (tap toggles), more (tap opens a picker). */
 type ChipMode = 'fixed' | 'toggle' | 'picker';
 
 /** Toast list for an upload: kid and pick photos get their own jokes whatever the theme. */
@@ -206,7 +211,7 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
         x: rect ? (rect.left + rect.width / 2) / window.innerWidth : 0.5,
         y: rect ? (rect.top + rect.height / 2) / window.innerHeight : 0.5,
       });
-      toast(tpick(`lobby.photos.uploaded.${toastGroup(theme, kind)}`, hashString(res.photo.id)), 'success', { emoji: '📸' });
+      toast(tpick(`lobby.photos.uploaded.${toastGroup(theme, kind)}`, hashString(res.photo.id)), 'success', { icon: 'camera' });
     } finally {
       busy.current[slot] = false;
     }
@@ -227,7 +232,7 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
     setRemoved((prev) => [...prev, photo.id]);
     // The emptied slot offers the same kind again.
     setChosen((c) => ({ ...c, [slot]: kindOf(photo) }));
-    toast(t('lobby.photos.removed'), 'info', { emoji: '🗑️' });
+    toast(t('lobby.photos.removed'), 'info', { icon: 'trash' });
   };
 
   /** Relabels a slot: the uploaded photo (server, optimistic) or the empty slot's next upload (local). */
@@ -267,21 +272,25 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
   return (
     <Card tone="white" className="@container p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="min-w-0 font-display text-2xl leading-none">
-          <span aria-hidden>📸 </span>
+        <CardTitle icon="camera" tone="pink">
           {t(`lobby.photos.title.${theme}.${count === 1 ? 'one' : 'many'}`)}
-        </h2>
+        </CardTitle>
+        {/* The frame counter of a disposable camera, printed on the card. */}
         <motion.span
           key={`${filledCount}/${count}`}
-          initial={{ scale: 1.5 }}
-          animate={{ scale: 1 }}
+          initial={{ scale: 1.5, rotate: -6 }}
+          animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-          className={cn(
-            'shrink-0 rounded-full border-2 border-ink px-2.5 py-0.5 font-display text-sm',
-            filledCount === 0 ? 'bg-cream' : filledCount < count ? 'bg-sun' : 'bg-mint',
-          )}
+          className="flex shrink-0 items-center gap-1.5"
         >
-          {t('lobby.photos.count', { count: filledCount, max: count })}
+          {filledCount === count && (
+            <span className="flex size-6 items-center justify-center rounded-full border-2 border-ink bg-mint" aria-hidden>
+              <Icon name="check" weight="bold" className="size-3.5" />
+            </span>
+          )}
+          <Stamp glow={false} size="md" ariaLabel={t('lobby.photos.count', { count: filledCount, max: count })}>
+            {t('lobby.photos.count', { count: filledCount, max: count })}
+          </Stamp>
         </motion.span>
       </div>
 
@@ -345,10 +354,12 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
                     kind={kind}
                     chip={chip}
                     dense={dense}
+                    wide={count === 1}
                     uploading={p?.stage === 'uploading'}
                     removing={removing[slot]}
                     locked={Boolean(p) || !photo}
-                    onOpen={() => setLightbox({ src, caption: `${t(`common.kindEmoji.${kind}`)} ${t(`common.kind.${kind}`)}` })}
+                    dateStamp={photo && !p ? fakeDateStamp(photo.id) : undefined}
+                    onOpen={() => setLightbox({ src, caption: t(`common.kind.${kind}`) })}
                     onReplace={() => pick(slot, kind)}
                     onRemove={() => photo && void remove(slot, photo)}
                   />
@@ -378,11 +389,9 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <span className="mt-4 flex items-start gap-2 rounded-2xl border-2 border-ink bg-sun/70 px-3 py-2 text-sm font-bold">
-              <span className="text-lg leading-5" aria-hidden>
-                👀
-              </span>
-              {t(`lobby.photos.nudge.${theme}`)}
+            <span className="mt-4 flex items-start gap-2.5 rounded-2xl border-2 border-ink bg-cream px-3 py-2.5 text-sm leading-snug font-bold">
+              <IconBadge name="eye" tone="pink" size="xs" tilt={-6} className="mt-px" />
+              <span>{t(`lobby.photos.nudge.${theme}`)}</span>
             </span>
           </motion.p>
         )}
@@ -403,16 +412,13 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
             ))}
           </span>
           <span className="min-w-0">
-            <span aria-hidden>💤 </span>
             {benched.length === 1 ? t('lobby.photos.benchedOne', { max }) : t('lobby.photos.benchedMany', { count: benched.length, max })}
           </span>
         </p>
       )}
 
-      <p className="mt-3 flex items-start gap-2 text-sm leading-snug text-ink-soft">
-        <span className="text-lg leading-5" aria-hidden>
-          🤫
-        </span>
+      <p className="mt-4 flex items-start gap-2 text-sm leading-snug text-ink-soft">
+        <Icon name="lock" className="mt-px size-4.5 shrink-0 text-ink" />
         <span>
           <strong className="font-extrabold text-ink">{t('lobby.photos.tipTitle')}</strong> {t(`lobby.photos.tip.${theme}`)}
         </span>
@@ -434,7 +440,19 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
   );
 }
 
-/** "👧 Sister ▾": what the photo is. Tapping it toggles (2 kinds) or opens the picker (3+). */
+const TAG_WRAP = 'h-auto! min-h-[22px] py-0.5 [&>span:last-child]:whitespace-normal [&>span:last-child]:leading-[1.15]';
+const TAG_TIGHT = `gap-1 pr-1.5! pl-1! [&>span:last-child]:tracking-[0.02em] ${TAG_WRAP}`;
+/** TAG_TIGHT (+ the small size's 11px type) only when the card is narrow. */
+const TAG_TIGHT_NARROW = [
+  '@max-[18rem]:min-h-[22px] @max-[18rem]:h-auto! @max-[18rem]:py-0.5 @max-[18rem]:gap-1 @max-[18rem]:pr-1.5! @max-[18rem]:pl-1!',
+  '@max-[18rem]:[&>span:last-child]:text-[11px] @max-[18rem]:[&>span:last-child]:tracking-[0.02em]',
+  '@max-[18rem]:[&>span:last-child]:whitespace-normal @max-[18rem]:[&>span:last-child]:leading-[1.15]',
+].join(' ');
+
+/**
+ * "SISTER": what the photo is, as a lab label. Tapping it toggles (2 kinds) or opens the picker
+ * (3+); a little swap / chevron sticker on the label's corner says so without taking any width.
+ */
 function KindChip({
   kind,
   next,
@@ -448,7 +466,7 @@ function KindChip({
   /** Kind a tap switches to, in toggle mode. */
   next: PhotoKind;
   mode: ChipMode;
-  /** Three slots side by side on a wide card: keep it small. */
+  /** Three slots on the card: keep it small. */
   dense: boolean;
   /** Single slot: plenty of room. */
   wide: boolean;
@@ -457,27 +475,30 @@ function KindChip({
 }) {
   const t = useI18n().t;
   const label = t(`common.kind.${kind}`);
-  const cls = cn(
-    'inline-flex h-11 max-w-full items-center gap-1 rounded-full border-2 border-ink px-2 font-display text-sm shadow-pop-sm transition-colors',
-    wide ? 'text-base px-2.5' : dense ? '@sm:h-10 @sm:gap-0.5 @sm:px-1.5' : '@sm:text-base @sm:px-2.5',
-    kindChip(kind),
-  );
-  const content = (
+  const tag = (
     <AnimatePresence mode="popLayout" initial={false}>
       <motion.span
         key={kind}
-        className="inline-flex min-w-0 items-center gap-1"
+        className="inline-flex min-w-0"
         initial={{ rotateX: 90, opacity: 0 }}
         animate={{ rotateX: 0, opacity: 1 }}
         exit={{ rotateX: -90, opacity: 0 }}
         transition={{ duration: 0.18 }}
       >
-        <span aria-hidden>{t(`common.kindEmoji.${kind}`)}</span>
-        <span className="truncate">{label}</span>
+        <KindTag
+          kind={kind}
+          size={wide ? 'lg' : dense ? 'sm' : 'md'}
+          tilt={-2}
+          className={cn(
+            // Three prints on the card, or two on a 320px phone: a tighter label that wraps onto
+            // two lines rather than cutting a word ("MOI / PETIT·E", never "MOI…").
+            dense ? TAG_TIGHT : !wide && TAG_TIGHT_NARROW,
+          )}
+        />
       </motion.span>
     </AnimatePresence>
   );
-  if (mode === 'fixed') return <span className={cls}>{content}</span>;
+  if (mode === 'fixed') return <span className="inline-flex h-11 max-w-full items-center">{tag}</span>;
   const aria =
     mode === 'toggle' ? t('lobby.photos.switchKind', { kind: t(`common.kind.${next}`) }) : t('lobby.photos.chooseKind', { kind: label });
   return (
@@ -485,20 +506,28 @@ function KindChip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      whileTap={{ scale: 0.9 }}
+      whileTap={{ scale: 0.92 }}
       aria-label={aria}
       title={aria}
       aria-haspopup={mode === 'picker' ? 'dialog' : undefined}
-      className={cn(cls, 'disabled:opacity-60')}
+      className="group relative inline-flex h-11 max-w-full items-center pr-2.5 pl-0.5 font-sans disabled:opacity-60 @max-[18rem]:pr-1.5 @max-[18rem]:pl-0"
     >
-      {content}
-      <span className={cn('shrink-0 opacity-70', mode === 'toggle' ? 'text-sm' : 'text-[0.6rem]', dense && '@sm:hidden')} aria-hidden>
-        {mode === 'toggle' ? '⇄' : '▼'}
+      {tag}
+      <span
+        className={cn(
+          'absolute right-0 flex items-center justify-center rounded-full border-2 border-ink bg-cream text-ink shadow-[0_1.5px_0_0_var(--color-ink)] transition-colors group-hover:bg-sun',
+          // Sits on the label's corner, above the text line.
+          wide ? 'top-0 size-5.5' : '-top-1 size-5 @max-[18rem]:size-4.5',
+        )}
+        aria-hidden
+      >
+        <Icon name={mode === 'toggle' ? 'swap' : 'chevron-down'} weight="bold" className={wide ? 'size-3.5' : 'size-3 @max-[18rem]:size-2.5'} />
       </span>
     </motion.button>
   );
 }
 
+/** An empty print waiting for its photo: an unexposed frame, the camera ready, what to add written underneath. */
 function EmptySlot({
   slot,
   kind,
@@ -510,12 +539,13 @@ function EmptySlot({
   slot: PhotoSlot;
   kind: PhotoKind;
   dense: boolean;
-  /** Kind chip under the slot (none when the theme has a single kind). */
+  /** Kind label under the slot (none when the theme has a single kind). */
   chip: ReactNode;
   processing: boolean;
   onPick: () => void;
 }) {
   const t = useI18n().t;
+  const addLabel = t(`common.addKind.${kind}`);
   return (
     <motion.div
       className="flex flex-col items-center gap-3"
@@ -529,42 +559,45 @@ function EmptySlot({
         onClick={onPick}
         disabled={processing}
         aria-busy={processing}
-        animate={processing ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: 0 }}
+        aria-label={processing ? t('lobby.photos.processing') : addLabel}
+        style={{ rotate: TILT[slot] / 2 }}
+        animate={processing ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: TILT[slot] / 2 }}
         transition={processing ? { rotate: { duration: 0.6, repeat: Infinity } } : { type: 'spring', stiffness: 400, damping: 22 }}
-        whileHover={processing ? undefined : { scale: 1.03, rotate: TILT[slot] / 2 }}
+        whileHover={processing ? undefined : { scale: 1.03, rotate: TILT[slot] }}
         whileTap={processing ? undefined : { scale: 0.95 }}
-        className={cn(
-          'group flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-3 border-dashed p-2 text-center text-ink transition-colors',
-          chip ? 'aspect-[4/4.9]' : 'aspect-[4/5.6] md:aspect-[4/4.6]',
-          kindEmpty(kind),
-        )}
+        className="group relative flex w-full flex-col rounded-md border-3 border-ink bg-white p-2 pb-1 text-ink shadow-pop-sm @sm:p-2.5 @sm:pb-1.5"
       >
-        {processing ? (
-          <>
-            <Spinner className="size-10 text-ink" />
-            <span className="font-display text-base">{t('lobby.photos.processing')}</span>
-          </>
-        ) : (
-          <>
+        {/* The unexposed frame. */}
+        <span className="relative flex aspect-[4/5] w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-sm bg-cream shadow-[inset_0_2px_0_0_rgb(27_16_54/0.08)] transition-colors group-hover:bg-sun/20">
+          <Viewfinder className="absolute inset-0" color="rgb(27 16 54 / 0.28)" gap={-10} length={16} thickness={3} />
+          {processing ? (
+            <>
+              <Spinner className="size-11 text-ink" />
+              <span className="font-display text-base">{t('lobby.photos.processing')}</span>
+            </>
+          ) : (
             <motion.span
-              className={cn('text-6xl leading-none drop-shadow-[0_3px_0_rgba(27,16,54,0.25)]', dense ? '@sm:text-5xl' : 'sm:text-7xl')}
-              animate={{ y: [0, -6, 0], rotate: [0, slot % 2 ? 6 : -6, 0] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: slot * 0.7 }}
-              aria-hidden
+              className="relative"
+              animate={{ y: [0, -5, 0], rotate: [-4, slot % 2 ? 4 : -8, -4] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: slot * 0.7 }}
             >
-              {t(`common.kindEmoji.${kind}`)}
+              <IconBadge name="camera" tone="pink" size={dense ? 'md' : 'lg'} className={cn(dense && '@max-sm:size-16 @max-sm:[&>svg]:size-9')} />
+              <span className="absolute -right-2.5 -bottom-2 flex size-7 items-center justify-center rounded-full border-2 border-ink bg-white shadow-[0_2px_0_0_var(--color-ink)] transition-transform group-hover:scale-110">
+                <Icon name="plus" weight="bold" className="size-4" />
+              </span>
             </motion.span>
-            <span className={cn('font-display text-lg leading-tight', dense ? '@sm:text-base' : 'sm:text-xl')}>
-              {t(`common.addKind.${kind}`)}
-            </span>
-            <span
-              className="flex size-9 shrink-0 items-center justify-center rounded-full border-3 border-ink bg-pink font-display text-2xl leading-none text-white shadow-pop-sm transition-transform group-hover:scale-110"
-              aria-hidden
-            >
-              +
-            </span>
-          </>
-        )}
+          )}
+        </span>
+        {/* What to add, handwritten on the print. */}
+        <span
+          className={cn(
+            'text-hand flex min-h-12 items-center justify-center px-1 text-center text-[1.4rem] leading-[0.95] text-ink',
+            dense && '@sm:text-xl',
+            processing && 'opacity-50',
+          )}
+        >
+          {addLabel}
+        </span>
       </motion.button>
       {chip}
     </motion.div>
@@ -577,9 +610,11 @@ function FilledSlot({
   kind,
   chip,
   dense,
+  wide,
   uploading,
   removing,
   locked,
+  dateStamp,
   onOpen,
   onReplace,
   onRemove,
@@ -589,10 +624,14 @@ function FilledSlot({
   kind: PhotoKind;
   chip: ReactNode;
   dense: boolean;
+  /** Single slot: room for the button labels even on tiny phones. */
+  wide: boolean;
   uploading: boolean;
   removing: boolean;
   /** Actions disabled while a local change is not confirmed yet. */
   locked: boolean;
+  /** Camera date imprint (once the photo is on the server). */
+  dateStamp?: string;
   onOpen: () => void;
   onReplace: () => void;
   onRemove: () => void;
@@ -602,7 +641,7 @@ function FilledSlot({
   if (uploading || removing) {
     overlay = (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-grape-950/55 text-cream backdrop-blur-[2px]">
-        <Spinner className="size-9 text-sun" />
+        <Spinner className="size-10 text-cream" />
         {uploading && <span className="font-display text-sm">{t('lobby.photos.uploading')}</span>}
       </div>
     );
@@ -623,11 +662,12 @@ function FilledSlot({
         <Polaroid
           src={src}
           alt={t(`common.kind.${kind}`)}
-          className={cn('w-full', dense && '@sm:p-2')}
+          className={cn('w-full p-2 pb-1 @sm:p-2.5 @sm:pb-1.5', dense && '@sm:p-2 @sm:pb-1')}
           imageClassName="aspect-[4/5] w-full"
           overlay={overlay}
+          dateStamp={uploading || removing ? undefined : dateStamp}
           onOpen={uploading ? undefined : onOpen}
-          caption={chip}
+          caption={<span className="flex min-h-11 items-center justify-center">{chip}</span>}
         />
       </motion.div>
       <div className={cn('flex w-full gap-2', dense && '@sm:gap-1.5')}>
@@ -641,10 +681,10 @@ function FilledSlot({
           whileTap={{ scale: 0.94, y: 2 }}
           aria-label={t('lobby.photos.replaceAria')}
           title={t('lobby.photos.replace')}
-          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl border-2 border-ink bg-cream px-2 font-display text-sm text-ink shadow-pop-sm disabled:opacity-50"
+          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border-2 border-ink bg-cream px-2 font-display text-sm text-ink shadow-pop-sm transition-colors hover:bg-white disabled:opacity-50"
         >
-          <span aria-hidden>🔄</span>
-          <span className={cn('truncate', dense && '@sm:sr-only')}>{t('lobby.photos.replace')}</span>
+          <Icon name="refresh" className="size-4.5 shrink-0" />
+          <span className={cn('truncate', !wide && '@max-[19rem]:sr-only', dense && '@sm:sr-only')}>{t('lobby.photos.replace')}</span>
         </motion.button>
         <motion.button
           type="button"
@@ -656,9 +696,10 @@ function FilledSlot({
           whileTap={{ scale: 0.94, y: 2 }}
           aria-label={t('lobby.photos.removeAria')}
           title={t('lobby.photos.remove')}
-          className="flex size-11 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-danger text-lg shadow-pop-sm disabled:opacity-50"
+          // Quiet like Replace (the card's accent is its pink camera); red only under the pointer.
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-cream text-danger-dark shadow-pop-sm transition-colors hover:bg-danger hover:text-ink disabled:opacity-50"
         >
-          <span aria-hidden>🗑️</span>
+          <Icon name="trash" className="size-5" />
         </motion.button>
       </div>
     </motion.div>

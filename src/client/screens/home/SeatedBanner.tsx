@@ -1,6 +1,11 @@
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
 import { useT } from '../../i18n';
+
+/** Placeholder swapped for the code chip (never typed by anyone, never in a translation). */
+const CODE_SLOT = '\u0000';
 
 /** "You're still in room ABCD" — shown on the home page while this tab still holds a seat. */
 export function SeatedBanner({
@@ -17,6 +22,9 @@ export function SeatedBanner({
   disabled?: boolean;
 }) {
   const t = useT();
+  const reduce = useReducedMotion();
+  // The code is set as a glowing stamp inside the sentence (like the TopBar's room chip).
+  const [before, after = ''] = t('home.seated.title', { code: CODE_SLOT }).split(CODE_SLOT);
   return (
     <motion.section
       layout
@@ -29,23 +37,29 @@ export function SeatedBanner({
     >
       <div className="flex items-center gap-3">
         <motion.span
-          className="text-5xl leading-none"
-          animate={{ rotate: [0, -12, 12, -8, 0], y: [0, -4, 0] }}
+          className="flex shrink-0"
+          animate={reduce ? undefined : { rotate: [0, -10, 10, -6, 0], y: [0, -4, 0] }}
           transition={{ duration: 1.2, repeat: Infinity, repeatDelay: 1.6 }}
           aria-hidden
         >
-          🏃
+          <IconBadge name="users" tone="cream" size="lg" tilt={-6} />
         </motion.span>
         <div className="min-w-0">
-          <h2 className="font-display text-2xl leading-tight">{t('home.seated.title', { code })}</h2>
+          <h2 className="font-display text-2xl leading-tight">
+            {before}
+            <span className="text-stamp mx-0.5 inline-block rounded-lg border-2 border-ink bg-ink py-1 pr-1 pl-1.5 align-[0.12em] font-mono text-[0.8em] leading-none font-bold tracking-[0.14em] whitespace-nowrap">
+              {code}
+            </span>
+            {after}
+          </h2>
           <p className="font-bold text-balance text-ink-soft">{t('home.seated.body')}</p>
         </div>
       </div>
-      <div className="mt-4 flex gap-3">
-        <Button variant="primary" size="lg" className="flex-[2]" onClick={onBack} disabled={disabled || leaving} icon={<span aria-hidden>🚀</span>}>
+      <div className="mt-4 flex gap-2 min-[375px]:gap-3">
+        <Button variant="primary" size="lg" className="min-w-0 flex-[2] max-[374px]:px-3!" onClick={onBack} disabled={disabled || leaving} icon={<Icon name="arrow-right" className="size-5" weight="bold" />}>
           {t('home.seated.goBack')}
         </Button>
-        <Button variant="secondary" size="lg" className="flex-1" onClick={onLeave} loading={leaving} disabled={disabled}>
+        <Button variant="secondary" size="lg" className="min-w-0 flex-1 max-[374px]:px-3!" onClick={onLeave} loading={leaving} disabled={disabled}>
           {t('home.seated.leave')}
         </Button>
       </div>

@@ -49,7 +49,9 @@ export function fakePortrait(seed: number, kind: PhotoKind): string {
   const feminine = kind === 'daronne' || kind === 'sister' || kind === 'grandma';
   const kid = kind === 'kid';
   const glasses = !kid && r() > 0.6;
-  const mustache = masculine && r() > 0.35;
+  // No moustaches (very 2010): some dads get a 90s cap instead.
+  const cap = masculine && r() > 0.55;
+  const capColor = pick(['#e63946', '#1d3557', '#2a9d8f', '#f4a261', '#ffffff']);
   const longHair = (feminine || kid) && r() > 0.25;
   const smile = r() > 0.3;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480">
@@ -62,7 +64,7 @@ ${longHair ? `<ellipse cx="200" cy="260" rx="150" ry="190" fill="${hair}"/>` : '
 <circle cx="160" cy="215" r="${kid ? 16 : 10}" fill="#1b1036"/><circle cx="240" cy="215" r="${kid ? 16 : 10}" fill="#1b1036"/>
 ${kid ? '<circle cx="135" cy="265" r="18" fill="#ff8fa3" opacity="0.6"/><circle cx="265" cy="265" r="18" fill="#ff8fa3" opacity="0.6"/>' : ''}
 ${glasses ? '<circle cx="160" cy="215" r="28" fill="none" stroke="#1b1036" stroke-width="6"/><circle cx="240" cy="215" r="28" fill="none" stroke="#1b1036" stroke-width="6"/><line x1="188" y1="215" x2="212" y2="215" stroke="#1b1036" stroke-width="6"/>' : ''}
-${mustache ? `<path d="M200 272c-8-14-30-18-46-8-10 6-18 14-30 10 8 16 36 20 52 12 10-5 16-10 24-10s14 5 24 10c16 8 44 4 52-12-12 4-20-4-30-10-16-10-38-6-46 8z" fill="${hair}"/>` : ''}
+${cap ? `<path d="M86 172 Q96 64 200 62 Q304 64 314 172 Z" fill="${capColor}" stroke="#1b1036" stroke-width="6"/><path d="M78 170 Q200 150 322 170 Q330 196 312 192 Q200 176 88 192 Q70 196 78 170 Z" fill="${capColor}" stroke="#1b1036" stroke-width="6"/><circle cx="200" cy="66" r="9" fill="#1b1036"/>` : ''}
 <path d="${smile ? 'M165 295 Q200 325 235 295' : 'M170 305 L230 305'}" stroke="#7a2b2b" stroke-width="7" fill="none" stroke-linecap="round"/>
 </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

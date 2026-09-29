@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useId, useState, type Ref } from 'react';
 import { AVATARS, MAX_NAME_LENGTH } from '../../../shared/protocol';
 import { AvatarPicker } from '../../components/AvatarPicker';
+import { Icon } from '../../components/Icon';
 import { useT } from '../../i18n';
 import { sfx } from '../../lib/sfx';
 import { cn } from '../../lib/util';
@@ -84,7 +85,7 @@ export function ProfileFields({
             )}
             aria-hidden
           >
-            {pickerOpen ? '✓' : '✏️'}
+            <Icon name={pickerOpen ? 'check' : 'edit'} className="size-4" weight="bold" />
           </span>
         </motion.button>
 
@@ -153,9 +154,9 @@ export function ProfileFields({
                     type="button"
                     whileTap={{ scale: 0.9, rotate: 90 }}
                     onClick={randomize}
-                    className="flex h-11 items-center gap-1 rounded-xl border-2 border-ink bg-lilac px-3 text-sm font-extrabold shadow-pop-sm"
+                    className="flex h-11 items-center gap-1.5 rounded-xl border-2 border-ink bg-lilac px-3 text-sm font-extrabold shadow-pop-sm"
                   >
-                    <span aria-hidden>🎲</span> {t('home.profile.randomAvatar')}
+                    <Icon name="dice" fill="#fff" className="size-5" /> {t('home.profile.randomAvatar')}
                   </motion.button>
                   <motion.button
                     type="button"

@@ -1,16 +1,28 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode, Ref } from 'react';
-import type { PublicPlayer } from '../../../shared/protocol';
+import { REVEAL_DRUMROLL_AT_MS, REVEAL_OWNER_AT_MS, type PublicPlayer } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Polaroid } from '../../components/Polaroid';
 import { cn } from '../../lib/util';
 import { reached, type Stage, type StampKind } from './timeline';
 
+/** Rubber stamp ink per verdict: one strong color each, on a paper-white patch. */
 const STAMP_COLORS: Record<StampKind, string> = {
   spotted: '#1fb576',
   hidden: '#d93a3a',
   revealed: '#5530b8',
 };
+
+/**
+ * Worn rubber-stamp texture: fractal noise turned into an alpha mask with a few missing specks,
+ * so the stamp looks inked by hand instead of typeset.
+ */
+const STAMP_WEAR = `url("data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -4.2 3.3'/></filter><rect width='160' height='160' filter='url(#w)'/></svg>`,
+)}")`;
+
+/** How long the print sits in the developer (the drum roll), in seconds. */
+const DEVELOP_S = (REVEAL_OWNER_AT_MS - REVEAL_DRUMROLL_AT_MS) / 1000;
 
 export interface PhotoCardProps {
   src: string;
@@ -20,6 +32,8 @@ export interface PhotoCardProps {
   /** Only set once the owner is revealed. */
   owner: PublicPlayer | null;
   stamp: { kind: StampKind; text: string } | null;
+  /** Camera date imprint of this photo (see fakeDateStamp). */
+  dateStamp: string;
   /** The viewer's verdict sticker (phones only; the full card is visible on wide screens). */
   badge: ReactNode;
   zoomLabel: string;
@@ -29,25 +43,24 @@ export interface PhotoCardProps {
 
 /**
  * The photo being revealed: flies in, shrinks a bit on phones once the vote bars need room,
- * shakes during the drum roll, then gets stamped and the owner's avatar is slapped on it.
+ * then goes into the darkroom for the drum roll: the lights go out, the red safelight comes
+ * on and the print slowly develops, until the flash at the reveal brings it back to full
+ * color. Then it gets rubber-stamped and the owner's avatar is slapped on it.
  */
-export function PhotoCard({ src, alt, stage, tilt, owner, stamp, badge, zoomLabel, onZoom, anchorRef }: PhotoCardProps) {
+export function PhotoCard({ src, alt, stage, tilt, owner, stamp, dateStamp, badge, zoomLabel, onZoom, anchorRef }: PhotoCardProps) {
   const big = !reached(stage, 'bars');
   const revealed = owner !== null;
+  const developing = stage === 'drumroll';
   return (
     <motion.div
       ref={anchorRef}
       layout
       transition={{ layout: { type: 'spring', stiffness: 220, damping: 26 } }}
-      className={cn('relative mx-auto shrink-0', big ? 'w-[min(78vw,19rem)]' : 'w-[min(50vw,12.5rem)]', 'md:w-[21rem]')}
+      className={cn('relative z-[31] mx-auto shrink-0', big ? 'w-[min(78vw,19rem)]' : 'w-[min(50vw,12.5rem)]', 'md:w-[21rem]')}
     >
-      <div className={cn(stage === 'drumroll' && 'animate-shake')}>
-        <Polaroid
-          src={src}
-          alt={alt}
-          className="w-full"
-          onOpen={onZoom}
-          aria-label={zoomLabel}
+      <div className={cn(developing && 'animate-shake')}>
+        <motion.div
+          className="relative flex"
           initial={{ opacity: 0, y: 260, x: -90, rotate: -30, scale: 0.35 }}
           animate={
             revealed
@@ -60,27 +73,64 @@ export function PhotoCard({ src, alt, stage, tilt, owner, stamp, badge, zoomLabe
             damping: 17,
             scale: revealed ? { duration: 0.5, times: [0, 0.25, 0.6, 1], delay: 0.05 } : { type: 'spring', stiffness: 170, damping: 17 },
           }}
-          overlay={
-            <AnimatePresence>
-              {stamp && (
+        >
+          <Polaroid
+            src={src}
+            alt={alt}
+            className="w-full"
+            onOpen={onZoom}
+            aria-label={zoomLabel}
+            // The owner's sticker lands on the date corner at the reveal: the imprint goes under it
+            // (dropped in the flash) instead of peeking out half-covered next to the rubber stamp.
+            dateStamp={revealed ? undefined : dateStamp}
+            overlay={
+              <>
+                {/* Developer tray: the image starts almost black and slowly comes up. */}
                 <motion.div
-                  key="stamp"
-                  className="pointer-events-none absolute inset-x-0 bottom-[10%] flex justify-center"
-                  initial={{ scale: 3.2, opacity: 0, rotate: -35 }}
-                  animate={{ scale: 1, opacity: 1, rotate: -11 }}
-                  transition={{ type: 'spring', stiffness: 600, damping: 22, delay: 0.08 }}
-                >
-                  <span
-                    className="rounded-xl border-[5px] bg-white/85 px-3 py-0.5 font-display text-[clamp(1.25rem,6vw,2.25rem)] leading-tight tracking-wider whitespace-nowrap uppercase shadow-lg md:text-4xl"
-                    style={{ color: STAMP_COLORS[stamp.kind], borderColor: STAMP_COLORS[stamp.kind] }}
-                  >
-                    {stamp.text}
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          }
-        />
+                  className="pointer-events-none absolute inset-0 bg-grape-950"
+                  initial={false}
+                  animate={developing ? { opacity: [0, 0.94, 0.9, 0.18] } : { opacity: 0 }}
+                  transition={
+                    developing
+                      ? { duration: DEVELOP_S, times: [0, 0.1, 0.32, 1], ease: ['easeOut', 'linear', 'easeIn'] }
+                      : { duration: revealed ? 0.12 : 0.3 }
+                  }
+                  aria-hidden
+                />
+              </>
+            }
+          />
+          {/*
+           * Stamped on the whole print (not inside the clipped photo box) and sized from the print's
+           * width (cqw), so the longest word (DÉMASQUÉE !) never gets its ends cut off on a phone.
+           */}
+          <AnimatePresence>
+            {stamp && (
+              <motion.div
+                key="stamp"
+                className="@container pointer-events-none absolute inset-x-0 bottom-[13%] flex justify-center"
+                initial={{ scale: 3.2, opacity: 0, rotate: -35 }}
+                animate={{ scale: 1, opacity: 1, rotate: -11 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 22, delay: 0.08 }}
+              >
+                <RubberStamp color={STAMP_COLORS[stamp.kind]} text={stamp.text} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {/*
+           * The red safelight over the whole print (paper included): multiply keeps only the red
+           * channel, like a real darkroom lamp. Off in a snap at the reveal, under the flash.
+           */}
+          <motion.div
+            className="pointer-events-none absolute inset-0 rounded-md mix-blend-multiply"
+            // The lamp hangs above the tray: the paper glows red at the top and falls off to dark red.
+            style={{ background: 'radial-gradient(130% 100% at 50% -10%, var(--color-safelight) 0%, #c81e25 55%, #7d0f1a 100%)' }}
+            initial={false}
+            animate={{ opacity: developing ? 1 : 0 }}
+            transition={{ duration: developing ? 0.25 : 0.12 }}
+            aria-hidden
+          />
+        </motion.div>
       </div>
 
       {badge && <div className="pointer-events-none absolute -top-4 -left-4 z-10 md:hidden">{badge}</div>}
@@ -96,7 +146,7 @@ export function PhotoCard({ src, alt, stage, tilt, owner, stamp, badge, zoomLabe
             transition={{ type: 'spring', stiffness: 380, damping: 14, delay: 0.15 }}
           >
             <motion.div
-              className="absolute top-1/2 left-1/2 -z-10 size-[180%] -translate-x-1/2 md:size-[150%] -translate-y-1/2 rounded-full opacity-80"
+              className="absolute top-1/2 left-1/2 -z-10 size-[180%] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80 md:size-[150%]"
               style={{
                 background: `repeating-conic-gradient(${owner.color} 0deg 12deg, transparent 12deg 30deg)`,
                 maskImage: 'radial-gradient(circle, black 35%, transparent 70%)',
@@ -115,5 +165,25 @@ export function PhotoCard({ src, alt, stage, tilt, owner, stamp, badge, zoomLabe
         )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+/** SPOTTED / UNDERCOVER / REVEALED: a typographic rubber stamp, double frame, worn ink. */
+function RubberStamp({ color, text }: { color: string; text: string }) {
+  // Everything in em: the frame scales with the type, and the type with the print (11.5cqw).
+  return (
+    <span
+      className="rounded-[0.3em] bg-white/80 p-[0.1em] text-[clamp(0.9rem,11.5cqw,2.3rem)] shadow-[0_2px_10px_rgb(27_16_54/0.35)]"
+      style={{ maskImage: STAMP_WEAR, WebkitMaskImage: STAMP_WEAR, maskSize: '160px 160px', WebkitMaskSize: '160px 160px' }}
+    >
+      <span className="block rounded-[0.24em] border-[0.15em] px-[0.06em] py-[0.03em]" style={{ borderColor: color, color }}>
+        <span
+          className="block rounded-[0.12em] border-[0.07em] px-[0.35em] pt-[0.06em] font-display leading-[1.05] tracking-[0.04em] whitespace-nowrap uppercase [font-stretch:75%]"
+          style={{ borderColor: color }}
+        >
+          {text}
+        </span>
+      </span>
+    </span>
   );
 }

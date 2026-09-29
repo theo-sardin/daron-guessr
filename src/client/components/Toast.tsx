@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useSyncExternalStore } from 'react';
 import { cn } from '../lib/util';
-import { Icon, type IconName } from './Icon';
+import type { IconName } from './Icon';
+import { IconBadge, type IconBadgeTone } from './IconBadge';
 
 export type ToastKind = 'info' | 'success' | 'error';
 interface ToastItem {
@@ -36,10 +37,10 @@ export function toast(message: string, kind: ToastKind = 'info', opts: ToastOpti
   }, opts.durationMs ?? 3200);
 }
 
-const KIND_STYLE: Record<ToastKind, { box: string; badge: string }> = {
-  info: { box: 'bg-cream text-ink', badge: 'bg-sun text-ink' },
-  success: { box: 'bg-cream text-ink', badge: 'bg-mint text-ink' },
-  error: { box: 'bg-danger text-white', badge: 'bg-white text-danger-dark' },
+const KIND_STYLE: Record<ToastKind, { box: string; badge: IconBadgeTone }> = {
+  info: { box: 'bg-cream text-ink', badge: 'sun' },
+  success: { box: 'bg-cream text-ink', badge: 'mint' },
+  error: { box: 'bg-danger text-white', badge: 'cream' },
 };
 
 /** Success / error toasts get a default icon so they never read as a neutral note. */
@@ -74,9 +75,7 @@ export function Toaster() {
               )}
             >
               {icon ? (
-                <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-xl border-2 border-ink', style.badge)}>
-                  <Icon name={icon} className="size-[1.1rem]" strokeWidth={2.6} />
-                </span>
+                <IconBadge name={icon} tone={style.badge} size="sm" shadow={false} />
               ) : (
                 t.emoji && <span className="flex size-8 shrink-0 items-center justify-center text-xl leading-none">{t.emoji}</span>
               )}

@@ -170,6 +170,12 @@ const previews: PreviewRegistry = {
   intro: { view: () => makeView({ round: 0, startsIn: 3000 }), render },
   /** Full intro length, as the server sends it. */
   'intro-full': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, voteSeconds: 0, endsIn: null }), render },
+  /** "Get ready!" held on screen (the self-timer hunting for focus), for screenshots. */
+  'intro-ready': { view: () => makeView({ round: 0, startsIn: 60_000, voteSeconds: 30 }), render },
+  /** Between two rounds, held on screen for screenshots. */
+  'transition-hold': { view: () => makeView({ round: 3, startsIn: 60_000, kind: 'daronne' }), render },
+  /** Last round's print, held on screen. */
+  'transition-last': { view: () => makeView({ round: 7, startsIn: 60_000, kind: 'kid', theme: 'childhood' }), render },
   /** Between two rounds: "Photo 4/8" card. */
   transition: { view: () => makeView({ round: 3, startsIn: ROUND_GAP_MS, kind: 'daronne' }), render },
   /** Non-host, 20s left, 3 of 5 voted, not me yet. */

@@ -1,4 +1,5 @@
-import { motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { cn } from '../lib/util';
 
 /**
  * Film grain tile: fractal noise turned into sparse white specks (alpha only), so it reads
@@ -9,36 +10,66 @@ const GRAIN = `url("data:image/svg+xml;utf8,${encodeURIComponent(
 )}")`;
 
 /**
- * Decorative backdrop: a darkroom night with soft drifting color blobs, a warm light leak,
- * a vignette and animated film grain. Fixed behind everything and ignored by assistive tech.
+ * Decorative backdrop: the grape night (a darkroom) with two soft drifting color blobs and a
+ * barely-there film grain. Fixed behind everything, ignored by assistive tech. No vignette and
+ * no permanent light leak on purpose: the leak is an event (see <LightLeak />), not a filter.
  */
 export function Background() {
   const reduce = useReducedMotion();
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
+      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,var(--color-grape-700)_0%,var(--color-grape-900)_55%,var(--color-grape-950)_100%)]" />
       <motion.div
-        className="absolute -top-32 -left-24 size-[28rem] rounded-full bg-pink/22 blur-3xl"
+        className="absolute -top-48 -left-40 size-[30rem] rounded-full bg-pink/[0.13] blur-3xl"
         animate={reduce ? undefined : { x: [0, 60, 0], y: [0, 40, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div
-        className="absolute top-1/3 -right-32 size-[26rem] rounded-full bg-sky/18 blur-3xl"
+        className="absolute top-1/3 -right-40 size-[28rem] rounded-full bg-sky/[0.1] blur-3xl"
         animate={reduce ? undefined : { x: [0, -50, 0], y: [0, 60, 0] }}
         transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
       />
-      {/* Light leak: the warm orange of the date stamp bleeding in from a corner. */}
-      <motion.div
-        className="absolute -bottom-40 left-1/4 size-[30rem] rounded-full bg-stamp/14 blur-3xl"
-        animate={reduce ? undefined : { x: [0, 40, 0], y: [0, -40, 0], opacity: [0.8, 1, 0.8] }}
-        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      {/* Vignette, like the dark corners of an old print. */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,transparent_45%,rgb(8_3_20_/_0.55)_100%)]" />
       {/* Grain: an oversized tile that jumps around (steps, compositor-only transform). */}
       <div
-        className="absolute -inset-[20%] animate-grain opacity-[0.16] will-change-transform"
+        className="absolute -inset-[20%] animate-grain opacity-[0.07] will-change-transform"
         style={{ backgroundImage: GRAIN, backgroundSize: '180px 180px' }}
       />
     </div>
+  );
+}
+
+/**
+ * A light leak: warm orange and safelight red bleeding in from the edges of the screen. It is
+ * an event, not a filter: turn it on for the darkroom moment (the reveal drum roll, a photo
+ * "developing") and off again. By default it is fixed, full screen and behind the content (over
+ * the night, under the cards); `className` replaces that placement (e.g. "absolute inset-0 z-10"
+ * inside a positioned print).
+ */
+export function LightLeak({ active, className }: { active: boolean; className?: string }) {
+  const reduce = useReducedMotion();
+  return (
+    <AnimatePresence>
+      {active && (
+        <motion.div
+          className={cn('pointer-events-none overflow-hidden mix-blend-screen', className ?? 'fixed inset-0 -z-[5]')}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          aria-hidden
+        >
+          <motion.div
+            className="absolute -top-1/4 -right-1/3 h-[80%] w-[90%] rounded-full bg-stamp/45 blur-3xl"
+            animate={reduce ? undefined : { x: [0, -30, 10, 0], opacity: [0.7, 1, 0.8, 0.7] }}
+            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute -bottom-1/4 -left-1/3 h-[70%] w-[80%] rounded-full bg-safelight/35 blur-3xl"
+            animate={reduce ? undefined : { x: [0, 30, -10, 0], opacity: [0.8, 0.6, 1, 0.8] }}
+            transition={{ duration: 4.1, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

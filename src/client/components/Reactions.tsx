@@ -5,6 +5,7 @@ import { useT } from '../i18n';
 import { sfx } from '../lib/sfx';
 import { api, getState, onReaction, playersById } from '../lib/store';
 import { cn, vibrate } from '../lib/util';
+import { Icon } from './Icon';
 
 interface Floating {
   key: string;
@@ -88,7 +89,11 @@ export function ReactionBar({ className }: { className?: string }) {
   };
 
   return (
-    <div className={cn('fixed right-3 bottom-24 z-[56] flex flex-col items-end gap-2 sm:right-5', className)}>
+    // Sits in the BottomBar's lane (which reserves room for it on phones) so it never covers content.
+    <div
+      className={cn('fixed right-3 z-[56] flex flex-col items-end gap-2 sm:right-5', className)}
+      style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
       <AnimatePresence>
         {open && (
           <motion.div
@@ -125,7 +130,7 @@ export function ReactionBar({ className }: { className?: string }) {
         aria-expanded={open}
         className="flex size-14 items-center justify-center rounded-full border-3 border-ink bg-sun text-3xl shadow-pop"
       >
-        {open ? '✕' : '😂'}
+        {open ? <Icon name="x" className="size-6" weight="bold" /> : '😂'}
       </motion.button>
     </div>
   );

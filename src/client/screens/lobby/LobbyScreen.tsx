@@ -34,7 +34,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   useEffect(() => {
     if (prevHost.current !== view.hostId && view.hostId === view.meId) {
       sfx.play('success');
-      toast(t('lobby.players.youAreHost'), 'success', { emoji: '👑' });
+      toast(t('lobby.players.youAreHost'), 'success', { icon: 'crown' });
     }
     prevHost.current = view.hostId;
   }, [view.hostId, view.meId, t]);
@@ -44,7 +44,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   useEffect(() => {
     if (prevTheme.current !== theme && !isHost) {
       sfx.play('pop');
-      toast(t('lobby.banner.changed', { theme: t(`common.theme.${theme}.name`) }), 'info', { emoji: t(`common.theme.${theme}.emoji`) });
+      toast(t('lobby.banner.changed', { theme: t(`common.theme.${theme}.name`) }), 'info', { icon: 'images' });
     }
     prevTheme.current = theme;
   }, [theme, isHost, t]);
