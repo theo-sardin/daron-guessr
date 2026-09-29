@@ -36,6 +36,7 @@ import {
   type PhotoKind,
   type PhotoSlot,
   type RankingEntry,
+  type RoomSetup,
   type Settings,
   type Theme,
 } from '../shared/protocol';
@@ -278,16 +279,37 @@ function addPlayer(room: Room, input: NewPlayer, name: string, now: number): Pla
 // Membership
 // ---------------------------------------------------------------------------
 
-export function createRoom(code: string, hostInput: NewPlayer, now: number, timing: Timing = DEFAULT_TIMING): Result<Room> {
+/**
+ * Settings a new room starts with: DEFAULT_SETTINGS, with the game mode picked on the home
+ * screen when there is one (`photosPerPlayer` defaults to that theme's THEME_DEFAULT_PHOTOS).
+ */
+function initialSettings(setup?: RoomSetup): Result<Settings> {
+  if (setup === undefined) return ok({ ...DEFAULT_SETTINGS });
+  const { theme, photosPerPlayer } = setup;
+  if (!isTheme(theme)) return fail('BAD_REQUEST');
+  if (photosPerPlayer !== undefined && !isPhotosPerPlayer(photosPerPlayer)) return fail('BAD_REQUEST');
+  return ok({ ...DEFAULT_SETTINGS, theme, photosPerPlayer: photosPerPlayer ?? THEME_DEFAULT_PHOTOS[theme] });
+}
+
+/** New lobby with `hostInput` as its host. An invalid `setup` fails with BAD_REQUEST. */
+export function createRoom(
+  code: string,
+  hostInput: NewPlayer,
+  now: number,
+  timing: Timing = DEFAULT_TIMING,
+  setup?: RoomSetup,
+): Result<Room> {
   const name = checkIdentity(null, hostInput.name, hostInput.avatar);
   if (!name.ok) return name;
+  const settings = initialSettings(setup);
+  if (!settings.ok) return settings;
   const room: Room = {
     code,
     createdAt: now,
     phase: 'lobby',
     players: [],
     photos: [],
-    settings: { ...DEFAULT_SETTINGS },
+    settings: settings.value,
     hostId: hostInput.id,
     hostDisconnectedSince: null,
     game: null,

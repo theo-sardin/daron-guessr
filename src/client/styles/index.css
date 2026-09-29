@@ -1,16 +1,30 @@
 @import 'tailwindcss';
-@import '@fontsource/lilita-one/latin-400.css';
-@import '@fontsource/lilita-one/latin-ext-400.css';
-@import '@fontsource-variable/nunito';
+/* Display + UI: one variable family (weight 200-800, width 75-100%). */
+@import '@fontsource-variable/bricolage-grotesque/standard.css';
+/* Camera date stamps: seven- and fourteen-segment digits. */
+@import '@fontsource/dseg7-classic/700.css';
+@import '@fontsource/dseg14-classic/700.css';
+/* Micro-labels ("ROOM", "PHOTO", "SCORE"). */
+@import '@fontsource/space-mono/latin-700.css';
+@import '@fontsource/space-mono/latin-ext-700.css';
+/* Handwriting on the back of prints. */
+@import '@fontsource-variable/caveat/wght.css';
 
 /*
- * Design tokens. The whole game sits on a deep grape night sky with bright "sticker"
- * cards: cream surfaces, thick ink outlines and a hard drop shadow that buttons sink into.
+ * Design tokens. "Photo lab": the whole game sits on a deep grape night (a darkroom) with
+ * bright "sticker" cards: cream surfaces, thick ink outlines and a hard drop shadow that
+ * buttons sink into. Numbers and codes are orange camera date stamps; photos are prints
+ * with handwritten captions; important things sit inside viewfinder brackets.
  */
 @theme {
   /* Color emoji fonts come right after the web fonts so a system font's monochrome emoji never wins. */
-  --font-display: 'Lilita One', 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;
-  --font-sans: 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;
+  --font-sans: 'Bricolage Grotesque Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Date-stamp digits (0-9 - : . and a few letters) and codes (A-Z 0-9 / - '). */
+  --font-stamp7: 'DSEG7 Classic', 'Space Mono', ui-monospace, monospace;
+  --font-stamp14: 'DSEG14 Classic', 'Space Mono', ui-monospace, monospace;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-hand: 'Caveat Variable', 'Bradley Hand', 'Segoe Print', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', cursive;
 
   --color-ink: #1b1036;
   --color-ink-soft: #3a2a63;
@@ -36,11 +50,16 @@
   --color-lilac: #b388ff;
   --color-danger: #ff5d5d;
   --color-danger-dark: #d93a3a;
+  /* Orange imprint of disposable cameras ('98 12 24). */
+  --color-stamp: #ff7a1a;
+  /* Darkroom red light. */
+  --color-safelight: #ff3b3b;
 
   --shadow-pop: 0 5px 0 0 var(--color-ink);
   --shadow-pop-sm: 0 3px 0 0 var(--color-ink);
   --shadow-pop-lg: 0 8px 0 0 var(--color-ink);
   --shadow-glow: 0 0 0 4px rgb(255 210 63 / 0.55), 0 0 32px 4px rgb(255 210 63 / 0.45);
+  --shadow-flash: 0 0 0 3px rgb(255 255 255 / 0.9), 0 0 40px 8px rgb(255 255 255 / 0.55);
 
   --radius-blob: 1.75rem;
 
@@ -48,6 +67,8 @@
   --animate-float: float 6s ease-in-out infinite;
   --animate-shake: shake 0.35s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  --animate-aperture: aperture 1.1s cubic-bezier(0.6, 0.1, 0.3, 0.9) infinite;
+  --animate-grain: grain 0.9s steps(1) infinite;
 
   @keyframes wiggle {
     0%, 100% { transform: rotate(0deg); }
@@ -68,6 +89,20 @@
   @keyframes pulse-soft {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.75; transform: scale(0.97); }
+  }
+  /* The iris spinner: turns a sixth of a revolution per beat, like a shutter blade. */
+  @keyframes aperture {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(120deg); }
+  }
+  /* Film grain: the noise tile jumps around (steps, no tweening) like projected film. */
+  @keyframes grain {
+    0% { transform: translate(0, 0); }
+    16% { transform: translate(-7%, 4%); }
+    33% { transform: translate(5%, -9%); }
+    50% { transform: translate(-11%, -3%); }
+    66% { transform: translate(8%, 7%); }
+    83% { transform: translate(-3%, 11%); }
   }
 }
 
@@ -107,6 +142,43 @@
 }
 
 @layer components {
+  /*
+   * Display type: Bricolage Grotesque at its heaviest, a little condensed and tight. Set here
+   * (components layer) so utilities like font-bold / tracking-wide still win.
+   */
+  .font-display {
+    font-weight: 800;
+    font-stretch: 84%;
+    letter-spacing: -0.012em;
+  }
+  /* Orange camera date stamp with a soft glow (pair with font-stamp7 / font-stamp14). */
+  .text-stamp {
+    color: var(--color-stamp);
+    text-shadow:
+      0 0 1px rgb(255 122 26 / 0.9),
+      0 0 7px rgb(255 122 26 / 0.55),
+      0 0 16px rgb(255 72 0 / 0.35);
+  }
+  /* Same color without the glow, for stamps printed on light paper. */
+  .text-stamp-flat {
+    color: #f06400;
+  }
+  /* Space Mono micro-label above a stamp number: "ROOM", "PHOTO", "SCORE". */
+  .label-mono {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.625rem;
+    line-height: 1;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  /* Handwritten caption on a print. */
+  .text-hand {
+    font-family: var(--font-hand);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.05;
+  }
   /* Text with a chunky ink outline, for big titles on the dark background. */
   .text-outline {
     -webkit-text-stroke: 6px var(--color-ink);

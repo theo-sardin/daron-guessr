@@ -18,7 +18,8 @@ export type SfxName =
   | 'fail'
   | 'fanfare'
   | 'countdown'
-  | 'go';
+  | 'go'
+  | 'shutter';
 
 const MUTE_KEY = 'dg:muted';
 let muted = readMuted();
@@ -129,6 +130,13 @@ const SOUNDS: Record<SfxName, () => void> = {
   },
   countdown: () => tone(587, 0, 0.14, { type: 'square', gain: 0.2 }),
   go: () => tone(1175, 0, 0.35, { type: 'square', gain: 0.22 }),
+  /** Camera shutter: a bright click, the mirror slap, then the flash capacitor whine. */
+  shutter: () => {
+    noise(0, 0.035, { gain: 0.55, filter: 4200 });
+    tone(180, 0.01, 0.06, { type: 'square', gain: 0.12, slideTo: 90 });
+    noise(0.07, 0.05, { gain: 0.35, filter: 2400 });
+    tone(2600, 0.1, 0.35, { type: 'sine', gain: 0.05, slideTo: 5200, attack: 0.05 });
+  },
 };
 
 export const sfx = {

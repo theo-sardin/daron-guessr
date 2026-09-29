@@ -21,6 +21,45 @@ async function uploadBothPhotos(page: Page, seed: number) {
   await expect(uploaded).toHaveCount(2, { timeout: 15_000 });
 }
 
+/**
+ * Home -> "Create a room" -> the mandatory game mode step -> the lobby. Checks the step can't be
+ * skipped (nothing preselected, confirm disabled), picks `mode`, then checks the photo count jumps
+ * to the mode's default before confirming. Returns the room code.
+ */
+async function createRoom(page: Page, name: string, mode: string, photos: number, shot?: string) {
+  await page.goto('/?lang=en');
+  await page.getByPlaceholder('Your nickname').fill(name);
+  await page.getByRole('button', { name: /Create a room/ }).click();
+
+  // The mode step: no room yet, nothing picked, the confirm button is locked.
+  await expect(page.getByRole('heading', { name: 'Pick a game mode' })).toBeVisible();
+  const modes = page.getByRole('radiogroup', { name: 'Game mode' });
+  const confirm = page.getByRole('button', { name: 'Create the room' });
+  await expect(modes.getByRole('radio')).toHaveCount(5);
+  await expect(modes.getByRole('radio', { checked: true })).toHaveCount(0);
+  await expect(confirm).toBeDisabled();
+  await expect(confirm).toHaveAccessibleDescription('Pick a mode first');
+  expect(new URL(page.url()).pathname).toBe('/');
+  if (shot) await page.screenshot({ path: `${SHOTS}/${shot}-mode-step.png` });
+
+  const card = modes.getByRole('radio', { name: mode, exact: true });
+  await card.click();
+  await expect(card).toBeChecked();
+  await expect(modes.getByRole('radio', { checked: true })).toHaveCount(1);
+  const perPlayer = page.getByRole('radiogroup', { name: 'Photos per player' });
+  await expect(perPlayer.getByRole('radio', { name: String(photos), exact: true })).toBeChecked();
+  await expect(confirm).toBeEnabled();
+  if (shot) await page.screenshot({ path: `${SHOTS}/${shot}-mode-picked.png` });
+
+  await confirm.click();
+  await page.waitForURL(/\/[A-Z]{4}$/);
+  // The lobby opens on the mode picked at creation.
+  const lobbyTheme = page.getByRole('radiogroup', { name: 'Theme' });
+  await expect(lobbyTheme.getByRole('radio', { name: new RegExp(mode) })).toBeChecked();
+  await expect(lobbyTheme.getByRole('radio', { checked: true })).toHaveCount(1);
+  return new URL(page.url()).pathname.slice(1);
+}
+
 async function voteWhileVoting(page: Page, stop: () => boolean) {
   let voted = 0;
   while (!stop()) {
@@ -45,12 +84,8 @@ test('a full game with two browsers and two bots', async ({ browser, baseURL }) 
   const errors: string[] = [];
   for (const p of [host, friend]) p.on('pageerror', (e) => errors.push(e.message));
 
-  // Host creates the room.
-  await host.goto('/?lang=en');
-  await host.getByPlaceholder('Your nickname').fill('Host Théo');
-  await host.getByRole('button', { name: /Create a room/ }).click();
-  await host.waitForURL(/\/[A-Z]{4}$/);
-  const code = new URL(host.url()).pathname.slice(1);
+  // Host creates the room, in "Parents" mode (2 photos each).
+  const code = await createRoom(host, 'Host Théo', 'Parents', 2, '00');
 
   // A friend opens the invite link and joins.
   await friend.goto(`/${code}?lang=en`);
@@ -114,6 +149,68 @@ test('a full game with two browsers and two bots', async ({ browser, baseURL }) 
   expect(errors).toEqual([]);
 });
 
+test('the game mode step is mandatory, and Back returns to the form', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/?lang=fr');
+  const nickname = page.getByPlaceholder('Ton pseudo');
+  const create = page.getByRole('button', { name: /Créer un salon/ });
+  const modes = page.getByRole('radiogroup', { name: 'Mode de jeu' });
+  const confirm = page.getByRole('button', { name: 'Créer le salon' });
+
+  // No name: the step does not open.
+  await nickname.fill('');
+  await create.click();
+  await expect(nickname).toBeFocused();
+  await expect(modes).toHaveCount(0);
+
+  // With a name: the step opens with nothing picked and a locked confirm button.
+  await nickname.fill('Julie');
+  await create.click();
+  await expect(modes.getByRole('radio')).toHaveCount(5);
+  await expect(modes.getByRole('radio', { checked: true })).toHaveCount(0);
+  await expect(confirm).toBeDisabled();
+  await expect(confirm).toHaveAccessibleDescription('Choisis d’abord un mode');
+  await page.screenshot({ path: `${SHOTS}/09-mode-step-fr.png` });
+
+  // "Retour" goes back to the form, name kept, no room created.
+  await page.getByRole('button', { name: 'Retour', exact: true }).click();
+  await expect(modes).toHaveCount(0);
+  await expect(nickname).toHaveValue('Julie');
+  expect(new URL(page.url()).pathname).toBe('/');
+
+  // So does the browser's back button...
+  await create.click();
+  await modes.getByRole('radio', { name: 'Version mini', exact: true }).click();
+  await expect(confirm).toBeEnabled();
+  await page.goBack();
+  await expect(modes).toHaveCount(0);
+  await expect(nickname).toHaveValue('Julie');
+  expect(new URL(page.url()).pathname).toBe('/');
+
+  // ...and Escape.
+  await create.click();
+  await expect(modes).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(modes).toHaveCount(0);
+  await expect(create).toBeVisible();
+
+  // A reload on the step lands on the form, and afterwards one Back still closes the step.
+  await create.click();
+  await expect(modes).toBeVisible();
+  await page.reload();
+  await expect(nickname).toBeVisible();
+  await expect(modes).toHaveCount(0);
+  await nickname.fill('Julie');
+  await create.click();
+  await expect(modes).toBeVisible();
+  await page.getByRole('button', { name: 'Retour', exact: true }).click();
+  await expect(modes).toHaveCount(0);
+  await expect(nickname).toHaveValue('Julie');
+
+  expect(errors).toEqual([]);
+});
+
 test('joining an unknown room shows a friendly error', async ({ page }) => {
   await page.goto('/ZZZZ?lang=en');
   await expect(page.getByRole('button', { name: /home/i }).first()).toBeVisible({ timeout: 10_000 });
@@ -124,17 +221,11 @@ test('a "Mini me" game: one childhood photo each', async ({ browser, baseURL }) 
   const errors: string[] = [];
   host.on('pageerror', (e) => errors.push(e.message));
 
-  await host.goto('/?lang=en');
-  await host.getByPlaceholder('Your nickname').fill('Host Théo');
-  await host.getByRole('button', { name: /Create a room/ }).click();
-  await host.waitForURL(/\/[A-Z]{4}$/);
-  const code = new URL(host.url()).pathname.slice(1);
-
-  // The host switches the theme: one photo slot, of the player as a kid.
-  await host.getByRole('radio', { name: /Mini me/ }).click();
+  // The mode is picked at creation: one photo slot, of the player as a kid.
+  const code = await createRoom(host, 'Host Théo', 'Mini me', 1);
   await expect(host.locator('input[type=file]')).toHaveCount(1);
 
-  // Bots join after the switch, so they upload one 'kid' photo each.
+  // Bots read the room's settings, so they upload one 'kid' photo each.
   const bots: Bot[] = [];
   for (let i = 0; i < 3; i++) bots.push(await spawnBot(baseURL!, code, i));
   await host.locator('input[type=file]').first().setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: makeFacePng(42) });

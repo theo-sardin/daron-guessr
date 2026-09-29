@@ -2,22 +2,30 @@
 
 "Daron" / "daronne" is French slang for dad / mom. In the original game everyone in a room
 uploads a photo of each parent, then the group guesses, photo by photo, whose parent is
-whose. The host can pick another **theme** (siblings and friends, childhood photos, "who
-picked this picture?", or anything goes) and how many photos each player brings (1 to 3).
+whose. When creating a room, the host picks that or another **theme** — the game mode
+(siblings and friends, childhood photos, "who picked this picture?", or anything goes) —
+and how many photos each player brings (1 to 3).
 At the end every photo is revealed with its vote breakdown, and a recap hands out scores
 and awards.
 
 ## Game flow
 
 1. **Home** — pick a nickname and an avatar emoji, then *Create a room* or *Join* with a
-   4-letter code (links look like `https://host/ABCD`, which pre-fills the code).
+   4-letter code (links look like `https://host/ABCD`, which pre-fills the code). Creating
+   a room starts by choosing the **game mode** (the theme, see *Themes, kinds and photos per
+   player*): a mandatory step, sent with `room:create` as `settings: { theme,
+   photosPerPlayer? }` (`RoomSetup`). The room starts with that theme and
+   `THEME_DEFAULT_PHOTOS[theme]` photos per player unless `photosPerPlayer` is given; any
+   invalid value is refused with `BAD_REQUEST` and no room is created. Without `settings`
+   (older clients, bots) the room starts with `DEFAULT_SETTINGS`.
 2. **Lobby** — players join with the code / link / QR code. Each player fills up to
    `photosPerPlayer` photo slots and labels each photo with a kind the theme allows (see
    *Themes, kinds and photos per player*). Only you ever see your own photos in the lobby.
-   The host picks the settings (theme, photos per player, seconds per photo, anonymous
-   votes on/off) and starts once at least `MIN_PHOTO_OWNERS` (3) players have at least one
-   photo in an active slot. Players without photos can still play: they just guess. The
-   host can kick players in the lobby.
+   The host adjusts the settings (seconds per photo, anonymous votes on/off, and can still
+   change the game mode and photos per player picked when creating the room) and starts
+   once at least `MIN_PHOTO_OWNERS` (3) players have at least one photo in an active slot.
+   Players without photos can still play: they just guess. The host can kick players in
+   the lobby.
 3. **Voting** — the server shuffles every photo in an active slot (avoiding two photos of
    the same owner back to back when possible). One photo at a time, everyone votes for whose
    photo it is; the question follows the photo's kind ("Whose daronne is this?", "Whose
@@ -55,8 +63,9 @@ kinds are a relative (`daron`, `daronne`, `brother`, `sister`, `grandpa`, `grand
 child) and `pick` (any picture the player chose: a meme, a place, a dish…). For those the
 "owner" to guess is simply the player, so the engine treats every kind the same way.
 
-The host's **theme** (`Settings.theme`) decides which kinds players may use
-(`THEME_KINDS`) and the default number of photos (`THEME_DEFAULT_PHOTOS`):
+The host's **theme** (`Settings.theme`, the "game mode") is chosen when creating the room
+and can be changed in the lobby. It decides which kinds players may use (`THEME_KINDS`) and
+the default number of photos (`THEME_DEFAULT_PHOTOS`):
 
 | Theme | Name in the UI | Allowed kinds | Default photos | Default kind per slot |
 | --- | --- | --- | --- | --- |

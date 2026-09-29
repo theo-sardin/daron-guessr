@@ -343,7 +343,14 @@ const binary = z.custom<ArrayBuffer | Uint8Array>((v) => v instanceof ArrayBuffe
 
 const schemas = {
   none: z.unknown(),
-  create: z.object({ name: text(200), avatar: text(32) }),
+  create: z.object({
+    name: text(200),
+    avatar: text(32),
+    // Game mode picked on the home screen; omitted (older clients, bots) -> DEFAULT_SETTINGS.
+    settings: z
+      .object({ theme: z.enum(THEMES), photosPerPlayer: z.literal(PHOTOS_PER_PLAYER_OPTIONS).optional() })
+      .optional(),
+  }),
   join: z.object({ code: text(32), name: text(200), avatar: text(32) }),
   rejoin: z.object({ code: text(32), token: text(200), takeover: z.boolean() }),
   update: z.object({ name: text(200).optional(), avatar: text(32).optional() }),
@@ -464,7 +471,7 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
 
   bind('room:create', schemas.create, (p, dirty) => {
     if (!deps.createLimiter.take(ip, now())) return failure('RATE_LIMITED');
-    const created = registry.create(p, now());
+    const created = registry.create({ name: p.name, avatar: p.avatar }, now(), p.settings);
     if (!created.ok) return created;
     const { room, player } = created.value;
     enter(room, player, dirty);

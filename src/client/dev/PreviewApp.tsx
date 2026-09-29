@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { RoomView } from '../../shared/protocol';
 import { ReactionBar, ReactionsLayer } from '../components/Reactions';
 import homePreviews from '../screens/home/preview';
+import foundationPreviews from './foundationPreview';
 import lobbyPreviews from '../screens/lobby/preview';
 import resultsPreviews from '../screens/results/preview';
 import revealPreviews from '../screens/reveal/preview';
@@ -24,6 +25,7 @@ export interface PreviewSpec {
 export type PreviewRegistry = Record<string, PreviewSpec>;
 
 const REGISTRY: Record<string, PreviewRegistry> = {
+  foundation: foundationPreviews,
   home: homePreviews,
   lobby: lobbyPreviews,
   voting: votingPreviews,

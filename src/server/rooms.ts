@@ -1,6 +1,6 @@
 /** In-memory room registry: room codes, ids / tokens, idle room cleanup. */
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, normalizeRoomCode } from '../shared/protocol';
+import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, normalizeRoomCode, type RoomSetup } from '../shared/protocol';
 import { DEFAULT_TIMING, createRoom, type Player, type Result, type Room, type Timing } from './game';
 
 export const MAX_ROOMS = 2000;
@@ -51,12 +51,16 @@ export class RoomRegistry {
     return this.rooms.values();
   }
 
-  /** Creates a room with a fresh unique code, `host` joining as its host. */
-  create(host: { name: string; avatar: string }, now: number): Result<{ room: Room; player: Player }> {
+  /**
+   * Creates a room with a fresh unique code, `host` joining as its host, starting with the
+   * game mode in `setup` (DEFAULT_SETTINGS without one). Nothing is registered on failure.
+   */
+  create(host: { name: string; avatar: string }, now: number, setup?: RoomSetup): Result<{ room: Room; player: Player }> {
     if (this.rooms.size >= this.maxRooms) return { ok: false, error: 'SERVER_BUSY' };
     const code = this.freeCode();
     if (!code) return { ok: false, error: 'SERVER_BUSY' };
-    const created = createRoom(code, { id: newPlayerId(), token: newToken(), ...host }, now, this.timing);
+    const player = { id: newPlayerId(), token: newToken(), name: host.name, avatar: host.avatar };
+    const created = createRoom(code, player, now, this.timing, setup);
     if (!created.ok) return created;
     const room = created.value;
     this.rooms.set(code, room);

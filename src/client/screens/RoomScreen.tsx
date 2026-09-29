@@ -3,14 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { Phase, RoomView } from '../../shared/protocol';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
+import { Icon, type IconName } from '../components/Icon';
 import { ReactionBar, ReactionsLayer } from '../components/Reactions';
 import { Spinner } from '../components/Spinner';
 import { toast } from '../components/Toast';
+import { Viewfinder } from '../components/Viewfinder';
 import { useT } from '../i18n';
 import { errorText } from '../lib/errors';
 import { navigate } from '../lib/router';
 import { sfx } from '../lib/sfx';
 import { api, useStore, type ExitReason } from '../lib/store';
+import { cn } from '../lib/util';
 import { JoinByLink } from './home/JoinByLink';
 import { LobbyScreen } from './lobby/LobbyScreen';
 import { ResultsScreen } from './results/ResultsScreen';
@@ -76,7 +79,7 @@ export function RoomScreen({ code }: { code: string }) {
     if (status === 'disconnected') wasOffline.current = true;
     if (status === 'connected' && wasOffline.current) {
       wasOffline.current = false;
-      toast(t('common.reconnected'), 'success', { emoji: '📶' });
+      toast(t('common.reconnected'), 'success', { icon: 'wifi' });
     }
   }, [status, stage, t]);
 
@@ -160,20 +163,38 @@ function OfflineBanner({ show }: { show: boolean }) {
   );
 }
 
-function ExitNotice({ code, reason }: { code: string; reason: Exclude<ExitReason, null> }) {
+/** Sticker + icon for each way out of a room. */
+const EXIT_LOOK: Record<Exclude<ExitReason, null>, { icon: IconName; bg: string }> = {
+  kicked: { icon: 'leave', bg: 'bg-danger' },
+  replaced: { icon: 'phone', bg: 'bg-sky' },
+  'room-gone': { icon: 'ghost', bg: 'bg-lilac' },
+};
+
+/** Exported for the dev gallery. */
+export function ExitNotice({ code, reason }: { code: string; reason: Exclude<ExitReason, null> }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const content = {
-    kicked: { emoji: '🥾', title: t('common.roomScreen.kickedTitle'), body: t('common.roomScreen.kickedBody', { code }) },
-    replaced: { emoji: '📱', title: t('common.roomScreen.replacedTitle'), body: t('common.roomScreen.replacedBody') },
-    'room-gone': { emoji: '🏚️', title: t('common.roomScreen.goneTitle'), body: t('common.roomScreen.goneBody', { code }) },
+    kicked: { title: t('common.roomScreen.kickedTitle'), body: t('common.roomScreen.kickedBody', { code }) },
+    replaced: { title: t('common.roomScreen.replacedTitle'), body: t('common.roomScreen.replacedBody') },
+    'room-gone': { title: t('common.roomScreen.goneTitle'), body: t('common.roomScreen.goneBody', { code }) },
   }[reason];
+  const look = EXIT_LOOK[reason];
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-4">
       <Card className="w-full max-w-sm text-center" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-        <div className="mb-2 text-6xl">{content.emoji}</div>
-        <h1 className="font-display text-3xl">{content.title}</h1>
+        <Viewfinder className="mx-auto mt-2 mb-5 w-fit" color="var(--color-ink)" length={14} thickness={3} gap={12} snap={0.1}>
+          <motion.span
+            className={cn('flex size-20 items-center justify-center rounded-[1.6rem] border-3 border-ink text-ink shadow-pop', look.bg)}
+            initial={{ rotate: -16, scale: 0.6 }}
+            animate={{ rotate: -5, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 14 }}
+          >
+            <Icon name={look.icon} fill="#fff" className="size-11" strokeWidth={2.1} />
+          </motion.span>
+        </Viewfinder>
+        <h1 className="font-display text-3xl leading-tight">{content.title}</h1>
         <p className="mt-2 mb-5 text-ink-soft">{content.body}</p>
         <div className="flex flex-col gap-3">
           {reason === 'replaced' && (

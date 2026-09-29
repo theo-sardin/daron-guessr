@@ -11,6 +11,7 @@ import {
   type PhotoSlot,
   type Reaction,
   type RoomPeek,
+  type RoomSetup,
   type RoomView,
   type ServerToClientEvents,
   type Session,
@@ -100,8 +101,8 @@ class Client {
     return this;
   }
 
-  async create(name: string, avatar = '🐸'): Promise<Session> {
-    const res = await this.socket.emitWithAck('room:create', { name, avatar });
+  async create(name: string, avatar = '🐸', settings?: RoomSetup): Promise<Session> {
+    const res = await this.socket.emitWithAck('room:create', settings ? { name, avatar, settings } : { name, avatar });
     if (!res.ok) throw new Error(res.error);
     this.session = res.session;
     return res.session;
@@ -466,6 +467,69 @@ describe('socket server: themes and photos per player', () => {
       expect(v.myPhotos).toEqual([]);
     }
   }, 15_000);
+});
+
+describe('socket server: game mode picked when creating a room', () => {
+  const BAD = { ok: false, error: 'BAD_REQUEST' };
+  const rawCreate = (c: Client, payload: unknown) => c.raw.emitWithAck('room:create', payload);
+
+  it('starts the room with the picked theme, its default photo count or an explicit one', async () => {
+    const { url } = await startServer();
+    const [a, b, c, d] = await Promise.all([client(url), client(url), client(url), client(url)]);
+    await a.create('A', '🐸', { theme: 'childhood' });
+    await b.create('B', '🐸', { theme: 'pick' });
+    await c.create('C', '🐸', { theme: 'family', photosPerPlayer: 3 });
+    await d.create('D');
+    const settingsOf = async (x: Client) => (await x.until('lobby', (v) => v.phase === 'lobby')).settings;
+    expect(await settingsOf(a)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1 });
+    expect(await settingsOf(b)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'pick', photosPerPlayer: 1 });
+    expect(await settingsOf(c)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'family', photosPerPlayer: 3 });
+    // No settings at all (older clients, bots): the defaults.
+    expect(await settingsOf(d)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2 });
+
+    // The mode applies right away, and the host can still change it in the lobby.
+    const put = (slot: PhotoSlot, kind: PhotoKind) => a.socket.emitWithAck('photo:upload', { slot, kind, mime: 'image/png', data: PNG });
+    expect(await put(0, 'daron')).toEqual(BAD);
+    expect(await put(1, 'kid')).toEqual(BAD);
+    expect(await put(0, 'kid')).toMatchObject({ ok: true, photo: { slot: 0, kind: 'kid' } });
+    expect(await a.socket.emitWithAck('host:settings', { theme: 'parents' })).toEqual({ ok: true });
+    const switched = await a.until('parents', (v) => v.settings.theme === 'parents');
+    expect(switched.settings.photosPerPlayer).toBe(2);
+    expect(switched.myPhotos.map((ph) => [ph.slot, ph.kind])).toEqual([[0, 'daron']]);
+  });
+
+  it('rejects an invalid setup with BAD_REQUEST, without creating a room or leaving the current one', async () => {
+    const { url, app } = await startServer();
+    const [host, stranger] = await Promise.all([client(url), client(url)]);
+    const { code } = await host.create('Host', '🐸', { theme: 'mix' });
+    const invalid = [
+      null,
+      'mix',
+      {},
+      { theme: 'cousins' },
+      { theme: 'MIX' },
+      { photosPerPlayer: 2 },
+      { theme: 'mix', photosPerPlayer: 4 },
+      { theme: 'mix', photosPerPlayer: 0 },
+      { theme: 'mix', photosPerPlayer: 1.5 },
+      { theme: 'mix', photosPerPlayer: '2' },
+      { theme: ['mix'] },
+    ];
+    for (const settings of invalid) {
+      expect(await rawCreate(stranger, { name: 'Stranger', avatar: '🐸', settings })).toEqual(BAD);
+      expect(await rawCreate(host, { name: 'Again', avatar: '🐸', settings })).toEqual(BAD);
+    }
+    expect(app.registry.size).toBe(1);
+    expect(stranger.views).toEqual([]);
+    expect(await stranger.socket.emitWithAck('host:start')).toEqual({ ok: false, error: 'NOT_IN_ROOM' });
+    // The host is still seated in their room, with its mode untouched.
+    expect(host.view.code).toBe(code);
+    expect(await host.socket.emitWithAck('host:settings', { voteSeconds: 15 })).toEqual({ ok: true });
+    const view = await host.until('timer', (v) => v.settings.voteSeconds === 15);
+    expect(view.settings).toMatchObject({ theme: 'mix', photosPerPlayer: 2 });
+    // Invalid setups did not use up the room creation budget of the IP (10 / minute).
+    expect(await rawCreate(stranger, { name: 'Stranger', avatar: '🐸', settings: { theme: 'pick' } })).toMatchObject({ ok: true });
+  });
 });
 
 describe('socket server: sessions', () => {
