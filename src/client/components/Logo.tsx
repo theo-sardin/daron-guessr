@@ -1,46 +1,98 @@
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '../lib/util';
+import { Stamp } from './Stamp';
+import { Viewfinder } from './Viewfinder';
 
-/** "DARON GUESSR" wordmark with a bouncing mustache. */
-export function Logo({ size = 'lg', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
-  const text = { sm: 'text-2xl', md: 'text-4xl', lg: 'text-6xl sm:text-7xl' }[size];
-  const stroke = size === 'sm' ? 'text-outline-sm' : 'text-outline';
-  return (
-    <div className={cn('flex flex-col items-center leading-[0.85] select-none', className)} aria-label="Daron Guessr">
-      <motion.span
-        className={cn('font-display text-sun', text, stroke)}
-        initial={{ rotate: -4 }}
-        animate={{ rotate: [-4, -2, -4] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        DARON
-      </motion.span>
-      <motion.span
-        className={cn('-mt-1 font-display text-pink', text, stroke)}
-        initial={{ rotate: 3 }}
-        animate={{ rotate: [3, 1, 3] }}
-        transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
-      >
-        GUESSR
-      </motion.span>
-      {size !== 'sm' && <Mustache className={cn('mt-1', size === 'lg' ? 'w-24' : 'w-16')} />}
-    </div>
-  );
-}
+const SIZES = {
+  sm: { text: 'text-[1.35rem]', stroke: 'text-outline-sm', bracket: { length: 8, thickness: 2.5, gap: 5 } },
+  md: { text: 'text-[3.4rem]', stroke: 'text-outline', bracket: { length: 16, thickness: 3.5, gap: 12 } },
+  lg: { text: 'text-[4.4rem] sm:text-[5.4rem]', stroke: 'text-outline', bracket: { length: 22, thickness: 4.5, gap: 14 } },
+} as const;
 
-export function Mustache({ className }: { className?: string }) {
+/** 4-point glint of the camera flash. */
+function FlashGlint({ className, delay }: { className?: string; delay: number }) {
+  const reduce = useReducedMotion();
   return (
     <motion.svg
-      viewBox="0 0 120 40"
-      className={cn('text-ink drop-shadow-[0_3px_0_rgba(255,210,63,0.9)]', className)}
-      animate={{ scaleX: [1, 1.08, 1], y: [0, -2, 0] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+      viewBox="0 0 40 40"
+      className={cn('pointer-events-none absolute overflow-visible', className)}
+      initial={reduce ? false : { scale: 0, rotate: -45, opacity: 0 }}
+      animate={
+        reduce
+          ? undefined
+          : { scale: [0, 1.5, 1, 1, 1.25, 1], rotate: [-45, 0, 0, 0, 45, 45], opacity: [0, 1, 1, 1, 1, 1] }
+      }
+      transition={reduce ? undefined : { duration: 4.4, times: [0, 0.07, 0.12, 0.86, 0.93, 1], delay, repeat: Infinity, repeatDelay: 1.5 }}
       aria-hidden
     >
       <path
-        fill="currentColor"
-        d="M60 14c-6-10-18-12-28-6C22 14 14 26 2 22c6 12 26 16 40 10 8-3 13-8 18-8s10 5 18 8c14 6 34 2 40-10-12 4-20-8-30-14-10-6-22-4-28 6z"
+        d="M20 1Q22.4 17.6 39 20Q22.4 22.4 20 39Q17.6 22.4 1 20Q17.6 17.6 20 1z"
+        fill="#fff"
+        stroke="var(--color-ink)"
+        strokeWidth="3.5"
+        strokeLinejoin="round"
       />
     </motion.svg>
+  );
+}
+
+/**
+ * "DARON / GUESSR" wordmark in a camera viewfinder: the brackets snap into focus, the
+ * type sharpens, the flash fires, and an orange date stamp sits in the corner.
+ */
+export function Logo({ size = 'lg', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
+  const reduce = useReducedMotion();
+  const s = SIZES[size];
+
+  if (size === 'sm') {
+    return (
+      <Viewfinder as="span" color="var(--color-cream)" {...s.bracket} radius={1.5} className={cn('select-none', className)}>
+        <span aria-label="Daron Guessr" className={cn('block font-display leading-none whitespace-nowrap', s.text)}>
+          <span className="text-sun">DARON</span> <span className="text-pink">GUESSR</span>
+        </span>
+      </Viewfinder>
+    );
+  }
+
+  return (
+    <Viewfinder
+      color="var(--color-cream)"
+      {...s.bracket}
+      radius={3}
+      snap={0.05}
+      shadow
+      className={cn('inline-block select-none', className)}
+    >
+      <motion.div
+        role="img"
+        aria-label="Daron Guessr"
+        className={cn('flex flex-col items-center font-display leading-[0.8] tracking-[-0.025em] [font-stretch:78%]', s.text)}
+        style={{ filter: 'drop-shadow(0 5px 0 var(--color-ink))' }}
+        initial={reduce ? false : { filter: 'blur(10px) drop-shadow(0 5px 0 var(--color-ink))', scale: 1.08, opacity: 0.4 }}
+        animate={{ filter: 'blur(0px) drop-shadow(0 5px 0 var(--color-ink))', scale: 1, opacity: 1 }}
+        transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1], delay: 0.15 }}
+      >
+        <span className={cn('text-sun', s.stroke)} aria-hidden>
+          DARON
+        </span>
+        <span className={cn('text-pink', s.stroke)} aria-hidden>
+          GUESSR
+        </span>
+      </motion.div>
+      <FlashGlint className={size === 'lg' ? '-top-6 -right-7 size-11 sm:size-12' : '-top-5 -right-6 size-9'} delay={0.6} />
+      {/* The flash itself: a white bloom over the frame, once. */}
+      {!reduce && (
+        <motion.span
+          className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-white mix-blend-soft-light"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 0.9, 0] }}
+          transition={{ duration: 0.5, times: [0, 0.15, 1], delay: 0.62 }}
+          aria-hidden
+        />
+      )}
+      <span className="mt-1.5 flex justify-end pr-0.5" aria-hidden>
+        <Stamp size={size === 'lg' ? 'sm' : 'xs'}>{"'98 12 24"}</Stamp>
+      </span>
+    </Viewfinder>
   );
 }
