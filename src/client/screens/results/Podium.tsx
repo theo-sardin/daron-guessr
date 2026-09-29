@@ -1,6 +1,8 @@
 import { motion } from 'motion/react';
 import { useEffect, useState, type MouseEvent } from 'react';
 import type { PublicPlayer } from '../../../shared/protocol';
+import { Icon } from '../../components/Icon';
+import { Stamp } from '../../components/Stamp';
 import { useI18n } from '../../i18n';
 import { burst } from '../../lib/confetti';
 import { sfx } from '../../lib/sfx';
@@ -36,8 +38,18 @@ export function podiumTimeline(groupCount: number): PodiumTimeline {
 }
 
 const MAX_SHOWN = 3;
-const STEP_HEIGHT: Record<number, number> = { 1: 132, 2: 98, 3: 72 };
-const STEP_COLOR: Record<number, string> = { 1: 'bg-sun', 2: 'bg-grape-200', 3: 'bg-tangerine' };
+const STEP_HEIGHT: Record<number, number> = { 1: 138, 2: 108, 3: 86 };
+/** Medal color of each step's cap; the step itself is a dark display with the numbers lit up. */
+const STEP_CAP: Record<number, string> = { 1: 'bg-sun', 2: 'bg-grape-200', 3: 'bg-tangerine' };
+
+/** A cream halo around the crown so it reads on the avatar and on the night (same as Avatar). */
+const HALO = [
+  'drop-shadow(1.5px 0 0 var(--color-cream))',
+  'drop-shadow(-1.5px 0 0 var(--color-cream))',
+  'drop-shadow(0 1.5px 0 var(--color-cream))',
+  'drop-shadow(0 -1.5px 0 var(--color-cream))',
+  'drop-shadow(0 3px 0 rgb(27 16 54 / 0.7))',
+].join(' ');
 
 function useWide(): boolean {
   const query = '(min-width: 640px)';
@@ -90,6 +102,13 @@ export function Podium({
   // Classic podium order: 2nd, 1st, 3rd.
   const order = [1, 0, 2].filter((g) => g < groups.length);
 
+  // Final height of the winners' column (avatar + name tag + step), reserved from the start so the
+  // page below does not slide down while the steps rise.
+  const top = groups[0];
+  const topSize = top ? Math.round((top.entries.length === 1 ? base * 1.4 : base) * mult) : 0;
+  const topStep = top ? Math.round((STEP_HEIGHT[top.rank] ?? STEP_HEIGHT[3]) * mult) : 0;
+  const reserved = top ? topSize + topStep + (top.entries.length > 1 ? 50 : 38) : 0;
+
   const cheer = (e: MouseEvent, colors: string[]) => {
     const x = e.clientX / window.innerWidth;
     const y = e.clientY / window.innerHeight;
@@ -100,7 +119,7 @@ export function Podium({
 
   return (
     <div className="relative mx-auto w-full max-w-lg overflow-x-clip pt-12" role="list">
-      <div className="flex items-end justify-center gap-2 sm:gap-3">
+      <div className="flex items-end justify-center gap-2 sm:gap-3" style={{ minHeight: reserved }}>
         {order.map((g) => {
           const group = groups[g];
           const rank = group.rank;
@@ -161,13 +180,19 @@ export function Podium({
                       {crowned && (
                         <motion.span
                           aria-hidden
-                          className="pointer-events-none absolute left-1/2 z-10 drop-shadow-[0_3px_0_rgba(27,16,54,0.7)]"
-                          style={{ fontSize: Math.round(size * 0.5), top: -size * 0.52, marginLeft: -size * 0.3 }}
+                          className="pointer-events-none absolute left-1/2 z-10 text-ink"
+                          style={{
+                            width: Math.round(size * 0.58),
+                            height: Math.round(size * 0.58),
+                            top: -size * 0.46,
+                            marginLeft: -size * 0.36,
+                            filter: HALO,
+                          }}
                           initial={{ y: -120, opacity: 0, rotate: -40, scale: 2 }}
-                          animate={{ y: 0, opacity: 1, rotate: -12, scale: 1 }}
+                          animate={{ y: 0, opacity: 1, rotate: -14, scale: 1 }}
                           transition={{ delay: timeline.crownAt + i * 0.1, type: 'spring', stiffness: 380, damping: 12 }}
                         >
-                          👑
+                          <Icon name="crown" fill="var(--color-sun)" weight="bold" className="block size-full" />
                         </motion.span>
                       )}
                       <motion.button
@@ -213,24 +238,29 @@ export function Podium({
                 )}
               </motion.div>
 
-              {/* The step itself */}
+              {/* The step itself: a dark display, medal-colored cap, rank and score as date stamps */}
               <motion.div
-                className={cn(
-                  'relative flex w-full flex-col items-center justify-start overflow-hidden rounded-t-2xl border-3 border-b-0 border-ink pt-1.5',
-                  STEP_COLOR[rank] ?? STEP_COLOR[3],
-                )}
+                className="relative flex w-full flex-col items-center justify-start overflow-hidden rounded-t-2xl border-3 border-b-0 border-ink bg-gradient-to-b from-grape-800 to-grape-950"
                 initial={{ height: 0 }}
                 animate={{ height: stepH }}
                 transition={{ type: 'spring', stiffness: 170, damping: 14, delay: timeline.stepAt[g] }}
               >
-                <span className="pointer-events-none absolute inset-x-0 top-0 h-2.5 bg-white/45" aria-hidden />
-                <span
-                  className={cn('text-outline-sm font-display leading-none text-cream', rank === 1 ? 'text-5xl' : 'text-4xl', wide && 'sm:text-6xl')}
+                <span className={cn('pointer-events-none h-3 w-full shrink-0 border-b-3 border-ink', STEP_CAP[rank] ?? STEP_CAP[3])} aria-hidden>
+                  <span className="block h-1 w-full bg-white/45" />
+                </span>
+                <Stamp
+                  size={rank === 1 ? (wide ? '2xl' : 'xl') : wide ? 'xl' : 'lg'}
+                  className="mt-1.5 sm:mt-2.5"
+                  // DSEG7 draws a "1" on the right of its cell: nudge it back to the middle of the step.
+                  valueClassName={rank === 1 ? '-translate-x-[0.3em]' : undefined}
                 >
                   {rank}
-                </span>
-                <span className="mt-0.5 font-display text-sm whitespace-nowrap text-ink/80 sm:text-base">
-                  <CountUp to={group.entries[0].score} delay={timeline.stepAt[g] + 0.2} duration={1} /> {t('results.pts')}
+                </Stamp>
+                <span className="mt-1 flex items-baseline gap-1 whitespace-nowrap">
+                  <Stamp size={wide ? 'md' : 'sm'}>
+                    <CountUp to={group.entries[0].score} delay={timeline.stepAt[g] + 0.2} duration={1} plain />
+                  </Stamp>
+                  <span className="label-mono text-cream/60">{t('results.pts')}</span>
                 </span>
               </motion.div>
             </div>

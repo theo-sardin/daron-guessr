@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { isValidRoomCode, ROOM_CODE_LENGTH, sanitizeName, THEME_DEFAULT_PHOTOS, type RoomSetup, type Theme } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
 import { Card } from '../../components/Card';
+import { Icon } from '../../components/Icon';
+import { IconBadge } from '../../components/IconBadge';
 import { ScreenShell } from '../../components/Layout';
 import { ConfirmDialog } from '../../components/Modal';
 import { toast } from '../../components/Toast';
@@ -241,7 +243,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
     await api.leave();
     busyRef.current = false;
     setBusy(null);
-    toast(t('home.seated.left', { code: left }), 'info', { emoji: '👋' });
+    toast(t('home.seated.left', { code: left }), 'info', { icon: 'leave' });
   };
 
   const confirmSwitch = async () => {
@@ -277,7 +279,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
       {/* Both steps share one grid cell, so they slide across each other. */}
       <div className="grid">
         <motion.div
-          className={cn('grid items-start gap-7 [grid-area:1/1] lg:grid-cols-2 lg:gap-14', formGone && 'hidden')}
+          className={cn('grid items-start gap-5 [grid-area:1/1] sm:gap-7 lg:grid-cols-2 lg:gap-14', formGone && 'hidden')}
           inert={!onForm}
           initial={false}
           animate={onForm ? { x: 0, opacity: 1 } : { x: -80, opacity: 0 }}
@@ -288,7 +290,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
             window.scrollTo(0, 0);
           }}
         >
-          <div className="flex flex-col gap-7 lg:sticky lg:top-24 lg:pt-4">
+          <div className="flex flex-col gap-5 sm:gap-7 lg:sticky lg:top-24 lg:pt-4">
             <Hero />
             <HowItWorks />
           </div>
@@ -299,17 +301,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
               animate={{ opacity: 1, y: 0, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.15 }}
             >
-              <h2 className="mb-3 font-display text-2xl leading-none">
-                {t('home.profile.title')}{' '}
-                <motion.span
-                  className="inline-block origin-[70%_70%]"
-                  animate={{ rotate: [0, 18, -8, 18, 0] }}
-                  transition={{ duration: 1.1, delay: 1, repeat: Infinity, repeatDelay: 3 }}
-                  aria-hidden
-                >
-                  👋
-                </motion.span>
-              </h2>
+              <h2 className="mb-3 font-display text-2xl leading-none">{t('home.profile.title')}</h2>
               <ProfileFields
                 name={name}
                 onNameChange={(v) => {
@@ -339,7 +331,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
                 disabled={busy !== null}
                 sound={false}
                 onClick={() => submit('create')}
-                icon={<span aria-hidden>🎉</span>}
+                icon={<Icon name="plus" className="size-7" weight="bold" />}
               >
                 {t('home.actions.create')}
               </Button>
@@ -348,7 +340,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
 
             <div className="my-4 flex items-center gap-3" aria-hidden>
               <span className="h-0.5 flex-1 rounded-full bg-white/15" />
-              <span className="font-display text-lg tracking-widest text-grape-300 uppercase">{t('home.actions.or')}</span>
+              <span className="label-mono text-grape-300">{t('home.actions.or')}</span>
               <span className="h-0.5 flex-1 rounded-full bg-white/15" />
             </div>
 
@@ -359,9 +351,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
               transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.4 }}
             >
               <div className="mb-3 flex items-center gap-3">
-                <span className="text-4xl leading-none" aria-hidden>
-                  🔑
-                </span>
+                <IconBadge name="link" tone="cream" size="md" tilt={-6} />
                 <div className="min-w-0">
                   <h2 className="font-display text-2xl leading-tight">{t('home.actions.joinTitle')}</h2>
                   <p className="text-sm font-bold text-ink-soft">{t('home.actions.joinSub')}</p>
@@ -388,7 +378,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
                 loading={busy === 'join'}
                 disabled={busy !== null && busy !== 'join'}
                 onClick={() => submit('join')}
-                icon={<span aria-hidden>🚪</span>}
+                icon={<Icon name="arrow-right" className="size-6" weight="bold" />}
               >
                 {t('home.actions.join')}
               </Button>

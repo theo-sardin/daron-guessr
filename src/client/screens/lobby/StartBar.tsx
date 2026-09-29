@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MIN_PHOTO_OWNERS, type PublicPlayer, type RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import { BottomBar } from '../../components/Layout';
 import { ConfirmDialog } from '../../components/Modal';
 import { toast } from '../../components/Toast';
@@ -102,20 +103,22 @@ function HostStart({ view }: { view: RoomView }) {
       {/* Keeps clear of the floating reaction button (bottom-right) on narrow screens. */}
       <div className="flex w-full justify-center pr-[72px] md:pr-0">
         <div className="flex max-w-full items-center gap-2 rounded-2xl border-2 border-white/15 bg-grape-950/75 py-1 pr-3 pl-1.5 backdrop-blur">
+          {/* One little frame per player needed: exposed (mint, checked) once someone brought a photo. */}
           <span className="flex gap-1" aria-hidden>
             {Array.from({ length: MIN_PHOTO_OWNERS }, (_, i) => {
               const filled = i < readyCount;
               return (
                 <motion.span
-                  key={i}
+                  key={`${i}${filled}`}
                   className={cn(
-                    'flex size-6 shrink-0 items-center justify-center rounded-full border-2 text-xs',
-                    filled ? 'border-ink bg-mint' : 'border-white/30 border-dashed bg-white/5',
+                    'flex size-6 shrink-0 items-center justify-center rounded-md border-2',
+                    filled ? 'border-ink bg-mint text-ink' : 'border-dashed border-white/30 bg-white/5',
                   )}
-                  animate={filled ? { scale: [1.4, 1] } : { scale: 1 }}
+                  initial={filled ? { scale: 1.5, rotate: -12 } : false}
+                  animate={{ scale: 1, rotate: filled ? (i % 2 ? 4 : -4) : 0 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 12 }}
                 >
-                  {filled ? '📸' : ''}
+                  {filled && <Icon name="check" weight="bold" className="size-3.5" />}
                 </motion.span>
               );
             })}
@@ -148,7 +151,7 @@ function HostStart({ view }: { view: RoomView }) {
           loading={starting}
           disabled={!canStart}
           onClick={onStartClick}
-          icon={starting ? undefined : <span aria-hidden>🚀</span>}
+          icon={starting ? undefined : <Icon name="flash" fill="var(--color-sun)" weight="bold" className="size-7" />}
           className={cn(canStart && !starting && 'shadow-[0_8px_0_0_var(--color-ink),0_0_30px_6px_rgb(255_79_163/0.45)]')}
         >
           {t('lobby.start.button')}

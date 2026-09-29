@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
+import { Icon } from '../../components/Icon';
 import { cn } from '../../lib/util';
 
 /** Validation message under a field: a small red sticker that pops in (readable on any card color). */
@@ -23,7 +24,7 @@ export function FieldError({ id, message, className }: { id?: string; message: s
             transition={{ type: 'spring', stiffness: 600, damping: 16 }}
             className="mt-2.5 inline-flex max-w-full items-start gap-1.5 rounded-xl border-2 border-ink bg-danger px-3 py-1.5 text-sm leading-snug font-extrabold text-white shadow-pop-sm"
           >
-            <span aria-hidden>⚠️</span>
+            <Icon name="alert" className="mt-px size-[1.1rem]" weight="bold" />
             <span>{message}</span>
           </motion.p>
         </motion.div>

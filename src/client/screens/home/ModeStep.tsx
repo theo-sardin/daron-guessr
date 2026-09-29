@@ -2,11 +2,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { PHOTOS_PER_PLAYER_OPTIONS, THEME_DEFAULT_PHOTOS, THEMES, type PhotoKind, type Theme } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
+import { Icon } from '../../components/Icon';
 import { BottomBar } from '../../components/Layout';
+import { ThemeArt } from '../../components/ThemeArt';
+import { Viewfinder } from '../../components/Viewfinder';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/util';
-import { glyphCount, THEME_BG } from '../lobby/look';
-import { EMOJI_FONT } from './helpers';
+import { EMOJI_FONT, THEME_BG } from './helpers';
 
 /** Example question shown in each mode's speech bubble ("Anything goes" cycles through several). */
 const ASKS: Record<Theme, readonly PhotoKind[]> = {
@@ -95,7 +97,7 @@ export function ModeStep({
     >
       {/* Phones: Back + profile, title below. Desktop: one row, title in the middle. */}
       <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-3 lg:grid-cols-[1fr_auto_1fr]">
-        <Button variant="ghost" size="sm" className="justify-self-start" onClick={onBack} disabled={busy} icon={<span aria-hidden>←</span>}>
+        <Button variant="ghost" size="sm" className="h-11 justify-self-start px-3.5" onClick={onBack} disabled={busy} icon={<Icon name="arrow-left" className="size-4" weight="bold" />}>
           {t('home.mode.back')}
         </Button>
         <span className="flex max-w-full min-w-0 items-center gap-2 justify-self-end rounded-full border-2 border-white/20 bg-white/10 py-1 pr-3 pl-1 font-extrabold text-cream lg:col-start-3 lg:row-start-1">
@@ -109,24 +111,24 @@ export function ModeStep({
           <span className="max-w-[9rem] truncate" aria-hidden>
             {name}
           </span>
-          <span aria-hidden>👑</span>
+          <Icon name="crown" fill="var(--color-sun)" className="size-5 shrink-0 text-cream" />
           <span className="sr-only">{t('home.mode.hostAs', { name })}</span>
         </span>
 
         <div className="col-span-2 text-center lg:col-span-1 lg:col-start-2 lg:row-start-1">
-          <span className="inline-block -rotate-2 rounded-lg border-2 border-ink bg-sun px-2 py-0.5 font-display text-xs tracking-wider text-ink uppercase shadow-pop-sm">
+          <span className="label-mono inline-block -rotate-2 rounded-md border-2 border-ink bg-sun px-2 py-1 text-ink shadow-pop-sm">
             {t('home.mode.step')}
           </span>
           <h1
             ref={heading}
             id="home-mode-title"
             tabIndex={-1}
-            className="text-outline mt-2 font-display text-[2.1rem] leading-none text-cream outline-none sm:text-5xl"
+            className="text-outline mt-2 font-display text-[2.1rem] leading-none text-balance text-cream outline-none sm:text-5xl"
           >
             {t('home.mode.title')}
           </h1>
           <p className="mt-1.5 text-sm font-bold text-grape-200 sm:text-base">
-            {t('home.mode.sub')}{'\u00a0'}<span aria-hidden>📸</span>
+            {t('home.mode.sub')}
           </p>
         </div>
       </div>
@@ -157,15 +159,15 @@ export function ModeStep({
       </motion.div>
 
       <PhotosPicker theme={theme} photos={photos} onPhotos={onPhotos} />
-      <p className="mt-3 text-center text-sm font-bold text-grape-300">
-        <span aria-hidden>🔧 </span>
+      <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-sm font-bold text-grape-300">
+        <Icon name="settings" className="size-4 shrink-0" />
         {t('home.mode.later')}
       </p>
     </motion.section>
   );
 }
 
-/** One big tappable mode sticker: emoji, name, pitch, an example question and the photo count. */
+/** One big tappable mode sticker: illustration, photo count, name, pitch and an example question. */
 function ModeCard({
   theme,
   selected,
@@ -186,9 +188,8 @@ function ModeCard({
   const t = useT();
   const photosText = usePhotosText();
   const id = useId();
-  const emoji = t(`common.theme.${theme}.emoji`);
   return (
-    <motion.div variants={CARD_VARIANTS} className="flex w-full min-w-0 sm:w-[calc(50%-0.375rem)] lg:w-[calc((100%-1.5rem)/3)]">
+    <motion.div variants={CARD_VARIANTS} className="relative flex w-full min-w-0 sm:w-[calc(50%-0.375rem)] lg:w-[calc((100%-1.5rem)/3)]">
       <motion.button
         ref={buttonRef}
         type="button"
@@ -201,7 +202,7 @@ function ModeCard({
         onKeyDown={onKeyDown}
         whileHover={selected ? undefined : { y: -3 }}
         whileTap={{ scale: 0.95 }}
-        animate={selected ? { scale: [1, 1.05, 1], rotate: [0, -2, -0.8] } : { scale: 1, rotate: 0 }}
+        animate={selected ? { scale: [1, 1.04, 1], rotate: [0, -1.5, -0.6] } : { scale: 1, rotate: 0 }}
         transition={{ type: 'spring', stiffness: 520, damping: 16 }}
         className={cn(
           'relative flex w-full min-w-0 items-start gap-3 rounded-3xl border-3 border-ink p-3 text-left text-ink transition-[background-color,box-shadow] duration-200 sm:p-3.5',
@@ -216,46 +217,37 @@ function ModeCard({
               animate={{ scale: 1, rotate: 0 }}
               exit={{ scale: 0, transition: { duration: 0.12 } }}
               transition={{ type: 'spring', stiffness: 600, damping: 14 }}
-              className="absolute -top-2.5 -left-2.5 z-10 flex size-8 items-center justify-center rounded-full border-3 border-ink bg-white text-base font-black"
+              className="absolute top-2.5 right-2.5 flex size-7 items-center justify-center rounded-full border-2 border-ink bg-ink text-cream"
               aria-hidden
             >
-              ✓
+              <Icon name="check" className="size-4" weight="bold" />
             </motion.span>
           )}
         </AnimatePresence>
 
-        {/* Default photo count, as a tag clipped on the top edge. */}
         <motion.span
-          key={photos}
-          id={`${id}-photos`}
-          initial={selected ? { scale: 1.35, rotate: -8 } : false}
-          animate={{ scale: 1, rotate: 3 }}
-          transition={{ type: 'spring', stiffness: 520, damping: 14 }}
-          className="absolute -top-3 right-4 rounded-full border-2 border-ink bg-white px-2 py-0.5 text-xs font-extrabold whitespace-nowrap shadow-pop-sm"
-        >
-          <span aria-hidden>📸 </span>
-          {photosText(photos)}
-        </motion.span>
-
-        <span
-          className={cn(
-            'flex size-14 shrink-0 items-center justify-center rounded-2xl border-3 border-ink leading-none shadow-pop-sm transition-colors sm:size-16',
-            selected ? 'bg-white' : THEME_BG[theme],
-          )}
+          className="relative size-14 shrink-0 min-[375px]:size-[4.5rem] sm:size-20"
+          animate={selected ? { scale: [1, 1.18, 1], rotate: [0, -8, 0] } : { scale: 1, rotate: 0 }}
+          transition={{ duration: 0.45 }}
           aria-hidden
         >
-          <motion.span
-            className={cn('whitespace-nowrap', glyphCount(emoji) > 1 ? 'text-lg tracking-[-0.12em] sm:text-xl' : 'text-3xl sm:text-4xl')}
-            style={EMOJI_FONT}
-            animate={selected ? { scale: [1, 1.4, 1], rotate: [0, -14, 0] } : { scale: 1, rotate: 0 }}
-            transition={{ duration: 0.45 }}
-          >
-            {emoji}
-          </motion.span>
-        </span>
+          <ThemeArt theme={theme} className="size-full" />
+        </motion.span>
 
         <span className="min-w-0 flex-1">
-          <span id={`${id}-name`} className="block font-display text-xl leading-tight">
+          {/* Photo count as a micro-label above the name (pops when the count changes). */}
+          <motion.span
+            key={photos}
+            id={`${id}-photos`}
+            initial={selected ? { scale: 1.25, x: -4 } : false}
+            animate={{ scale: 1, x: 0 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 14 }}
+            className={cn('label-mono flex origin-left items-center gap-1 pt-1 pr-7 whitespace-nowrap', selected ? 'text-ink' : 'text-ink/65')}
+          >
+            <Icon name="images" className="size-3.5 shrink-0" weight="bold" />
+            {photosText(photos)}
+          </motion.span>
+          <span id={`${id}-name`} className="mt-1 block pr-6 font-display text-xl leading-tight">
             {t(`common.theme.${theme}.name`)}
           </span>
           <span id={`${id}-desc`} className="mt-0.5 block text-sm leading-snug font-semibold text-ink/75">
@@ -264,6 +256,20 @@ function ModeCard({
           <Ask id={`${id}-ask`} kinds={ASKS[theme]} />
         </span>
       </motion.button>
+
+      {/* The selected mode is "in focus": viewfinder brackets snap around it. */}
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            key="focus"
+            className="pointer-events-none absolute inset-0 z-20"
+            exit={{ opacity: 0, transition: { duration: 0.12 } }}
+            aria-hidden
+          >
+            <Viewfinder className="absolute inset-0" color="var(--color-cream)" gap={8} length={20} thickness={3.5} snap />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -285,18 +291,21 @@ function Ask({ id, kinds }: { id: string; kinds: readonly PhotoKind[] }) {
       className="relative mt-2 inline-flex max-w-full rounded-2xl rounded-tl-md border-2 border-ink bg-white px-2.5 py-1 font-display text-sm leading-tight text-ink"
     >
       <span className="absolute -top-[6px] left-3 size-2.5 rotate-45 border-t-2 border-l-2 border-ink bg-white" aria-hidden />
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
-          key={kind}
-          className="relative"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.2 }}
-        >
-          {t('home.mode.quote', { q: t(`common.whose.${kind}`) })}
-        </motion.span>
-      </AnimatePresence>
+      {/* Clipped, so a new question rolls in like a ticker instead of spilling out of the bubble. */}
+      <span className="relative block min-w-0 overflow-hidden">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.span
+            key={kind}
+            className="relative block"
+            initial={{ opacity: 0, y: '100%' }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: '-100%' }}
+            transition={{ duration: 0.22 }}
+          >
+            {t('home.mode.quote', { q: t(`common.whose.${kind}`) })}
+          </motion.span>
+        </AnimatePresence>
+      </span>
     </span>
   );
 }
@@ -314,8 +323,8 @@ function PhotosPicker({ theme, photos, onPhotos }: { theme: Theme | null; photos
       )}
     >
       <div className="flex items-center justify-between gap-3 lg:shrink-0 lg:gap-4">
-        <span id="home-mode-photos" className="font-extrabold">
-          <span aria-hidden>🖼️ </span>
+        <span id="home-mode-photos" className="flex items-center gap-1.5 font-extrabold">
+          <Icon name="images" fill="var(--color-mint)" className="size-5 shrink-0" />
           {t('home.mode.photosLabel')}
         </span>
         <div
@@ -323,7 +332,7 @@ function PhotosPicker({ theme, photos, onPhotos }: { theme: Theme | null; photos
           aria-labelledby="home-mode-photos"
           aria-describedby="home-mode-photos-help"
           aria-disabled={off || undefined}
-          className="grid w-36 shrink-0 grid-cols-3 gap-1 rounded-2xl border-3 border-ink bg-white p-1"
+          className="grid w-32 shrink-0 grid-cols-3 gap-1 rounded-2xl border-3 border-ink bg-white p-1 min-[375px]:w-36"
         >
           {PHOTOS_PER_PLAYER_OPTIONS.map((n) => {
             const selected = !off && photos === n;
@@ -406,7 +415,7 @@ export function ModeConfirmBar({
                 <motion.span
                   key={theme}
                   className={cn(
-                    'flex max-w-full items-center gap-1.5 truncate rounded-full border-2 border-ink px-3 py-1 font-display text-sm text-ink shadow-pop-sm',
+                    'flex max-w-full items-center gap-1.5 truncate rounded-full border-2 border-ink py-0.5 pr-3 pl-1 font-display text-sm text-ink shadow-pop-sm',
                     THEME_BG[theme],
                   )}
                   initial={{ scale: 0.6, rotate: -6, opacity: 0 }}
@@ -414,9 +423,7 @@ export function ModeConfirmBar({
                   exit={{ scale: 0.6, opacity: 0, transition: { duration: 0.1 } }}
                   transition={{ type: 'spring', stiffness: 600, damping: 18 }}
                 >
-                  <span style={EMOJI_FONT} aria-hidden>
-                    {t(`common.theme.${theme}.emoji`)}
-                  </span>
+                  <ThemeArt theme={theme} compact className="size-6 shrink-0" />
                   <span className="truncate">
                     {t(`common.theme.${theme}.name`)} · {photosText(photos)}
                   </span>
@@ -431,12 +438,12 @@ export function ModeConfirmBar({
                   exit={{ opacity: 0, y: -6, transition: { duration: 0.1 } }}
                 >
                   <motion.span
-                    className="inline-block"
-                    animate={{ y: [0, -5, 0] }}
+                    className="inline-flex"
+                    animate={{ y: [0, -4, 0] }}
                     transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
                     aria-hidden
                   >
-                    👆
+                    <Icon name="arrow-right" className="size-4 -rotate-90" weight="bold" />
                   </motion.span>
                   {t('home.mode.pickFirst')}
                 </motion.span>
@@ -455,7 +462,10 @@ export function ModeConfirmBar({
               aria-describedby={theme === null ? 'home-mode-hint' : undefined}
               onClick={onConfirm}
             >
-              {t('home.mode.confirm')} <span aria-hidden>🚀</span>
+              <span className="inline-flex items-center gap-3">
+                {t('home.mode.confirm')}
+                <Icon name="arrow-right" className="size-7" weight="bold" />
+              </span>
             </Button>
           </div>
         </motion.div>

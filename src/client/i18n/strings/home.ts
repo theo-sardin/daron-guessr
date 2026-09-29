@@ -5,7 +5,7 @@ const en = {
     tagline: 'Parents, pals, baby pics… Guess whose is whose. Laugh a lot.',
     mysteryLabel: 'Mystery photo — tap to peek',
     mysteryCaption: ['???', 'Who dis?', 'Hmm…', 'Suspect #4', 'Whose?'],
-    peekTease: ['Nice try 😏', 'Not yet!', 'No peeking!', 'Patience…', 'Nope 🙅'],
+    peekTease: ['Nice try 😏', 'Not yet!', 'No peeking!', 'Patience…', 'Nope.'],
   },
   how: {
     title: 'How it works',
@@ -22,7 +22,7 @@ const en = {
     title: 'Who are you?',
     nameLabel: 'Your nickname',
     namePlaceholder: 'Your nickname',
-    nameMissing: ['Hey, who are you? Type a name!', 'No name, no game 🙅', 'Even detectives have a name 🕵️', 'Your friends need to know who to blame 😏'],
+    nameMissing: ['Hey, who are you? Type a name!', 'No name, no game.', 'Even detectives have a name.', 'Your friends need to know who to blame!'],
     changeAvatar: 'Change avatar',
     avatarTitle: 'Pick your avatar',
     randomAvatar: 'Random',
@@ -37,7 +37,7 @@ const en = {
     codeLabel: 'Room code (4 letters)',
     join: 'Join',
     codeIncomplete: 'Type the 4 letters of the room code',
-    codeInvalid: 'Room codes never contain I or O 🤔',
+    codeInvalid: 'Room codes never contain I or O.',
   },
   /** Mandatory "pick a game mode" step shown after "Create a room" (mode names come from common.theme). */
   mode: {
@@ -61,7 +61,7 @@ const en = {
   },
   seated: {
     title: 'You’re still in room {code}!',
-    body: 'Your friends are waiting for you 👀',
+    body: 'Your friends are waiting for you.',
     goBack: 'Go back',
     leave: 'Leave',
     left: 'You left room {code}',
@@ -71,9 +71,11 @@ const en = {
   },
   join: {
     title: 'You’re invited!',
-    sub: 'Time to guess whose photo is whose 🕵️',
+    sub: 'Time to guess whose photo is whose.',
     hostedBy: 'Hosted by {name}',
     playersInside: '{count}/{max} players inside',
+    /** Micro-label next to the seat count stamp on the invitation ticket. */
+    seats: 'Players',
     checking: ['Knocking on the door…', 'Peeking through the keyhole…', 'Ringing the doorbell…'],
     button: 'Join the room',
     notYourRoom: 'Wrong room?',
@@ -93,7 +95,7 @@ const fr: typeof en = {
     tagline: 'Darons, potes, toi bébé… Devine à qui c’est. Fou rire garanti.',
     mysteryLabel: 'Photo mystère — touche pour espionner',
     mysteryCaption: ['???', "C'est qui ?", 'Hmm…', 'Suspect n°4', 'À qui ?'],
-    peekTease: ['Bien tenté 😏', 'Pas encore !', 'On triche pas !', 'Patience…', 'Nan 🙅'],
+    peekTease: ['Bien tenté 😏', 'Pas encore !', 'On triche pas !', 'Patience…', 'Nan.'],
   },
   how: {
     title: 'Comment ça marche',
@@ -109,7 +111,7 @@ const fr: typeof en = {
     title: "T'es qui, toi ?",
     nameLabel: 'Ton pseudo',
     namePlaceholder: 'Ton pseudo',
-    nameMissing: ["Hé, t'es qui ? Mets un pseudo !", 'Pas de pseudo, pas de partie 🙅', 'Même les détectives ont un nom 🕵️', 'Faut bien savoir qui clasher 😏'],
+    nameMissing: ["Hé, t'es qui ? Mets un pseudo !", 'Pas de pseudo, pas de partie.', 'Même les détectives ont un nom.', 'Faut bien savoir qui clasher !'],
     changeAvatar: "Changer d'avatar",
     avatarTitle: 'Choisis ton avatar',
     randomAvatar: 'Au pif',
@@ -124,7 +126,7 @@ const fr: typeof en = {
     codeLabel: 'Code du salon (4 lettres)',
     join: 'Rejoindre',
     codeIncomplete: 'Tape les 4 lettres du code',
-    codeInvalid: "Les codes n'ont jamais de I ni de O 🤔",
+    codeInvalid: "Les codes n'ont jamais de I ni de O.",
   },
   mode: {
     step: 'Dernière étape !',
@@ -146,7 +148,7 @@ const fr: typeof en = {
   },
   seated: {
     title: "T'es encore dans le salon {code} !",
-    body: "Tes potes t'attendent 👀",
+    body: "Tes potes t'attendent.",
     goBack: 'Y retourner',
     leave: 'Quitter',
     left: 'T’as quitté le salon {code}',
@@ -156,9 +158,10 @@ const fr: typeof en = {
   },
   join: {
     title: "T'es invité !",
-    sub: "C'est l'heure de deviner qui a ramené quoi 🕵️",
+    sub: "C'est l'heure de deviner qui a ramené quoi.",
     hostedBy: 'Chez {name}',
     playersInside: '{count}/{max} joueurs déjà là',
+    seats: 'Joueurs',
     checking: ['Toc toc toc…', 'On mate par le trou de la serrure…', 'On sonne à la porte…'],
     button: 'Rejoindre le salon',
     notYourRoom: 'Pas le bon salon ?',

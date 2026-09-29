@@ -1,55 +1,26 @@
-import type { PhotoKind, Theme } from '../../../shared/protocol';
+import type { Theme } from '../../../shared/protocol';
+import { THEME_TONE } from '../../components/ThemeArt';
 
-/** Color family of a photo kind (chips, empty slots, picker). */
-type Tone = 'sky' | 'pink' | 'mint' | 'sun' | 'lilac' | 'tangerine';
+const TONE_BG = { sun: 'bg-sun', mint: 'bg-mint', tangerine: 'bg-tangerine', lilac: 'bg-lilac', sky: 'bg-sky' } as const;
 
-const KIND_TONE: Record<PhotoKind, Tone> = {
-  daron: 'sky',
-  daronne: 'pink',
-  brother: 'mint',
-  sister: 'lilac',
-  grandpa: 'sun',
-  grandma: 'tangerine',
-  friend: 'mint',
-  partner: 'pink',
-  pet: 'sun',
-  kid: 'tangerine',
-  pick: 'lilac',
-};
+/** Background of the theme banner / selected theme tile: the theme's accent (ink text on all of them). */
+export const themeBg = (theme: Theme) => TONE_BG[THEME_TONE[theme]];
 
-const CHIP: Record<Tone, string> = {
-  sky: 'bg-sky text-ink',
-  pink: 'bg-pink text-white',
-  mint: 'bg-mint text-ink',
-  sun: 'bg-sun text-ink',
-  lilac: 'bg-lilac text-ink',
-  tangerine: 'bg-tangerine text-ink',
-};
+/** DOM id of the theme picker in the settings card (the banner's "Change" button scrolls to it). */
+export const THEME_PICKER_ID = 'lobby-theme-picker';
 
-const EMPTY: Record<Tone, string> = {
-  sky: 'border-sky-dark bg-sky/15 hover:bg-sky/25',
-  pink: 'border-pink-dark bg-pink/10 hover:bg-pink/20',
-  mint: 'border-mint-dark bg-mint/15 hover:bg-mint/25',
-  sun: 'border-sun-dark bg-sun/20 hover:bg-sun/30',
-  lilac: 'border-lilac bg-lilac/20 hover:bg-lilac/30',
-  tangerine: 'border-tangerine bg-tangerine/15 hover:bg-tangerine/25',
-};
-
-/** Solid chip colors for a kind. */
-export const kindChip = (kind: PhotoKind) => CHIP[KIND_TONE[kind]];
-/** Dashed empty-slot colors for a kind. */
-export const kindEmpty = (kind: PhotoKind) => EMPTY[KIND_TONE[kind]];
-
-/** Background of the theme banner / selected theme sticker (ink text on all of them). */
+/**
+ * @deprecated Kept for screens outside the lobby that still import it (home/ModeStep). Use `themeBg`.
+ */
 export const THEME_BG: Record<Theme, string> = {
-  parents: 'bg-sun',
-  family: 'bg-mint',
-  childhood: 'bg-tangerine',
-  pick: 'bg-lilac',
-  mix: 'bg-sky',
+  parents: themeBg('parents'),
+  family: themeBg('family'),
+  childhood: themeBg('childhood'),
+  pick: themeBg('pick'),
+  mix: themeBg('mix'),
 };
 
-/** Number of user-perceived characters (a theme emoji can be one or two glyphs). */
+/** @deprecated Only for theme emojis, which are going away. Kept for home/ModeStep until it migrates. */
 export function glyphCount(text: string): number {
   try {
     return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)).length;
@@ -57,6 +28,3 @@ export function glyphCount(text: string): number {
     return Array.from(text).length;
   }
 }
-
-/** DOM id of the theme picker in the settings card (the banner's "Change" button scrolls to it). */
-export const THEME_PICKER_ID = 'lobby-theme-picker';

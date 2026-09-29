@@ -42,15 +42,17 @@ export function CodeInput({
               key={i}
               style={{ rotate: `${ch ? TILTS[i] : 0}deg` }}
               className={cn(
-                'relative flex h-16 items-center justify-center rounded-2xl border-3 font-display text-4xl transition-[background-color,border-color,rotate,box-shadow] duration-200',
+                // Typed letters light up like the camera's date imprint: orange Space Mono on an ink plate.
+                'relative flex h-16 items-center justify-center rounded-2xl border-3 font-mono text-4xl font-bold transition-[background-color,border-color,rotate,box-shadow] duration-200',
                 bad
                   ? 'border-ink bg-danger text-white shadow-pop-sm'
                   : ch
-                    ? 'border-ink bg-sun text-ink shadow-pop-sm'
+                    ? 'text-stamp border-ink bg-ink shadow-pop-sm'
                     : invalid
-                      ? 'border-danger bg-white/90 text-ink'
-                      : 'border-ink/25 border-dashed bg-white/90 text-ink',
-                isActive && !ch && 'border-solid border-pink bg-white',
+                      ? 'border-danger bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]'
+                      : // Empty: an unlit slot pressed into the card, waiting for its letter.
+                        'border-ink/35 bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]',
+                isActive && !ch && 'border-pink bg-white shadow-none',
                 isActive && 'ring-4 ring-pink/50',
               )}
             >

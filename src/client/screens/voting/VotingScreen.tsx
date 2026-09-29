@@ -3,6 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { createPortal } from 'react-dom';
 import type { RoomView, VotingView } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
+import { flashScreen } from '../../components/Flash';
+import { Icon, type IconName } from '../../components/Icon';
+import { IconBadge, type IconBadgeTone } from '../../components/IconBadge';
 import { BottomBar, ScreenShell } from '../../components/Layout';
 import { Lightbox } from '../../components/Lightbox';
 import { Spinner } from '../../components/Spinner';
@@ -51,6 +54,19 @@ const STATUS_KEYS = {
   missed: 'voting.status.missed',
 } as const satisfies Record<string, TKey>;
 
+/** Icon sticker next to each status line (one accent each, matching the moment). */
+const STATUS_ICON: Record<StatusKey, { name: IconName; tone: IconBadgeTone }> = {
+  waiting: { name: 'clock', tone: 'cream' },
+  pick: { name: 'hand', tone: 'sun' },
+  hurry: { name: 'clock', tone: 'danger' },
+  changeTimer: { name: 'check', tone: 'mint' },
+  changeNoTimer: { name: 'check', tone: 'mint' },
+  minePick: { name: 'mask', tone: 'tangerine' },
+  bluff: { name: 'mask', tone: 'lilac' },
+  locked: { name: 'lock', tone: 'ink' },
+  missed: { name: 'ghost', tone: 'cream' },
+};
+
 function Voting({ view, v }: { view: RoomView; v: VotingView }) {
   const t = useT();
   const now = useServerNow(100);
@@ -80,7 +96,9 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     lastCue.current = cue;
     if (!cue) return;
     if (cue === 'igo') {
+      // The self-timer fires: shutter + flash, on top of the "go" beep.
       sfx.play('go');
+      flashScreen();
       burst({ particleCount: 90, y: 0.5 });
       vibrate([20, 40, 30]);
     } else if (cue.startsWith('i')) sfx.play('countdown');
@@ -207,18 +225,19 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
       </ScreenShell>
 
       <BottomBar>
-        <div className="flex min-h-12 min-w-0 flex-1 items-center overflow-hidden rounded-2xl border-3 border-ink bg-cream px-3.5 py-1.5 text-ink shadow-pop-sm">
+        <div className="flex min-h-12 min-w-0 flex-1 items-center overflow-hidden rounded-2xl border-3 border-ink bg-cream py-1.5 pr-3.5 pl-2 text-ink shadow-pop-sm">
           <AnimatePresence mode="wait" initial={false}>
             <motion.p
               key={status}
-              className={cn('text-sm leading-tight font-extrabold', status === 'hurry' && 'text-danger-dark')}
+              className={cn('flex min-w-0 items-center gap-2.5 text-sm leading-tight font-extrabold', status === 'hurry' && 'text-danger-dark')}
               initial={{ y: 14, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -14, opacity: 0 }}
               transition={{ duration: 0.16 }}
               aria-live="polite"
             >
-              {t(STATUS_KEYS[status])}
+              <IconBadge name={STATUS_ICON[status].name} tone={STATUS_ICON[status].tone} size="xs" shadow={false} tilt={-4} />
+              <span className="min-w-0">{t(STATUS_KEYS[status])}</span>
             </motion.p>
           </AnimatePresence>
         </div>
@@ -226,15 +245,16 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
           <Button
             variant="secondary"
             size="md"
-            icon={<span aria-hidden>⏭</span>}
+            icon={<Icon name="arrow-right" className="size-5" weight="bold" />}
             aria-label={t('voting.skipLabel')}
             title={t('voting.skipLabel')}
             disabled={!started || timeUp}
             loading={skipping === v.round}
             onClick={skip}
-            className="shrink-0 px-4"
+            className="shrink-0 px-4 max-[359px]:gap-0 max-[359px]:px-3"
           >
-            {t('voting.skip')}
+            {/* Icon only on the narrowest phones, so the status line keeps room (the name stays). */}
+            <span className="max-[359px]:sr-only">{t('voting.skip')}</span>
           </Button>
         )}
       </BottomBar>
