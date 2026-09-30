@@ -21,6 +21,19 @@ export const KIND_TONE: Record<PhotoKind, KindTone> = {
   pet: 'sun',
   kid: 'tangerine',
   pick: 'lilac',
+  roll: 'sky',
+  crush: 'pink',
+  me: 'tangerine',
+  hand: 'sun',
+  foot: 'mint',
+  ear: 'lilac',
+  eye: 'sky',
+  nose: 'tangerine',
+  smile: 'pink',
+  knee: 'mint',
+  elbow: 'sun',
+  navel: 'lilac',
+  hair: 'tangerine',
 };
 
 /** CSS color of a kind, e.g. `style={{ backgroundColor: kindColor('sister') }}`. */

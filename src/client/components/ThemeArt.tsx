@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Theme } from '../../shared/protocol';
 import { cn } from '../lib/util';
+import { hash, rng } from './paper/geometry';
 
 /** Accent of each theme (banner, selected mode card, illustration). */
 export const THEME_TONE: Record<Theme, 'sun' | 'mint' | 'tangerine' | 'lilac' | 'sky'> = {
@@ -8,6 +9,10 @@ export const THEME_TONE: Record<Theme, 'sun' | 'mint' | 'tangerine' | 'lilac' | 
   family: 'mint',
   childhood: 'tangerine',
   pick: 'lilac',
+  roll: 'sky',
+  crush: 'tangerine',
+  whois: 'sun',
+  body: 'mint',
   mix: 'sky',
 };
 export const themeColor = (theme: Theme) => `var(--color-${THEME_TONE[theme]})`;
@@ -29,8 +34,8 @@ interface Strokes {
   edge: number;
   line: number;
 }
-const FULL: Strokes = { frame: 3, edge: 1.8, line: 1.7 };
-const COMPACT: Strokes = { frame: 4.6, edge: 2.6, line: 2.6 };
+const FULL: Strokes = { frame: 3, edge: 0.7, line: 1.35 };
+const COMPACT: Strokes = { frame: 4.6, edge: 1, line: 2.2 };
 
 /*
  * The cast. Each one is drawn inside a w x h photo (origin top-left, clipped): a flat face
@@ -222,26 +227,76 @@ interface PrintSpec {
   bg?: string;
 }
 
-/** An instant print: white frame (no outline, a soft shadow), thicker bottom margin, subject clipped to the photo. */
-function Print({ spec, accent, id, sw }: { spec: PrintSpec; accent: string; id: string; sw: Strokes }) {
+/** Masking tape across a print's top edge (translucent, jagged ends). */
+function tapePoints(x: number, y: number, w: number, h: number): string {
+  const j = h * 0.18;
+  return [
+    [x, y + j],
+    [x + j, y],
+    [x + w, y],
+    [x + w - j, y + h * 0.35],
+    [x + w, y + h * 0.7],
+    [x + w - j * 0.6, y + h],
+    [x + j * 0.5, y + h],
+    [x, y + h * 0.6],
+    [x + j, y + h * 0.3],
+  ]
+    .map((p) => `${p[0].toFixed(2)},${p[1].toFixed(2)}`)
+    .join(' ');
+}
+
+/**
+ * An instant print: white frame (a soft shadow, no outline), thicker bottom margin, subject
+ * clipped to the photo. `silhouette` draws the subject as one flat ink shape (tiny sizes);
+ * `tape` sticks it down with masking tape.
+ */
+function Print({ spec, accent, id, sw, tape, silhouette }: { spec: PrintSpec; accent: string; id: string; sw: Strokes; tape?: boolean; silhouette?: string }) {
   const { x, y, w, h, rotate = 0 } = spec;
   const m = Math.max(2.5, w * 0.1);
   const pw = w - m * 2;
   const ph = h - m - m * 2.2;
   const clip = `${id}-clip`;
+  const tw = w * 0.56;
   return (
     <g transform={`rotate(${rotate} ${x + w / 2} ${y + h / 2})`}>
       {/* A soft paper shadow, then the white print (a hairline edge keeps it crisp when small). */}
-      <rect x={x + 0.6} y={y + sw.frame * 0.7} width={w} height={h} rx={1} fill="rgb(40 25 10 / 0.22)" />
-      <rect x={x} y={y} width={w} height={h} rx={1} fill={PAPER} stroke="rgb(23 19 15 / 0.3)" strokeWidth={sw.frame * 0.3} />
+      <rect x={x + 0.6} y={y + sw.frame * 0.6} width={w} height={h} rx={0.6} fill="rgb(40 25 10 / 0.2)" />
+      <rect x={x} y={y} width={w} height={h} rx={0.6} fill={PAPER} stroke="rgb(23 19 15 / 0.22)" strokeWidth={sw.frame * 0.22} />
       <clipPath id={clip}>
-        <rect x={x + m} y={y + m} width={pw} height={ph} rx={1} />
+        <rect x={x + m} y={y + m} width={pw} height={ph} />
       </clipPath>
       <g clipPath={`url(#${clip})`}>
         <rect x={x + m} y={y + m} width={pw} height={ph} fill={spec.bg ?? accent} />
-        <g transform={`translate(${x + m} ${y + m})`}>{subjectShape(spec.subject, pw, ph, sw.line, spec.bg ?? accent)}</g>
+        <g transform={`translate(${x + m} ${y + m})`} filter={silhouette ? `url(#${silhouette})` : undefined}>
+          {subjectShape(spec.subject, pw, ph, sw.line, spec.bg ?? accent)}
+        </g>
+        {/* An old print's vignette. */}
+        <rect x={x + m} y={y + m} width={pw} height={ph} fill={`url(#${id}-vig)`} />
       </g>
-      <rect x={x + m} y={y + m} width={pw} height={ph} rx={1} fill="none" stroke={INK} strokeWidth={sw.edge} />
+      <radialGradient id={`${id}-vig`} cx="50%" cy="46%" r="65%">
+        <stop offset="60%" stopColor="rgb(42 20 4)" stopOpacity="0" />
+        <stop offset="100%" stopColor="rgb(42 20 4)" stopOpacity="0.22" />
+      </radialGradient>
+      <rect x={x + m} y={y + m} width={pw} height={ph} fill="none" stroke="rgb(23 19 15 / 0.35)" strokeWidth={sw.edge} />
+      {tape && <polygon points={tapePoints(x + (w - tw) / 2, y - 3.2, tw, 6.4)} fill="rgb(238 226 186 / 0.88)" />}
+    </g>
+  );
+}
+
+/** A torn scrap of halftone paper (the strip glued behind the prints), deterministic per theme. */
+function Scrap({ x, y, w, h, rotate, fill, seed }: { x: number; y: number; w: number; h: number; rotate: number; fill: string; seed: string }) {
+  const r = rng(hash(seed));
+  const pts: string[] = [];
+  const step = 3.2;
+  const jag = (a: number) => (r() - 0.35) * a;
+  for (let px = 0; px < w; px += step) pts.push(`${(x + px).toFixed(2)},${(y + jag(1.6)).toFixed(2)}`);
+  for (let py = 0; py < h; py += step) pts.push(`${(x + w - jag(1.2)).toFixed(2)},${(y + py).toFixed(2)}`);
+  for (let px = w; px > 0; px -= step) pts.push(`${(x + px).toFixed(2)},${(y + h - jag(1.6)).toFixed(2)}`);
+  for (let py = h; py > 0; py -= step) pts.push(`${(x + jag(1.2)).toFixed(2)},${(y + py).toFixed(2)}`);
+  return (
+    <g transform={`rotate(${rotate} ${x + w / 2} ${y + h / 2})`}>
+      <polygon points={pts.join(' ')} fill="#f7f1e4" transform="translate(0 0.9)" opacity={0.9} />
+      <polygon points={pts.join(' ')} fill={fill} />
     </g>
   );
 }
@@ -252,10 +307,33 @@ function heartPath(cx: number, cy: number, k: number) {
   return `M${p(0, 8)}C${p(-2, 6.6)} ${p(-9, 2.4)} ${p(-9, -2.2)}C${p(-9, -5.4)} ${p(-6.6, -7.6)} ${p(-4, -7.6)}C${p(-2.2, -7.6)} ${p(-0.8, -6.6)} ${p(0, -5.2)}C${p(0.8, -6.6)} ${p(2.2, -7.6)} ${p(4, -7.6)}C${p(6.6, -7.6)} ${p(9, -5.4)} ${p(9, -2.2)}C${p(9, 2.4)} ${p(2, 6.6)} ${p(0, 8)}z`;
 }
 
+/** A sticker (star, heart): the shape with a white die-cut border and a soft shadow, no ink outline. */
+function Sticker({ d, fill, rotate, cx, cy }: { d: string; fill: string; rotate: number; cx: number; cy: number }) {
+  return (
+    <g transform={`rotate(${rotate} ${cx} ${cy})`}>
+      <path d={d} fill="rgb(40 25 10 / 0.22)" stroke="rgb(40 25 10 / 0.22)" strokeWidth={4} strokeLinejoin="round" transform="translate(0.4 1.2)" />
+      <path d={d} fill={fill} stroke="#fff" strokeWidth={2.6} strokeLinejoin="round" paintOrder="stroke" />
+    </g>
+  );
+}
+
 interface Scene {
   prints: PrintSpec[];
   extra?: ReactNode;
 }
+
+/** The halftone strip behind each theme's prints: a contrasting paper, so the white prints pop. */
+const SCRAP_TONE: Record<Theme, string> = {
+  parents: 'blue',
+  family: 'pink',
+  childhood: 'blue',
+  pick: 'yellow',
+  roll: 'pink',
+  crush: 'yellow',
+  whois: 'pink',
+  body: 'blue',
+  mix: 'pink',
+};
 
 const SCENES: Record<Theme, Scene> = {
   parents: {
@@ -274,12 +352,20 @@ const SCENES: Record<Theme, Scene> = {
   },
   childhood: {
     prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: -6, subject: 'kid' }],
-    extra: <path d={starPath(50, 15, 10, 4.4)} fill="var(--color-sun)" stroke={INK} strokeWidth={3} strokeLinejoin="round" transform="rotate(12 50 15)" />,
+    extra: <Sticker d={starPath(50, 15, 10, 4.4)} fill="var(--color-yellow)" rotate={12} cx={50} cy={15} />,
   },
   pick: {
     prints: [{ x: 4, y: 12, w: 48, h: 42, rotate: -5, subject: 'landscape' }],
-    extra: <path d={heartPath(49, 14, 1.12)} fill="var(--color-pink)" stroke={INK} strokeWidth={3} strokeLinejoin="round" transform="rotate(14 49 14)" />,
+    extra: <Sticker d={heartPath(49, 14, 1.12)} fill="var(--color-pink)" rotate={14} cx={49} cy={14} />,
   },
+  // Provisional scenes for the newer modes (reuse existing subjects); the home agent redraws them.
+  roll: { prints: [{ x: 4, y: 12, w: 48, h: 42, rotate: 4, subject: 'landscape' }] },
+  crush: {
+    prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: 5, subject: 'mom' }],
+    extra: <Sticker d={heartPath(49, 14, 1.12)} fill="var(--color-pink)" rotate={-10} cx={49} cy={14} />,
+  },
+  whois: { prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: -4, subject: 'dad' }] },
+  body: { prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: 6, subject: 'girl' }] },
   mix: {
     prints: [
       { x: 5, y: 13, w: 25, h: 31, rotate: -20, subject: 'kid' },
@@ -288,8 +374,9 @@ const SCENES: Record<Theme, Scene> = {
     ],
     extra: (
       <g>
-        <circle cx="32" cy="50" r="10.5" fill={PAPER} stroke={INK} strokeWidth={3} />
-        <g fill="none" stroke={INK} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="32" cy="51.2" r="10.5" fill="rgb(40 25 10 / 0.22)" />
+        <circle cx="32" cy="50" r="10.5" fill="var(--color-yellow)" stroke="#fff" strokeWidth={2} />
+        <g fill="none" stroke={INK} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
           <path d="M25.6 46.4h1.6c1.5 0 2.4.7 3.2 2l1.8 3.1c.8 1.3 1.7 2 3.2 2h2.4" />
           <path d="M25.6 53.6h1.6c1.1 0 1.9-.4 2.5-1M33.9 47.4c.6-.6 1.4-1 2.5-1h2.4" />
           <path d="m36.9 44.5 2.1 1.9-2.1 1.9M36.9 51.6l2.1 1.9-2.1 1.9" />
@@ -305,6 +392,10 @@ const COMPACT_SUBJECT: Record<Theme, Subject> = {
   family: 'girl',
   childhood: 'kid',
   pick: 'landscape',
+  roll: 'landscape',
+  crush: 'mom',
+  whois: 'dad',
+  body: 'girl',
   mix: 'shuffle',
 };
 const COMPACT_PRINT = { x: 8, y: 4, w: 48, h: 56, rotate: -4 };
@@ -328,9 +419,11 @@ function guessWidth(className?: string): number | null {
 }
 
 /**
- * A mini illustration per game theme (little white prints on the page, ink-drawn subjects, the theme accent):
+ * A mini collage per game theme: white prints taped on a torn halftone scrap, ink-drawn
+ * subjects on the theme accent, a sticker (star, heart, shuffle) slapped on top:
  * <ThemeArt theme="childhood" className="size-16" />. Under 48px it switches to a compact
- * drawing automatically (or force it with `compact`).
+ * drawing automatically (or force it with `compact`): one print, the subject as a flat ink
+ * silhouette, a corner of the scrap.
  */
 export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
   const uid = useId().replace(/:/g, '');
@@ -356,6 +449,8 @@ export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
   const accent = themeColor(theme);
   const scene: Scene = isCompact ? { prints: [{ ...COMPACT_PRINT, subject: COMPACT_SUBJECT[theme] }] } : SCENES[theme];
   const sw = isCompact ? COMPACT : FULL;
+  const tone = SCRAP_TONE[theme];
+  const dots = tone === 'blue' ? 'rgb(255 255 255 / 0.22)' : 'rgb(23 19 15 / 0.14)';
   return (
     <svg
       ref={ref}
@@ -367,8 +462,32 @@ export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
       aria-label={label}
       aria-hidden={label ? undefined : true}
     >
+      <defs>
+        <pattern id={`${uid}-ht`} width="3" height="3" patternUnits="userSpaceOnUse">
+          <rect width="3" height="3" fill={`var(--color-${tone})`} />
+          <circle cx="1.5" cy="1.5" r="0.62" fill={dots} />
+        </pattern>
+        {/* Tiny sizes: the subject as one flat ink silhouette (details would be mush). */}
+        <filter id={`${uid}-sil`} x="0" y="0" width="100%" height="100%">
+          <feFlood floodColor="#17130f" floodOpacity="0.88" />
+          <feComposite in2="SourceAlpha" operator="in" />
+        </filter>
+      </defs>
+      {isCompact ? (
+        <Scrap x={14} y={30} w={50} h={30} rotate={9} fill={`url(#${uid}-ht)`} seed={`${theme}-c`} />
+      ) : (
+        <Scrap x={0} y={22} w={64} h={25} rotate={-7} fill={`url(#${uid}-ht)`} seed={theme} />
+      )}
       {scene.prints.map((p, i) => (
-        <Print key={i} spec={p} accent={accent} id={`${uid}-${i}`} sw={sw} />
+        <Print
+          key={i}
+          spec={p}
+          accent={accent}
+          id={`${uid}-${i}`}
+          sw={sw}
+          tape={!isCompact && i === scene.prints.length - 1}
+          silhouette={isCompact && p.subject !== 'shuffle' ? `${uid}-sil` : undefined}
+        />
       ))}
       {scene.extra}
     </svg>

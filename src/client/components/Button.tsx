@@ -250,7 +250,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={cn(
         rel(className),
         'group inline-flex select-none items-center justify-center whitespace-nowrap',
-        block ? 'w-full min-w-0' : 'shrink-0',
+        // Never wider than its container: a long label condenses instead (see useFitLabel).
+        block ? 'w-full min-w-0' : 'max-w-full shrink-0',
         busy && 'cursor-progress!',
         className,
       )}

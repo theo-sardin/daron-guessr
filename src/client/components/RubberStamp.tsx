@@ -76,8 +76,9 @@ export function RubberStamp({ children, tone = 'red', size = 'lg', tilt = -12, t
         style={{
           border: `${inner}px solid ${ink}`,
           borderRadius: Math.max(2, radius - gap - border * 0.5),
-          // Room above for accented capitals (HÔTE, GRILLÉE) so they never touch the frame.
-          padding: `0.36em ${(px * 0.4).toFixed(1)}px ${(px * 0.2).toFixed(1)}px`,
+          // Room above for accented capitals (HÔTE, GRILLÉE) so they never touch the frame
+          // (the ★ line already gives it when there is one).
+          padding: `${top ? '0.2em' : '0.36em'} ${(px * 0.4).toFixed(1)}px ${(px * 0.2).toFixed(1)}px`,
         }}
       >
         {top && (

@@ -200,6 +200,18 @@
   #root {
     min-height: 100dvh;
   }
+  /*
+   * The page never scrolls sideways: paper that bleeds past the window on purpose (torn strips,
+   * a sticker mid-slap at scale 1.35, a stamp thumping down) is clipped at the window's edge.
+   * `clip` is not a scroll container, so sticky / fixed children behave as usual. It also hides
+   * real overflow: QA should check the content, e.g. `#root > *` boxes against the viewport
+   * (see the foundation gallery's overflow check), not only documentElement.scrollWidth.
+   */
+  @supports (overflow: clip) {
+    #root {
+      overflow-x: clip;
+    }
+  }
   button {
     cursor: pointer;
   }

@@ -151,9 +151,10 @@ export interface PaperStripProps {
  * A torn halftone strip glued behind photos (blue, yellow…): a decoration, positioned by
  * `className`. Put it first in a `relative` container so the photo lands on top.
  */
+/** Full-window placement; on a wide strip the tilt is softened (4° across 1200px is a ramp). */
 const BLEED = {
-  all: 'left-1/2 right-auto w-[min(calc(100vw-20px),1400px)] -translate-x-1/2',
-  md: 'md:left-1/2 md:right-auto md:w-[min(calc(100vw-20px),1400px)] md:-translate-x-1/2',
+  all: 'left-1/2 right-auto w-[min(calc(100vw-20px),1400px)] -translate-x-1/2 md:[--strip-k:0.4]',
+  md: 'md:left-1/2 md:right-auto md:w-[min(calc(100vw-20px),1400px)] md:-translate-x-1/2 md:[--strip-k:0.4]',
 } as const;
 
 export function PaperStrip({ tone = 'blue', tilt = -4, seed, bleed = false, className, style }: PaperStripProps) {
@@ -162,7 +163,7 @@ export function PaperStrip({ tone = 'blue', tilt = -4, seed, bleed = false, clas
     <div
       aria-hidden
       className={cn('pointer-events-none', !/\b(absolute|fixed|relative)\b/.test(className ?? '') && 'absolute', className, bleed === true && BLEED.all, bleed === 'md' && BLEED.md)}
-      style={{ rotate: `${tilt}deg`, ...style }}
+      style={{ rotate: `calc(${tilt}deg * var(--strip-k, 1))`, ...style }}
     >
       <TornPaper surface={surface} edges="tblr" amp={5} step={7} seed={seed} className="size-full" wrapperClassName="size-full" />
     </div>

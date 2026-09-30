@@ -47,21 +47,21 @@ export const MOCK_PLAYERS = {
 export function MockHome() {
   const [name] = useState('Momo');
   return (
-    <main className="mx-auto w-full max-w-[430px] overflow-x-hidden px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4rem)] pb-10">
+    <main className="mx-auto w-full max-w-[430px] px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4rem)] pb-10 max-md:overflow-x-hidden">
       {/* Masthead */}
       <div className="mr-[88px] flex items-center border-t-[2.5px] border-b border-ink py-1 font-type text-[11.5px]">
         <b className="mr-2 font-sans text-[11px] font-black tracking-[0.06em] [font-stretch:120%]">N°01</b> le zine des albums de famille
       </div>
 
       <section className="relative -mx-4 h-[300px]">
-        <PaperStrip tone="blue" tilt={-5} className="-inset-x-8 top-[64px] h-[150px]" seed="home" />
+        <PaperStrip tone="blue" tilt={-5} bleed="md" className="-inset-x-8 top-[64px] h-[150px]" seed="home" />
         <Annotation rotate={-8} size={17} delay={0.9} className="absolute top-[4px] left-[14px] z-20 whitespace-nowrap">
           c'est qui ce bébé ?!
         </Annotation>
         <Polaroid src={MOCK_PHOTOS.baby} caption="bébé ?? 97" tilt={-9} tape className="absolute top-[30px] -left-[4px] z-[2] w-[124px] p-[7px]! pb-1!" captionClassName="text-[17px]" />
         <Polaroid src={MOCK_PHOTOS.mom} caption="Noël 94" tilt={2.5} tape="yellow" className="absolute top-[10px] left-[130px] z-[1] w-[130px] p-[7px]! pb-1!" captionClassName="text-[17px]" />
         <Polaroid src={MOCK_PHOTOS.dad} caption="Palavas, 89" tilt={8} tape className="absolute top-[34px] left-[272px] z-[2] w-[120px] p-[7px]! pb-1!" captionClassName="text-[17px]" />
-        <StarBurst size={86} tilt={12} animate={0.7} className="absolute -top-[40px] right-[8px] z-30">
+        <StarBurst size={90} tilt={12} animate={0.7} className="absolute -top-[42px] right-[6px] z-30">
           <span className="text-[21px]">100%</span>
           <span className="mt-0.5 text-[10.5px] tracking-[0.02em]">GÊNANT</span>
         </StarBurst>
@@ -79,7 +79,7 @@ export function MockHome() {
 
       <ol className="mt-6 grid grid-cols-3 gap-2">
         <li>
-          <NotebookCard tilt={-2.4} tape slap={0.2} className="flex h-[114px] flex-col py-2.5 pr-2 pl-6 [--margin:14px]">
+          <NotebookCard tilt={-2.4} tape slap={0.2} margin={14} className="flex h-[114px] flex-col py-2.5 pr-2">
             <span className="font-display text-[40px] leading-[0.85] text-red">1</span>
             <span className="mt-auto text-[14.5px] leading-[1.02] font-extrabold">Balance tes photos</span>
             <span className="text-pen mt-0.5 text-[15px]">même les pires</span>
@@ -194,7 +194,7 @@ export function MockVoting() {
   const [base] = useState(() => serverNow());
   const { marie, paul, julie, karim, momo } = MOCK_PLAYERS;
   return (
-    <main className="mx-auto w-full max-w-[430px] overflow-x-hidden px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.75rem)] pb-32">
+    <main className="mx-auto w-full max-w-[430px] px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.75rem)] pb-32 max-md:overflow-x-hidden">
       <div className="flex items-end justify-between">
         <div>
           <Stamp label="photo" size="xl" ariaLabel="Photo 3 sur 8">
@@ -218,7 +218,7 @@ export function MockVoting() {
       </h1>
 
       <section className="relative -mx-4 mt-1 h-[302px]">
-        <PaperStrip tone="blue" tilt={4} className="-inset-x-8 top-[140px] h-[126px]" seed="vote" />
+        <PaperStrip tone="blue" tilt={4} bleed="md" className="-inset-x-8 top-[140px] h-[126px]" seed="vote" />
         <Polaroid src={MOCK_PHOTOS.mom} caption="Noël 94" tilt={-2.5} tape className="absolute top-[14px] left-[24px] z-[2] w-[248px] p-[10px]!" captionClassName="text-[24px] mt-2" />
         <Annotation rotate={6} delay={0.8} className="absolute top-[28px] left-[276px] z-10 w-[110px]">
           ces lunettes&nbsp;!!
@@ -301,7 +301,7 @@ function VoteRow({ player, voters, count, win, note }: { player: PublicPlayer; v
 export function MockReveal() {
   const { marie, paul, julie, karim, momo } = MOCK_PLAYERS;
   return (
-    <main className="mx-auto w-full max-w-[430px] overflow-x-hidden px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.5rem)] pb-12">
+    <main className="mx-auto w-full max-w-[430px] px-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.5rem)] pb-12 max-md:overflow-x-hidden">
       <div className="relative text-center">
         <div aria-hidden className="pointer-events-none absolute -inset-x-4 -top-2 h-40">
           {CONFETTI.map(({ sq, ...c }, i) => (
@@ -316,7 +316,7 @@ export function MockReveal() {
       </div>
 
       <section className="relative -mx-4 mt-1.5 h-[276px]">
-        <PaperStrip tone="yellow" tilt={-4} className="-inset-x-8 top-[70px] h-[118px]" seed="reveal" />
+        <PaperStrip tone="yellow" tilt={-4} bleed="md" className="-inset-x-8 top-[70px] h-[118px]" seed="reveal" />
         <Polaroid src={MOCK_PHOTOS.mom} caption="Maman, Noël 94" tilt={3} tape className="absolute top-[12px] left-[78px] z-[2] w-[216px]" captionClassName="text-[22px] mt-2" />
         <RubberStamp top backing animate={0.3} className="absolute top-[132px] left-[146px] z-10">
           Grillée&nbsp;!
@@ -349,8 +349,8 @@ export function MockReveal() {
         />
       </section>
 
-      <NotebookCard torn="lb" tape="yellow" tilt={-1.4} wrapperClassName="mx-1 mt-4" className="py-3 pr-4 pl-9 [--line:24px] [--margin:24px]">
-        <p className="text-pen text-[24px] leading-[1.02]">
+      <NotebookCard torn="lb" tape="yellow" tilt={-1.4} leading={26} margin={24} wrapperClassName="mx-1 mt-4" className="pr-4 pb-2">
+        <p className="text-pen text-[24px]">
           Tout le monde a voté Paul… mais c'est la daronne de{' '}
           <MarkerUnderline delay={1.1} className="text-red">
             Julie

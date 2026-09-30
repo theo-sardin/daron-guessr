@@ -72,6 +72,7 @@ ${cap ? `<path d="M86 172 Q96 64 200 62 Q304 64 314 172 Z" fill="${capColor}" st
 
 const PHOTO_KIND_SEED: Record<PhotoKind, number> = {
   daron: 1, daronne: 2, brother: 3, sister: 4, grandpa: 5, grandma: 6, friend: 7, partner: 8, pet: 9, kid: 10, pick: 11,
+  roll: 12, crush: 13, me: 14, hand: 15, foot: 16, ear: 17, eye: 18, nose: 19, smile: 20, knee: 21, elbow: 22, navel: 23, hair: 24,
 };
 
 /** A "random picture someone picked": a little landscape with a sun and a caption. */

@@ -181,7 +181,7 @@ function Papers() {
         <Label>cards: NotebookCard · KraftCard · PostIt · Paper (tape, tilt, slap)</Label>
         <ol className="mt-3 grid max-w-[420px] grid-cols-3 gap-2">
           <li>
-            <NotebookCard tilt={-2.4} tape slap={0.1} className="flex h-[114px] flex-col py-2.5 pr-2 pl-6 [--margin:14px]">
+            <NotebookCard tilt={-2.4} tape slap={0.1} margin={14} className="flex h-[114px] flex-col py-2.5 pr-2">
               <span className="font-display text-[40px] leading-[0.85] text-red">1</span>
               <span className="mt-auto text-[14.5px] leading-[1.02] font-extrabold">Balance tes photos</span>
               <span className="text-pen mt-0.5 text-[15px]">même les pires</span>
@@ -265,7 +265,7 @@ function Marks() {
         </Button>
       </div>
       <div className="relative h-44 max-w-[420px]">
-        <Annotation className="absolute top-2 left-[250px] w-[120px]" rotate={6}>
+        <Annotation className="absolute top-2 right-0 w-[120px]" rotate={6}>
           ces lunettes&nbsp;!!
         </Annotation>
         <MarkerArrow key={String(on)} from={[88, 20]} to={[20, 80]} bend={-0.28} className="top-10 left-[140px] h-24 w-32" />
@@ -352,7 +352,7 @@ function Stamps() {
         <Stamp plate label="hud" size="md">
           7/8
         </Stamp>
-        <span className="flex items-end gap-3">
+        <span className="flex flex-wrap items-end gap-3">
           {(['xs', 'sm', 'md', 'lg', 'xl', '2xl'] as const).map((s) => (
             <Stamp key={s} size={s}>
               42
@@ -411,6 +411,46 @@ function Buttons() {
         <Button size="md" variant="secondary" disabled>
           Disabled
         </Button>
+      </div>
+      <div className="space-y-4">
+        <Label>states: loading keeps its colors; disabled is a pencil outline (label 7.9:1)</Label>
+        <div className="flex flex-wrap items-center gap-5">
+          <Button size="lg" loading>
+            Photo suivante
+          </Button>
+          <Button size="lg" disabled>
+            Photo suivante
+          </Button>
+          <Button size="md" variant="sun" loading>
+            Envoyer
+          </Button>
+          <Button size="md" variant="outline" disabled>
+            Outline
+          </Button>
+          <Button size="md" variant="ghost" disabled>
+            Ghost
+          </Button>
+        </div>
+        <Label>arrows: `arrow` is the only forward arrow; old arrow-right icons are converted (see the console)</Label>
+        <div className="flex flex-col gap-5">
+          <Button size="lg" block icon={<Icon name="arrow-right" className="size-6" weight="bold" />}>
+            icon=arrow-right → hand arrow
+          </Button>
+          <Button block size="lg">
+            <span className="inline-flex items-center gap-2">
+              Next photo (arrow in children)
+              <Icon name="arrow-right" className="size-6" />
+            </span>
+          </Button>
+          <div className="flex gap-3">
+            <Button size="md" variant="secondary" arrow className="flex-1">
+              Passer
+            </Button>
+            <Button size="md" variant="sun" iconEnd={<Icon name="trophy" className="size-5" />} className="flex-1">
+              Résultats
+            </Button>
+          </div>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <RoundButton label="Son" tilt={-4}>
@@ -792,6 +832,8 @@ function Everything() {
 }
 
 const lobbyView = () => fakeView(fakePlayers(5));
+/** A room in play (the top bar drops the language tab). */
+const playView = () => fakeView(fakePlayers(5), 0, { phase: 'voting' });
 const page = (children: ReactNode) => <main className="mx-auto max-w-5xl px-4 pt-24 pb-24">{children}</main>;
 
 const foundationPreviews: PreviewRegistry = {
@@ -863,8 +905,8 @@ const foundationPreviews: PreviewRegistry = {
   'exit-replaced': { render: () => <ExitNotice code="BKXZ" reason="replaced" /> },
   'exit-gone': { render: () => <ExitNotice code="BKXZ" reason="room-gone" /> },
   'mock-home': { render: () => <MockHome /> },
-  'mock-voting': { view: lobbyView, render: () => <MockVoting /> },
-  'mock-reveal': { view: lobbyView, chrome: false, render: () => <MockReveal /> },
+  'mock-voting': { view: playView, render: () => <MockVoting /> },
+  'mock-reveal': { view: playView, chrome: false, render: () => <MockReveal /> },
 };
 
 export default foundationPreviews;

@@ -88,6 +88,10 @@ export const PLAYER_COLORS = [
  * and every caption about the photo.
  * - `kid`: the player themself as a child.
  * - `pick`: any picture the player chose (a meme, a place, a dish…).
+ * - `roll`: the LAST photo in the player's camera roll.
+ * - `crush`: the celebrity the player had a crush on as a teen.
+ * - `me`: a photo of the player themself (any age), used by the "Who's that?" mode.
+ * - body parts (`hand` … `hair`, see BODY_PARTS): a close-up of one of the player's body parts.
  */
 export const PHOTO_KINDS = [
   'daron',
@@ -101,11 +105,27 @@ export const PHOTO_KINDS = [
   'pet',
   'kid',
   'pick',
+  'roll',
+  'crush',
+  'me',
+  'hand',
+  'foot',
+  'ear',
+  'eye',
+  'nose',
+  'smile',
+  'knee',
+  'elbow',
+  'navel',
+  'hair',
 ] as const;
 export type PhotoKind = (typeof PHOTO_KINDS)[number];
 
+/** Body parts players can pick in the "Body parts" mode (a fixed, safe-for-work list). */
+export const BODY_PARTS = ['hand', 'foot', 'ear', 'eye', 'nose', 'smile', 'knee', 'elbow', 'navel', 'hair'] as const satisfies readonly PhotoKind[];
+
 /** Game themes, picked by the host: they decide which kinds players can upload. */
-export const THEMES = ['parents', 'family', 'childhood', 'pick', 'mix'] as const;
+export const THEMES = ['parents', 'family', 'childhood', 'pick', 'roll', 'crush', 'whois', 'body', 'mix'] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** Kinds a player may upload under each theme (the first is the default). */
@@ -114,6 +134,10 @@ export const THEME_KINDS: Record<Theme, readonly PhotoKind[]> = {
   family: ['sister', 'brother', 'daron', 'daronne', 'grandpa', 'grandma', 'friend', 'partner', 'pet'],
   childhood: ['kid'],
   pick: ['pick'],
+  roll: ['roll'],
+  crush: ['crush'],
+  whois: ['me'],
+  body: BODY_PARTS,
   mix: PHOTO_KINDS,
 };
 
@@ -123,7 +147,24 @@ export const THEME_DEFAULT_PHOTOS: Record<Theme, number> = {
   family: 2,
   childhood: 1,
   pick: 1,
+  roll: 1,
+  crush: 1,
+  whois: 1,
+  body: 2,
   mix: 2,
+};
+
+/** `blur` applied when the host switches to (or creates a room with) a theme, unless set explicitly. */
+export const THEME_DEFAULT_BLUR: Record<Theme, boolean> = {
+  parents: false,
+  family: false,
+  childhood: false,
+  pick: false,
+  roll: false,
+  crush: false,
+  whois: true,
+  body: false,
+  mix: false,
 };
 
 /** Default kind proposed for an empty slot under a theme. */
@@ -133,6 +174,10 @@ export function defaultKindForSlot(theme: Theme, slot: number): PhotoKind {
     family: ['sister', 'brother', 'friend'],
     childhood: ['kid', 'kid', 'kid'],
     pick: ['pick', 'pick', 'pick'],
+    roll: ['roll', 'roll', 'roll'],
+    crush: ['crush', 'crush', 'crush'],
+    whois: ['me', 'me', 'me'],
+    body: ['hand', 'ear', 'knee'],
     mix: ['daron', 'daronne', 'kid'],
   };
   return presets[theme][slot] ?? THEME_KINDS[theme][0];
@@ -159,6 +204,12 @@ export interface Settings {
   theme: Theme;
   /** Active photo slots per player (one of PHOTOS_PER_PLAYER_OPTIONS). */
   photosPerPlayer: number;
+  /**
+   * "Blurry" option: the voted photo starts heavily blurred and sharpens step by step (see
+   * BLUR_*), and correct votes earn a speed bonus (BLUR_BONUS_BY_STEP). Switching theme sets it
+   * to THEME_DEFAULT_BLUR unless the same update sets it.
+   */
+  blur: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -166,7 +217,22 @@ export const DEFAULT_SETTINGS: Settings = {
   anonymousVotes: true,
   theme: 'parents',
   photosPerPlayer: 2,
+  blur: false,
 };
+
+/**
+ * Blur steps. The uploader's browser sends, with each photo, small JPEG variants of these widths
+ * (px, longest edge) as `photo:upload` `variants`, in this order. During a blurred round the server
+ * only hands out the URL of the current step's variant (the client scales it up and softens it);
+ * the full photo comes once the round is over. Step i starts at startsAt + i * stepMs, with
+ * stepMs = roundMs / (BLUR_VARIANT_WIDTHS.length + 1) and roundMs = voteSeconds * 1000, or
+ * BLUR_NO_TIMER_ROUND_MS without a timer. The last step (index BLUR_VARIANT_WIDTHS.length) is the
+ * full photo. Photos uploaded without variants fall back to the full URL (the client blurs it).
+ */
+export const BLUR_VARIANT_WIDTHS = [12, 24, 48, 96] as const;
+export const BLUR_NO_TIMER_ROUND_MS = 20_000;
+/** Speed bonus of a correct vote, by the blur step at which the voter last changed their vote. */
+export const BLUR_BONUS_BY_STEP = [100, 75, 50, 25, 0] as const;
 
 export interface PublicPlayer {
   id: string;
@@ -226,6 +292,11 @@ export interface VotingView {
   candidates: string[];
   /** Ids of players that have voted this round (owner decoys included, so the owner is indistinguishable). */
   votedIds: string[];
+  /**
+   * Blur state when `settings.blur` is on (null otherwise). `photo.url` then points to the
+   * current step's variant. `nextStepAt` is when the next (sharper) step starts, null at the last.
+   */
+  blur: { step: number; steps: number; nextStepAt: number | null; fromVariant: boolean } | null;
 }
 
 export interface PhotoResult {
@@ -241,6 +312,8 @@ export interface PhotoResult {
   correctVotes: number;
   /** What the viewer voted for this photo (a decoy if the viewer is the owner), or null if they did not vote. */
   myVote: string | null;
+  /** Points the viewer earned on this photo (100 + blur speed bonus when right, else 0). Absent for the owner. */
+  myPoints?: number;
 }
 
 export interface RevealView {
@@ -266,7 +339,9 @@ export type AwardId =
   /** The photo whose votes were spread across the most different players. */
   | 'mostConfusing'
   /** The single (owner, wrongly-guessed player) pair with the most votes. */
-  | 'biggestMixup';
+  | 'biggestMixup'
+  /** Blur games only: the most speed-bonus points (sharpest eyes). value = bonus points. */
+  | 'eagleEye';
 
 export interface Award {
   id: AwardId;
@@ -288,6 +363,8 @@ export interface RankingEntry {
   correct: number;
   /** Number of real (non-decoy) votes cast by this player. */
   guesses: number;
+  /** Blur speed-bonus points included in `score` (0 when blur is off). */
+  bonus: number;
   /** 1-based rank, ties share the same rank. */
   rank: number;
 }
@@ -327,6 +404,8 @@ export interface RoomView {
 export interface RoomSetup {
   theme: Theme;
   photosPerPlayer?: number;
+  /** Defaults to THEME_DEFAULT_BLUR[theme]. */
+  blur?: boolean;
 }
 
 /** Response of `GET /api/rooms/:code` — lets the join screen check a code before asking for a name. */
@@ -406,7 +485,10 @@ export interface ClientToServerEvents {
    * Lobby only: upload (or replace) the photo in a slot. `data` is the raw image bytes.
    * `slot` must be < settings.photosPerPlayer and `kind` allowed by settings.theme (else BAD_REQUEST).
    */
-  'photo:upload': (p: { slot: PhotoSlot; kind: PhotoKind; mime: string; data: ArrayBuffer | Uint8Array }, ack: Ack<{ photo: MyPhoto }>) => void;
+  'photo:upload': (
+    p: { slot: PhotoSlot; kind: PhotoKind; mime: string; data: ArrayBuffer | Uint8Array; variants?: Array<ArrayBuffer | Uint8Array> },
+    ack: Ack<{ photo: MyPhoto }>,
+  ) => void;
   /** Lobby only. Works on any slot, inactive ones included. */
   'photo:remove': (p: { slot: PhotoSlot }, ack: Ack) => void;
   /** Lobby only: relabel an uploaded photo (same rules as `photo:upload`: active slot, kind allowed by settings.theme). */
