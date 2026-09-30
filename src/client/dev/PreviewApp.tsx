@@ -33,6 +33,23 @@ const REGISTRY: Record<string, PreviewRegistry> = {
   results: resultsPreviews,
 };
 
+/**
+ * Dev-only lint: legacy classes from the dark "Photo lab" theme get a dashed magenta outline in
+ * every preview, so screens migrating to the paper world never ship one (see the migration
+ * table in index.css). Add ?lint=0 to hide it.
+ */
+const LEGACY_LINT = `
+[class*="text-cream"], [class*="text-sun"], [class*="grape-"], [class*="font-stamp7"],
+.text-outline, .text-outline-sm, .text-stamp, .text-stamp-flat, .text-stamp-print {
+  outline: 2px dashed #ff1fce !important;
+  outline-offset: 1px;
+}`;
+
+function LegacyLint() {
+  if (new URLSearchParams(window.location.search).get('lint') === '0') return null;
+  return <style>{LEGACY_LINT}</style>;
+}
+
 export function PreviewApp() {
   const [, screen, variant] = window.location.pathname.replace(/\/+$/, '').split('/').slice(1);
   const spec = screen && variant ? REGISTRY[screen]?.[variant] : undefined;
@@ -52,6 +69,7 @@ export function PreviewApp() {
   if (!spec) {
     return (
       <main className="mx-auto max-w-xl px-4 pt-20 pb-10">
+        <LegacyLint />
         <h1 className="mb-4 font-display text-4xl">Previews</h1>
         {Object.entries(REGISTRY).map(([name, reg]) => (
           <section key={name} className="mb-4">
@@ -75,6 +93,7 @@ export function PreviewApp() {
   const chrome = spec.chrome ?? Boolean(view);
   return (
     <>
+      <LegacyLint />
       {spec.render(view)}
       {chrome && (
         <>

@@ -105,7 +105,7 @@ export function TimerRing({
             {label}
           </span>
           {showSec && (
-            <span className="text-hand text-red" style={{ fontSize: size * 0.2, lineHeight: 0.9 }}>
+            <span className="text-hand text-red-ink" style={{ fontSize: size * 0.2, lineHeight: 0.9 }}>
               sec
             </span>
           )}

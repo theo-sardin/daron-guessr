@@ -75,6 +75,8 @@ function renderValue(text: string): ReactNode {
  * Big, black, instantly readable numbers (Archivo Black):
  *   <Stamp label="photo" size="xl">{round}/{total}</Stamp>   → 3/8
  *   <Stamp size="lg">{score}</Stamp>
+ * The number and its label print in the surrounding text color: ink on paper, cream on a dark
+ * panel (bg-ink panels default to cream text); `plate` puts it on its own black chip.
  */
 export function Stamp({ children, variant = 'num', size = 'md', label, plate, className, valueClassName, ariaLabel }: StampProps) {
   const text = flatText(children);
