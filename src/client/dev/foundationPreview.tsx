@@ -21,6 +21,7 @@ import { Polaroid } from '../components/Polaroid';
 import { ReactionBar } from '../components/Reactions';
 import { RoundButton } from '../components/RoundButton';
 import { RubberStamp } from '../components/RubberStamp';
+import { SelfiePrint } from '../components/SelfiePrint';
 import { Spinner } from '../components/Spinner';
 import { Stamp } from '../components/Stamp';
 import { StarBurst } from '../components/StarBurst';
@@ -434,12 +435,37 @@ function Avatars() {
           <PlayerChip key={p.id} player={p} isMe={i === 1} />
         ))}
       </div>
+      <div>
+        <Label>selfie: the profile picture in the disc, the emoji on the rim (opt-in)</Label>
+        <div className="mt-3 flex flex-wrap items-end gap-5">
+          {(['sm', 'md', 'lg', 'xl'] as const).map((s, i) => (
+            <Avatar key={s} player={withSelfie} size={s} selfie tilt={i % 2 ? 3 : -3} />
+          ))}
+          <PlayerChip player={withSelfie} size="md" selfie />
+        </div>
+      </div>
+      <div>
+        <Label>SelfiePrint: a face next to a photo, for comparison</Label>
+        <div className="relative mt-4 flex items-start gap-4">
+          <Polaroid src={MOCK_PHOTOS.mom} caption="Noël 94" tilt={-2} tape className="w-44" />
+          <div className="flex flex-col gap-5 pt-3">
+            <SelfiePrint player={withSelfie} size={92} tilt={5} animate={0.2} />
+            <SelfiePrint player={MOCK_PLAYERS.julie} size={76} tilt={-4} tape="yellow" />
+          </div>
+          <Annotation font="pen" rotate={-6} size={22} className="absolute -bottom-9 left-6 w-32">
+            même nez !
+          </Annotation>
+        </div>
+      </div>
       <Card tone="cream" className="max-w-md">
         <AvatarPicker value={pick} onChange={setPick} color="#3ddc97" />
       </Card>
     </div>
   );
 }
+
+/** A player with a selfie (a fake portrait as the profile picture). */
+const withSelfie = { ...MOCK_PLAYERS.paul, selfieUrl: fakePortrait(21, 'brother') };
 
 function Timers() {
   const [base] = useState(() => serverNow());
@@ -581,13 +607,15 @@ function Themes() {
   const sizes = ['size-24', 'size-16', 'size-12', 'size-10', 'size-7'] as const;
   return (
     <div className="space-y-6">
-      <div className="space-y-2 overflow-x-auto">
+      <div className="space-y-4">
         {THEMES.map((th) => (
-          <div key={th} className="flex items-center gap-3">
-            {sizes.map((sz) => (
-              <ThemeArt key={sz} theme={th} className={sz} />
-            ))}
+          <div key={th}>
             <span className="font-display text-lg">{t(`common.theme.${th}.name`)}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {sizes.map((sz) => (
+                <ThemeArt key={sz} theme={th} className={sz} />
+              ))}
+            </div>
           </div>
         ))}
       </div>

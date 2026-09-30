@@ -1,5 +1,5 @@
 import { motion, type HTMLMotionProps } from 'motion/react';
-import { forwardRef, type ReactNode } from 'react';
+import { forwardRef, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { sfx } from '../lib/sfx';
 import { cn } from '../lib/util';
 import { useTornClip } from './paper/hooks';
@@ -27,10 +27,10 @@ interface SizeSpec {
 }
 
 const SIZES: Record<ButtonSize, SizeSpec> = {
-  sm: { h: 44, text: 15, px: 16, gap: 7, arrow: [26, 15], back: [4, -3, -5, 5] },
-  md: { h: 52, text: 16.5, px: 20, gap: 9, arrow: [30, 17], back: [5, -4, -6, 6] },
-  lg: { h: 60, text: 18.5, px: 24, gap: 10, arrow: [34, 19], back: [6, -5, -7, 7] },
-  xl: { h: 68, text: 21, px: 28, gap: 12, arrow: [40, 22], back: [6, -5, -7, 7] },
+  sm: { h: 44, text: 15, px: 14, gap: 7, arrow: [26, 15], back: [4, -3, -5, 5] },
+  md: { h: 52, text: 16.5, px: 16, gap: 8, arrow: [30, 17], back: [5, -4, -6, 6] },
+  lg: { h: 60, text: 18.5, px: 22, gap: 10, arrow: [34, 19], back: [6, -5, -7, 7] },
+  xl: { h: 68, text: 21, px: 26, gap: 12, arrow: [40, 22], back: [6, -5, -7, 7] },
 };
 
 /** Torn paper strips: surface class, text color, rotation. */
@@ -67,6 +67,38 @@ export function HandArrow({ className, color = 'var(--color-yellow)', width = 40
   );
 }
 
+/**
+ * Keeps a label on one line inside its button: when it overflows (a long translation, a narrow
+ * half-width button), it first condenses (Archivo's width axis), then shrinks a little; an
+ * ellipsis is the last resort.
+ */
+function useFitLabel(baseStretch: number, basePx: number) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let lastWidth = -1;
+    const fit = () => {
+      el.style.fontStretch = '';
+      el.style.fontSize = '';
+      const avail = el.clientWidth;
+      lastWidth = avail;
+      if (el.scrollWidth <= avail + 0.5) return;
+      el.style.fontStretch = `${Math.max(72, Math.floor((baseStretch * avail) / el.scrollWidth - 1))}%`;
+      if (el.scrollWidth > avail + 0.5) el.style.fontSize = `${Math.max(basePx * 0.8, (basePx * avail) / el.scrollWidth - 0.2).toFixed(1)}px`;
+    };
+    fit();
+    void document.fonts?.ready.then(fit);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (Math.abs(el.clientWidth - lastWidth) > 0.5) fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+  return ref;
+}
+
 /** A torn layer that fills its (positioned) parent. */
 function TornLayer({ className, style, edges, amp }: { className: string; style?: React.CSSProperties; edges: string; amp: number }) {
   const [ref, clip] = useTornClip<HTMLSpanElement>({ edges, amp, step: 7 });
@@ -88,6 +120,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const primary = variant === 'primary';
   const showArrow = arrow ?? (primary && (size === 'lg' || size === 'xl') && !icon);
   const faceTilt = primary ? -0.8 : (strip?.tilt ?? 0);
+  const fitRef = useFitLabel(primary ? 118 : 100, s.text);
 
   const face = {
     rest: { x: 0, y: 0 },
@@ -98,7 +131,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   const label = (
     <>
       {loading ? <Spinner className={cn('shrink-0', size === 'sm' ? 'size-4' : 'size-5')} /> : icon}
-      {children !== undefined && children !== null && children !== false && <span className={cn('min-w-0 truncate py-0.5 leading-[1.2]', loading && 'opacity-80')}>{children}</span>}
+      {children !== undefined && children !== null && children !== false && <span ref={fitRef} className={cn('min-w-0 truncate py-0.5 leading-[1.2]', loading && 'opacity-80')}>{children}</span>}
       {showArrow && <HandArrow width={s.arrow[0]} height={s.arrow[1]} color={primary ? 'var(--color-yellow)' : 'currentColor'} className="-mr-1 mt-0.5" />}
     </>
   );

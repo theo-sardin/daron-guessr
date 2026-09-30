@@ -191,7 +191,7 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
         <div className="flex flex-col gap-4">
           {reason === 'replaced' && (
             <Button
-              size="lg"
+              size="md"
               block
               loading={busy}
               onClick={async () => {
@@ -206,7 +206,7 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
           )}
           <Button
             variant={reason === 'replaced' ? 'secondary' : 'primary'}
-            size="lg"
+            size="md"
             block
             onClick={() => {
               api.clearExitReason();
