@@ -13,7 +13,7 @@ export const THEME_TONE: Record<Theme, 'sun' | 'mint' | 'tangerine' | 'lilac' | 
 export const themeColor = (theme: Theme) => `var(--color-${THEME_TONE[theme]})`;
 
 const INK = 'var(--color-ink)';
-const PAPER = '#ffffff';
+const PAPER = '#fffdf6';
 const BLUSH = 'rgb(255 79 163 / 0.45)';
 /** Skin tones of the cast (same family as the print portraits). */
 const SKIN = { dad: '#f2c190', mom: '#d99a6c', kid: '#ffd8b4', girl: '#e8b184' } as const;
@@ -222,7 +222,7 @@ interface PrintSpec {
   bg?: string;
 }
 
-/** An instant print: white frame, thicker bottom margin, subject clipped to the photo. */
+/** An instant print: white frame (no outline, a soft shadow), thicker bottom margin, subject clipped to the photo. */
 function Print({ spec, accent, id, sw }: { spec: PrintSpec; accent: string; id: string; sw: Strokes }) {
   const { x, y, w, h, rotate = 0 } = spec;
   const m = Math.max(2.5, w * 0.1);
@@ -231,8 +231,9 @@ function Print({ spec, accent, id, sw }: { spec: PrintSpec; accent: string; id: 
   const clip = `${id}-clip`;
   return (
     <g transform={`rotate(${rotate} ${x + w / 2} ${y + h / 2})`}>
-      <rect x={x} y={y + sw.frame * 0.85} width={w} height={h} rx={2.5} fill={INK} />
-      <rect x={x} y={y} width={w} height={h} rx={2.5} fill={PAPER} stroke={INK} strokeWidth={sw.frame} />
+      {/* A soft paper shadow, then the white print (a hairline edge keeps it crisp when small). */}
+      <rect x={x + 0.6} y={y + sw.frame * 0.7} width={w} height={h} rx={1} fill="rgb(40 25 10 / 0.22)" />
+      <rect x={x} y={y} width={w} height={h} rx={1} fill={PAPER} stroke="rgb(23 19 15 / 0.3)" strokeWidth={sw.frame * 0.3} />
       <clipPath id={clip}>
         <rect x={x + m} y={y + m} width={pw} height={ph} rx={1} />
       </clipPath>
@@ -327,7 +328,7 @@ function guessWidth(className?: string): number | null {
 }
 
 /**
- * A mini illustration per game theme (flat prints, thick ink outline, the theme accent):
+ * A mini illustration per game theme (little white prints on the page, ink-drawn subjects, the theme accent):
  * <ThemeArt theme="childhood" className="size-16" />. Under 48px it switches to a compact
  * drawing automatically (or force it with `compact`).
  */

@@ -52,6 +52,19 @@ export function addPhoto(room: g.Room, playerId: string, slot: PhotoSlot = 0, no
   return unwrap(g.uploadPhoto(room, playerId, newPhoto(room, slot, kind), now));
 }
 
+let selfieCounter = 0;
+
+/** A selfie with an opaque id (or the given one), PNG bytes by default. */
+export function newSelfie(id?: string, data: Buffer = PNG_BYTES): g.NewSelfie {
+  selfieCounter += 1;
+  return { id: id ?? `selfie${selfieCounter.toString(16).padStart(6, '0')}`, mime: 'image/png', data };
+}
+
+/** Sets a player's selfie (see `newSelfie`). */
+export function addSelfie(room: g.Room, playerId: string, id?: string, now = 0): g.Selfie {
+  return unwrap(g.setSelfie(room, playerId, newSelfie(id), now));
+}
+
 /** `counts[i]` photos for the i-th player. */
 export function addPhotos(room: g.Room, counts: number[]): void {
   counts.forEach((count, i) => {

@@ -45,6 +45,15 @@ export const SURFACE: Record<PaperSurface, string> = {
   'halftone-ink': 'halftone-ink',
 };
 
+/** Text color of each surface (the fibrous edge splits the paper in two layers: the text sits on the outer one). */
+const SURFACE_TEXT: Partial<Record<PaperSurface, string>> = {
+  ink: 'text-[#fff6e0]',
+  red: 'text-white',
+  'halftone-blue': 'text-white',
+  'halftone-red': 'text-white',
+  'halftone-ink': 'text-white',
+};
+
 export interface TornPaperProps {
   children?: ReactNode;
   /** Paper surface (default sheet). */
@@ -106,13 +115,13 @@ export function TornPaper({
     >
       <Tag
         ref={ref as never}
-        className={cn('relative block', !fiberColor && SURFACE[surface], className)}
+        className={cn('relative isolate block', fiberColor ? (SURFACE_TEXT[surface] ?? 'text-ink') : SURFACE[surface], className)}
         style={{ clipPath: clip?.outer, backgroundColor: fiberColor ?? undefined, ...style }}
       >
         {fiberColor && (
-          <span aria-hidden className={cn('pointer-events-none absolute inset-0', SURFACE[surface])} style={{ clipPath: clip?.inner }} />
+          <span aria-hidden className={cn('pointer-events-none absolute inset-0 -z-10', SURFACE[surface])} style={{ clipPath: clip?.inner }} />
         )}
-        {fiberColor ? <span className="relative contents">{children}</span> : children}
+        {children}
       </Tag>
     </Tag>
   );

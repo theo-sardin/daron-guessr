@@ -6,7 +6,7 @@ import express, { type Express, type Request } from 'express';
 import { Server } from 'socket.io';
 import * as parser from 'socket.io-parser';
 import { MAX_PHOTO_BYTES, normalizeRoomCode, type RoomPeek } from '../shared/protocol';
-import { DEFAULT_TIMING, type Rng, type Timing } from './game';
+import { DEFAULT_TIMING, findImage, type Rng, type Timing } from './game';
 import { KeyedRateLimiter, clientIp } from './rateLimit';
 import { RoomRegistry } from './rooms';
 import { DEFAULT_RATE_LIMITS, attachGameServer, type IoServer, type Logger, type RateLimits } from './socket';
@@ -44,9 +44,9 @@ const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 const SOCKET_BUFFER_BYTES = MAX_PHOTO_BYTES + 256 * 1024;
 
 /**
- * Only `photo:upload` carries binary data, as a single attachment. The default decoder
- * accepts 10 per packet and keeps the pieces of an unfinished packet in memory, so one
- * connection could pin 10 x SOCKET_BUFFER_BYTES: allow 1.
+ * Only `photo:upload` and `player:selfie` carry binary data, as a single attachment. The
+ * default decoder accepts 10 per packet and keeps the pieces of an unfinished packet in
+ * memory, so one connection could pin 10 x SOCKET_BUFFER_BYTES: allow 1.
  */
 class SingleAttachmentDecoder extends parser.Decoder {
   constructor() {
@@ -131,9 +131,10 @@ function mountApi(app: Express, registry: RoomRegistry, allowPeek: (req: Request
     res.status(404).json({ ok: false, error: 'NOT_FOUND' });
   });
 
+  // Game photos and selfies (both have random ids).
   app.get('/photos/:code/:photoId', (req, res) => {
     const room = registry.get(req.params.code);
-    const photo = room?.photos.find((ph) => ph.id === req.params.photoId);
+    const photo = room && findImage(room, req.params.photoId);
     if (!photo) {
       res.status(404).type('text/plain').send('Not found');
       return;

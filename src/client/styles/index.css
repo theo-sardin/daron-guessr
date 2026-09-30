@@ -110,6 +110,7 @@
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
   --animate-scribble: scribble 1.5s cubic-bezier(0.55, 0.1, 0.45, 0.9) infinite;
   --animate-jiggle: jiggle 2.6s ease-in-out infinite;
+  --animate-turn: turn 2.4s linear infinite;
 
   @keyframes wiggle {
     0%, 100% { transform: rotate(0deg); }
@@ -136,6 +137,9 @@
     0% { stroke-dashoffset: 1; }
     55% { stroke-dashoffset: 0; }
     100% { stroke-dashoffset: -1; }
+  }
+  @keyframes turn {
+    to { transform: rotate(360deg); }
   }
   /* A sticker that barely moves (draws the eye without distracting). */
   @keyframes jiggle {
@@ -295,9 +299,8 @@
   /* A white card with its own faint grain (a sheet from the pad, not a flat rectangle). */
   .paper-sheet-grain {
     background-color: var(--color-sheet);
-    background-image: linear-gradient(160deg, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 60%), var(--noise);
+    background-image: linear-gradient(160deg, rgb(255 254 250 / 0.94), rgb(253 250 240 / 0.88)), var(--noise);
     background-size: auto, 240px 240px;
-    background-blend-mode: normal, multiply;
     color: var(--color-ink);
   }
   /* Notebook paper: blue lines + red margin. `--line` sets the line pitch, `--margin` the margin. */

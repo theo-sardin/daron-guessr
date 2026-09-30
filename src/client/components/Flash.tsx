@@ -4,7 +4,8 @@ import { sfx } from '../lib/sfx';
 import { cn, prefersReducedMotion } from '../lib/util';
 
 /*
- * The camera flash: the game's "moment" effect (upload done, owner revealed, podium).
+ * The flash: the game's "moment" effect (upload done, owner revealed, podium), a burst of warm
+ * paper white.
  * - flashScreen(): a quick full-screen white burst (needs <ScreenFlash /> mounted once, in App).
  * - <Flash trigger={x} />: the same burst clipped to its positioned parent (a print, a card),
  *   fired every time `trigger` changes.
@@ -30,7 +31,7 @@ export function ScreenFlash() {
     },
     () => burst,
   );
-  return <FlashBurst n={n} className="fixed inset-0 z-[95]" peak={0.75} />;
+  return <FlashBurst n={n} className="fixed inset-0 z-[95]" peak={0.6} />;
 }
 
 function FlashBurst({ n, className, peak }: { n: number; className?: string; peak: number }) {
@@ -39,7 +40,7 @@ function FlashBurst({ n, className, peak }: { n: number; className?: string; pea
       {n > 0 && (
         <motion.div
           key={n}
-          className={cn('pointer-events-none bg-white', className)}
+          className={cn('pointer-events-none bg-[#fffbef]', className)}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, peak, 0] }}
           transition={{ duration: 0.45, times: [0, 0.12, 1], ease: 'easeOut' }}

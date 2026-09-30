@@ -222,6 +222,18 @@ export const api = {
   removePhoto: (slot: PhotoSlot) => call('photo:remove', { slot }),
   setPhotoKind: (slot: PhotoSlot, kind: PhotoKind) => call('photo:setKind', { slot, kind }),
 
+  /**
+   * Sets or replaces the player's selfie (optional profile picture, public, any phase). Pass a
+   * blob already prepared like a photo (`lib/image.ts`: resized, EXIF stripped). Nothing is kept
+   * client side: the URL comes back in the ack and in every view (`PublicPlayer.selfieUrl`).
+   */
+  async uploadSelfie(blob: Blob): Promise<Result<{ selfieUrl: string }>> {
+    const data = await blob.arrayBuffer();
+    return call<{ selfieUrl: string }>('player:selfie', { mime: blob.type || 'image/jpeg', data });
+  },
+
+  removeSelfie: () => call('player:removeSelfie'),
+
   updateSettings: (patch: Partial<Settings>) => call('host:settings', patch),
   kick: (playerId: string) => call('host:kick', { playerId }),
   start: () => call('host:start'),

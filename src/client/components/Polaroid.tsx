@@ -1,41 +1,36 @@
 import { motion, type HTMLMotionProps } from 'motion/react';
 import { useState, type ReactNode } from 'react';
 import { cn } from '../lib/util';
-import { Stamp } from './Stamp';
-import { Viewfinder } from './Viewfinder';
+import { Tape, type TapeTone } from './Tape';
+import { rel } from './paper/cls';
 
 export interface PolaroidProps extends Omit<HTMLMotionProps<'figure'>, 'children'> {
   src: string;
   alt?: string;
-  /** Handwritten caption under the photo (Caveat). */
+  /** Handwritten caption under the photo (blue ballpoint). */
   caption?: ReactNode;
   /** Tilt in degrees. */
   tilt?: number;
-  /** Tailwind classes for the image box aspect/size (default: square). */
+  /** Tailwind classes for the image box aspect/size (default: square, full width). */
   imageClassName?: string;
+  /** Classes of the caption line (e.g. a size). */
+  captionClassName?: string;
   /** Optional overlay rendered on top of the photo (stamps, badges…). */
   overlay?: ReactNode;
   onOpen?: () => void;
-  /** Viewfinder brackets over the photo (true, or a bracket color). Snaps in on mount. */
+  /** Masking tape on the top edge: true (cream) or a tape color (default none). */
+  tape?: boolean | TapeTone;
+  /** A soft vignette on the photo, like an old print (default true). */
+  vintage?: boolean;
+  /** @deprecated No-op (the viewfinder brackets are gone). */
   viewfinder?: boolean | string;
-  /**
-   * Orange date imprint in the photo's bottom-right corner. Give each print its own date:
-   * `dateStamp={fakeDateStamp(photo.id)}` (from Stamp). With `viewfinder` it moves inside the brackets.
-   */
+  /** @deprecated No-op (the camera date imprints are gone). */
   dateStamp?: string;
-  /**
-   * A strip of tape on the top edge (default off). One taped print per screen at most: it is a
-   * garnish, not the frame.
-   */
-  tape?: boolean;
 }
 
-/** Bracket geometry when `viewfinder` is on (px). The date stamp tucks inside it. */
-const VF = { inset: 10, length: 22, thickness: 3.5 };
-
 /**
- * A photo in a white instant-camera frame, handwritten caption underneath. The photo fades in
- * once loaded so slow networks show a pleasant placeholder instead of a broken image.
+ * A photo in a white instant-print frame, pinned with masking tape, a handwritten caption in
+ * blue ballpoint underneath. The photo fades in once loaded (paper-colored placeholder before).
  */
 export function Polaroid({
   src,
@@ -43,29 +38,31 @@ export function Polaroid({
   caption,
   tilt = 0,
   imageClassName,
+  captionClassName,
   overlay,
   onOpen,
-  viewfinder,
-  dateStamp,
   tape = false,
+  vintage = true,
+  viewfinder: _viewfinder,
+  dateStamp: _dateStamp,
   className,
   ...rest
 }: PolaroidProps) {
   const [loaded, setLoaded] = useState(false);
+  const tapeTone: TapeTone | null = tape === true ? 'cream' : tape || null;
   return (
     <motion.figure
       style={{ rotate: tilt }}
-      className={cn('relative m-0 inline-block rounded-md border-3 border-ink bg-white p-2.5 pb-3 text-ink shadow-pop', className)}
+      className={cn(
+        rel(className),
+        'm-0 inline-block bg-[linear-gradient(160deg,#fffefa,#f5f1e6)] p-[9px] pb-2 text-ink shadow-paper',
+        className,
+      )}
       {...rest}
     >
-      {tape && (
-        <span
-          className="absolute -top-3 left-1/2 z-10 h-6 w-20 -translate-x-1/2 rotate-[-3deg] rounded-[3px] bg-sun/80 shadow-sm [mask-image:linear-gradient(90deg,transparent_0,black_4px,black_calc(100%-4px),transparent_100%)]"
-          aria-hidden
-        />
-      )}
+      {tapeTone && <Tape tone={tapeTone} width={84} height={24} rotate={tilt > 0 ? -4 : 3} className="-top-3 left-1/2 -translate-x-1/2" />}
       <div
-        className={cn('relative overflow-hidden rounded-sm bg-grape-200/40', imageClassName ?? 'aspect-square w-full', onOpen && 'cursor-zoom-in')}
+        className={cn('relative overflow-hidden bg-paper-dark', imageClassName ?? 'aspect-square w-full', onOpen && 'cursor-zoom-in')}
         onClick={onOpen}
         role={onOpen ? 'button' : undefined}
         tabIndex={onOpen ? 0 : undefined}
@@ -81,7 +78,7 @@ export function Polaroid({
             : undefined
         }
       >
-        {!loaded && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-grape-200/60 to-pink/20" />}
+        {!loaded && <div className="absolute inset-0 animate-pulse bg-[linear-gradient(135deg,var(--color-paper-dark),var(--color-kraft))] opacity-60" />}
         <img
           src={src}
           alt={alt}
@@ -89,32 +86,20 @@ export function Polaroid({
           onLoad={() => setLoaded(true)}
           className={cn('h-full w-full object-cover transition-opacity duration-300', loaded ? 'opacity-100' : 'opacity-0')}
         />
-        {viewfinder && (
-          <Viewfinder
-            className="pointer-events-none absolute inset-0"
-            color={typeof viewfinder === 'string' ? viewfinder : '#ffffff'}
-            gap={-VF.inset}
-            length={VF.length}
-            thickness={VF.thickness}
-            snap
-            shadow
-          />
-        )}
-        {dateStamp && (
-          <span
-            className="pointer-events-none absolute leading-none"
-            // Inside the frame: clear of the bottom-right bracket (arm + 6px) when there is one.
-            style={viewfinder ? { right: VF.inset + VF.length + 6, bottom: VF.inset + 1 } : { right: 8, bottom: 7 }}
-            aria-hidden
-          >
-            <Stamp size="xs" valueClassName="stamp-on-photo">
-              {dateStamp}
-            </Stamp>
-          </span>
-        )}
+        {/* Print edge + a soft vignette, like an old print. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            boxShadow: 'inset 0 0 0 1px rgb(0 0 0 / 0.1)',
+            background: vintage ? 'radial-gradient(ellipse at 50% 46%, transparent 58%, rgb(42 20 4 / 0.22) 100%)' : undefined,
+          }}
+        />
         {overlay}
       </div>
-      {caption && <figcaption className="text-hand mt-1.5 text-center text-2xl leading-[1.05] text-ink">{caption}</figcaption>}
+      {caption && (
+        <figcaption className={cn('text-pen mt-1.5 -rotate-[1.5deg] text-center text-[1.4rem] leading-[1.02]', captionClassName)}>{caption}</figcaption>
+      )}
     </motion.figure>
   );
 }

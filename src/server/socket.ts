@@ -13,6 +13,7 @@ import {
   PHOTOS_PER_PLAYER_OPTIONS,
   REACTION_EMOJIS,
   THEMES,
+  photoUrl,
   type AckResult,
   type ClientToServerEvents,
   type ErrorCode,
@@ -35,13 +36,18 @@ import {
   playAgain,
   reconnectPlayer,
   removePhoto,
+  removeSelfie,
+  roomImageBytes,
   setPhotoKind,
+  setSelfie,
   skipRound,
   startGame,
   tick,
   updatePlayer,
   updateSettings,
   uploadPhoto,
+  type Failure,
+  type PhotoMime,
   type Player,
   type Result,
   type Rng,
@@ -73,10 +79,10 @@ export interface RateLimits {
   roomPeeksPerMinute: number;
   /** Per client IP: room:join / room:rejoin naming a room that does not exist (code guessing). */
   roomMissesPerMinute: number;
-  /** Per socket: photo uploads (burst, then refill). */
+  /** Per socket: photo and selfie uploads together (burst, then refill). */
   uploadBurst: number;
   uploadsPerSecond: number;
-  /** Per client IP: uploaded bytes (burst), refilled over 30 minutes. */
+  /** Per client IP: uploaded bytes, photos and selfies (burst), refilled over 30 minutes. */
   uploadBytesPerIp: number;
   /** Per client IP: concurrent connections. */
   connectionsPerIp: number;
@@ -100,13 +106,13 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
   connectionsPerIp: 100,
 };
 
-/** Every photo of every room is kept in memory: refuse uploads past this (all rooms together). */
+/** Every photo and selfie of every room is kept in memory: refuse uploads past this (all rooms together). */
 export const DEFAULT_MAX_TOTAL_PHOTO_BYTES = 256 * MIB;
 /**
- * Per room: 1 MiB per slot on average (12 players x 3 slots; photos in inactive slots count
- * too). Real clients send JPEGs of at most 1080 px, usually 100-400 KB.
+ * Per room: 1 MiB per image on average (12 players x (3 slots + 1 selfie); photos in inactive
+ * slots count too). Real clients send JPEGs of at most 1080 px, usually 100-400 KB.
  */
-export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 36 * MIB;
+export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 48 * MIB;
 const UPLOAD_BYTES_REFILL_SECONDS = 30 * 60;
 /** setTimeout overflows past ~24.8 days; waking up early is harmless (tick is a no-op). */
 const MAX_TIMER_DELAY_MS = 60 * 60_000;
@@ -355,6 +361,7 @@ const schemas = {
   rejoin: z.object({ code: text(32), token: text(200), takeover: z.boolean() }),
   update: z.object({ name: text(200).optional(), avatar: text(32).optional() }),
   upload: z.object({ slot, kind, mime: text(100), data: binary }),
+  selfie: z.object({ mime: text(100), data: binary }),
   remove: z.object({ slot }),
   setKind: z.object({ slot, kind }),
   settings: z.object({
@@ -396,7 +403,7 @@ type Reply = AckResult<object>;
 type AckFn = (res: Reply) => void;
 
 const OK: Reply = { ok: true };
-const failure = (error: ErrorCode): Reply => ({ ok: false, error });
+const failure = (error: ErrorCode): Failure => ({ ok: false, error });
 
 function registerHandlers(socket: IoSocket, deps: Deps): void {
   const { hub, registry, now, logger, limits } = deps;
@@ -469,6 +476,26 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
 
   const session = (room: Room, player: Player): Session => ({ code: room.code, playerId: player.id, token: player.token });
 
+  /**
+   * Checks shared by photo and selfie uploads, cheapest first: per-socket upload rate, size,
+   * image header (never the declared mime alone), room and server byte quotas (`replacedBytes`:
+   * what the upload frees, e.g. the photo in the same slot, so a replacement that does not grow
+   * memory is never refused by a quota) and the IP byte budget. Only the upload token is spent
+   * here; the caller takes the bytes from the IP budget once stored.
+   */
+  const acceptImage = (room: Room, p: { mime: string; data: ArrayBuffer | Uint8Array }, replacedBytes: number): Result<PhotoMime> => {
+    if (!uploads.take(now())) return failure('RATE_LIMITED');
+    const size = p.data.byteLength;
+    if (size > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');
+    const info = inspectImage(p.data instanceof ArrayBuffer ? new Uint8Array(p.data) : p.data);
+    if (!info || info.mime !== normalizeMime(p.mime)) return failure('INVALID_PHOTO');
+    const growth = size - replacedBytes;
+    if (roomImageBytes(room) + growth > deps.maxRoomPhotoBytes) return failure('PHOTO_TOO_LARGE');
+    if (registry.photoBytes() + growth > deps.maxTotalPhotoBytes) return failure('SERVER_BUSY');
+    if (!deps.uploadBytesLimiter.has(ip, now(), size)) return failure('RATE_LIMITED');
+    return { ok: true, value: info.mime };
+  };
+
   bind('room:create', schemas.create, (p, dirty) => {
     if (!deps.createLimiter.take(ip, now())) return failure('RATE_LIMITED');
     const created = registry.create({ name: p.name, avatar: p.avatar }, now(), p.settings);
@@ -524,23 +551,36 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
     seated((room, player) => {
       // Stale lobby (e.g. the host just changed the theme): refuse before any work.
       if (room.phase === 'lobby' && !canPlacePhoto(room, p.slot, p.kind)) return failure('BAD_REQUEST');
-      if (!uploads.take(now())) return failure('RATE_LIMITED');
-      const size = p.data.byteLength;
-      if (size > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');
-      const info = inspectImage(p.data instanceof ArrayBuffer ? new Uint8Array(p.data) : p.data);
-      if (!info || info.mime !== normalizeMime(p.mime)) return failure('INVALID_PHOTO');
-      // Room quota; the photo this one replaces (same slot) is freed.
-      const kept = room.photos.filter((ph) => !(ph.ownerId === player.id && ph.slot === p.slot));
-      if (kept.reduce((sum, ph) => sum + ph.data.byteLength, 0) + size > deps.maxRoomPhotoBytes) return failure('PHOTO_TOO_LARGE');
-      if (registry.photoBytes() + size > deps.maxTotalPhotoBytes) return failure('SERVER_BUSY');
-      if (!deps.uploadBytesLimiter.has(ip, now(), size)) return failure('RATE_LIMITED');
+      // The photo this one replaces (same slot) is freed.
+      const replaced = room.photos.find((ph) => ph.ownerId === player.id && ph.slot === p.slot);
+      const accepted = acceptImage(room, p, replaced?.data.byteLength ?? 0);
+      if (!accepted.ok) return accepted;
       const data = toBuffer(p.data);
-      const uploaded = uploadPhoto(room, player.id, { id: newPhotoId(), slot: p.slot, kind: p.kind, mime: info.mime, data }, now());
+      const uploaded = uploadPhoto(room, player.id, { id: newPhotoId(), slot: p.slot, kind: p.kind, mime: accepted.value, data }, now());
       if (!uploaded.ok) return uploaded;
-      deps.uploadBytesLimiter.take(ip, now(), size);
+      deps.uploadBytesLimiter.take(ip, now(), data.byteLength);
       dirty.add(room);
       return { ok: true, photo: toMyPhoto(room.code, uploaded.value) };
     }),
+  );
+
+  // Selfies: any phase, the caller's own only. A fresh random id on every upload (never a
+  // game photo id), so a replaced selfie's URL stops working.
+  bind('player:selfie', schemas.selfie, (p, dirty) =>
+    seated((room, player) => {
+      const accepted = acceptImage(room, p, player.selfie?.data.byteLength ?? 0);
+      if (!accepted.ok) return accepted;
+      const data = toBuffer(p.data);
+      const stored = setSelfie(room, player.id, { id: newPhotoId(), mime: accepted.value, data }, now());
+      if (!stored.ok) return stored;
+      deps.uploadBytesLimiter.take(ip, now(), data.byteLength);
+      dirty.add(room);
+      return { ok: true, selfieUrl: photoUrl(room.code, stored.value.id) };
+    }),
+  );
+
+  bind('player:removeSelfie', schemas.none, (_p, dirty) =>
+    seated((room, player) => applied(removeSelfie(room, player.id), room, dirty)),
   );
 
   bind('photo:remove', schemas.remove, (p, dirty) =>

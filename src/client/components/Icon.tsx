@@ -2,14 +2,14 @@ import { useLayoutEffect, useRef, type CSSProperties, type ReactNode, type SVGPr
 import { cn } from '../lib/util';
 
 /**
- * The game's own icon set: 24x24, currentColor, rounded strokes and a few solid details,
- * drawn to match the chunky ink-outline stickers. Shapes marked with `B` (body) take the
- * optional `fill` color, so an icon can be two-tone (e.g. an ink crown filled with sun
- * yellow): <Icon name="crown" fill="var(--color-sun)" />. In tiles, badges and chips prefer
- * <IconBadge> (ink + one accent, like a sticker).
+ * The game's own icon set, drawn like ink on paper: 24x24, currentColor, rounded felt-pen
+ * strokes and a few solid details. Shapes marked with `B` (body) take the optional `fill`
+ * color, so an icon can be two-tone (e.g. an ink crown filled with highlighter yellow):
+ * <Icon name="crown" fill="var(--color-yellow)" />. In tiles, badges and chips prefer
+ * <IconBadge> (an ink icon on a scrap of colored paper).
  *
  * Stroke weight follows the rendered size (see `weight`), so a 16px icon in a chip and a
- * 44px icon in a tile both sit right next to the 2-3px ink borders around them.
+ * 44px icon in a tile both look drawn with the same felt pen.
  */
 
 const B = 'var(--icon-fill, none)';
@@ -339,6 +339,26 @@ const ICONS = {
       {dot(12, 19.4, 1.5)}
     </>
   ),
+  scissors: (
+    <>
+      <circle cx="6.4" cy="17.4" r="2.9" fill={B} />
+      <circle cx="6.4" cy="6.6" r="2.9" fill={B} />
+      <path d="M8.9 8.1 20.2 17.6M8.9 15.9 20.2 6.4" />
+    </>
+  ),
+  pin: (
+    <>
+      <path d="M9.2 3.6h5.6M10.2 3.8v5.1L7 12.6h10l-3.2-3.7V3.8" fill={B} />
+      <path d="M12 12.8v7.6" />
+    </>
+  ),
+  stamp: (
+    <>
+      <path d="M9.6 12.6V9.4a2.4 2.4 0 1 1 4.8 0v3.2" />
+      <path d="M4.4 15.4a2.8 2.8 0 0 1 2.8-2.8h9.6a2.8 2.8 0 0 1 2.8 2.8v1.8H4.4z" fill={B} />
+      <path d="M5.4 20.4h13.2" />
+    </>
+  ),
   phone: (
     <>
       <rect x="6" y="2.8" width="12" height="18.4" rx="2.8" fill={B} />
@@ -356,11 +376,11 @@ export type IconWeight = 'light' | 'regular' | 'bold';
 const WEIGHT: Record<IconWeight, number> = { light: 0.8, regular: 1, bold: 1.2 };
 
 /**
- * Rendered stroke (px) for an icon rendered at `size` px: 1.75px up to 16px, 2px at 24px,
- * 3px from 40px (= border-3), then it grows with the icon. Returned in viewBox units.
+ * Rendered stroke (px) for an icon rendered at `size` px: 1.9px up to 16px, 2.2px at 24px,
+ * 3.1px from 40px, then it grows with the icon. Returned in viewBox units.
  */
 export function iconStroke(size: number, weight: IconWeight = 'regular'): number {
-  const px = size <= 16 ? 1.75 : size <= 24 ? 1.75 + ((size - 16) / 8) * 0.25 : size < 40 ? 2 + (size - 24) / 16 : 3;
+  const px = size <= 16 ? 1.9 : size <= 24 ? 1.9 + ((size - 16) / 8) * 0.3 : size < 40 ? 2.2 + ((size - 24) / 16) * 0.9 : 3.1;
   const units = Math.min(3, Math.max(1.6, (px * 24) / Math.max(1, size)));
   return +(units * WEIGHT[weight]).toFixed(2);
 }

@@ -1,8 +1,11 @@
 import confetti from 'canvas-confetti';
-import { PLAYER_COLORS } from '../../shared/protocol';
 
 const BASE = { disableForReducedMotion: true, zIndex: 60 } as const;
-const PARTY = [...PLAYER_COLORS];
+/** Paper confetti: the zine's inks and papers (marker red, Bic blue, highlighter yellow, pink, mint, ink). */
+export const PAPER_COLORS = ['#e3321f', '#2344c8', '#ffdf3d', '#f6a6c1', '#9ed9c0', '#17130f', '#fffdf6'];
+const PARTY = PAPER_COLORS;
+/** Punched dots and cut squares, like the mockup's paper confetti. */
+const SHAPES: confetti.Shape[] = ['square', 'circle'];
 
 /** One big burst from a point (defaults to the middle of the screen). */
 export function burst(opts: { colors?: string[]; x?: number; y?: number; particleCount?: number } = {}) {
@@ -13,6 +16,7 @@ export function burst(opts: { colors?: string[]; x?: number; y?: number; particl
     startVelocity: 45,
     origin: { x: opts.x ?? 0.5, y: opts.y ?? 0.45 },
     colors: opts.colors ?? PARTY,
+    shapes: SHAPES,
     scalar: 1.1,
   });
 }
@@ -21,8 +25,8 @@ export function burst(opts: { colors?: string[]; x?: number; y?: number; particl
 export function sideCannons(durationMs = 1800, colors: string[] = PARTY) {
   const end = Date.now() + durationMs;
   const frame = () => {
-    void confetti({ ...BASE, particleCount: 4, angle: 60, spread: 55, origin: { x: 0, y: 0.85 }, colors, startVelocity: 60 });
-    void confetti({ ...BASE, particleCount: 4, angle: 120, spread: 55, origin: { x: 1, y: 0.85 }, colors, startVelocity: 60 });
+    void confetti({ ...BASE, particleCount: 4, angle: 60, spread: 55, origin: { x: 0, y: 0.85 }, colors, shapes: SHAPES, startVelocity: 60 });
+    void confetti({ ...BASE, particleCount: 4, angle: 120, spread: 55, origin: { x: 1, y: 0.85 }, colors, shapes: SHAPES, startVelocity: 60 });
     if (Date.now() < end) requestAnimationFrame(frame);
   };
   frame();
@@ -44,6 +48,7 @@ export function fireworks(durationMs = 3000, colors: string[] = PARTY) {
       ticks: 70,
       origin: { x: 0.15 + Math.random() * 0.7, y: 0.15 + Math.random() * 0.35 },
       colors,
+      shapes: SHAPES,
     });
   }, 280);
 }

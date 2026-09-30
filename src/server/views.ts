@@ -7,6 +7,7 @@
  * - no other player's photos in the lobby;
  * - during voting, only the viewer's own vote (others are just "has voted", decoys included);
  * - `voters` is null when votes are anonymous.
+ * Selfies (profile pictures) are public: every viewer gets every player's `selfieUrl`.
  */
 import {
   MAX_PLAYERS,
@@ -75,8 +76,11 @@ function publicPlayers(room: Room): PublicPlayer[] {
     color: p.color,
     connected: p.connected,
     isHost: p.id === room.hostId,
+    // Game photos only: a selfie never makes a player ready.
     ready: hasActivePhotos(room, p.id),
     score: scores.get(p.id) ?? 0,
+    // Optional field: left out entirely (not undefined) when there is no selfie.
+    ...(p.selfie ? { selfieUrl: photoUrl(room.code, p.selfie.id) } : {}),
   }));
 }
 

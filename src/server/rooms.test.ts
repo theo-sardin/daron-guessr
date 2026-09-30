@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type RoomSetup } from '../shared/protocol';
 import * as g from './game';
 import { ROOM_IDLE_MS, ROOM_MAX_AGE_MS, RoomRegistry } from './rooms';
-import { unwrap } from './testUtils';
+import { PNG_BYTES, addPhoto, addSelfie, newSelfie, unwrap } from './testUtils';
 
 const host = (name: string) => ({ name, avatar: '🐸' });
 
@@ -59,5 +59,24 @@ describe('RoomRegistry.create', () => {
       expect(registry.create(host('Host'), 0, setup)).toEqual({ ok: false, error: 'BAD_REQUEST' });
     }
     expect(registry.size).toBe(0);
+  });
+});
+
+describe('RoomRegistry.photoBytes', () => {
+  it('counts the game photos and selfies of every room, and forgets deleted rooms', () => {
+    const registry = new RoomRegistry();
+    const one = unwrap(registry.create(host('One'), 0));
+    const two = unwrap(registry.create(host('Two'), 0));
+    addPhoto(one.room, one.player.id);
+    unwrap(g.setSelfie(one.room, one.player.id, newSelfie('big', Buffer.alloc(100, 1)), 0));
+    addSelfie(two.room, two.player.id);
+    expect(registry.photoBytes()).toBe(2 * PNG_BYTES.byteLength + 100);
+
+    // A room deleted by the sweep (idle, its player still seated) or explicitly takes its images along.
+    g.disconnectPlayer(two.room, two.player.id, 1);
+    expect(registry.sweep(1 + ROOM_IDLE_MS)).toEqual([two.room]);
+    expect(registry.photoBytes()).toBe(PNG_BYTES.byteLength + 100);
+    expect(registry.delete(one.room.code)).toBe(true);
+    expect(registry.photoBytes()).toBe(0);
   });
 });

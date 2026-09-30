@@ -32,7 +32,7 @@ export function useSeed(seed?: number | string): number {
  * Torn clip paths for the element behind `ref`, recomputed when it resizes.
  * Before the first measure (and in environments without layout) the paper stays a rectangle.
  */
-export function useTornClip<T extends HTMLElement>(opts: TornOptions & { seed?: number | string }) {
+export function useTornClip<T extends HTMLElement>(opts: Omit<TornOptions, 'seed'> & { seed?: number | string }) {
   const seed = useSeed(opts.seed);
   const [ref, size] = useElementSize<T>();
   const clip = useMemo(

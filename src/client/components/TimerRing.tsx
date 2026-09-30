@@ -12,10 +12,16 @@ const ARIA: Record<Lang, (s: number | null) => string> = {
 };
 
 /**
- * Circular countdown driven by server timestamps, drawn like a lens: a cream barrel with the
- * progress arc, and a dark glass in the middle showing the seconds as an orange date stamp.
- * With `endsAt === null` (no timer) it shows "--". Ticks audibly during the last 5 seconds
- * when `ticking`.
+ * A red marker circle drawn by hand (a bit more than a turn), on a pale pencil track. It is
+ * drawn in a 86x86 box and scaled, so the stroke keeps the same weight relative to the size.
+ */
+const LOOP = 'M43 6.5C63 6 80 22 79.5 43 79 64 62 80 42 79.5 22 79 6.5 63 7 43 7.3 26 21 7.4 41 6.6';
+
+/**
+ * Countdown driven by server timestamps: a red marker loop that un-draws as time runs out, the
+ * seconds as a big black number and "sec" in red ballpoint. Under 5 seconds the number turns
+ * red, the ring shakes and little alarm strokes pop out. With `endsAt === null` (no timer) it
+ * shows ∞. Ticks audibly during the last 5 seconds when `ticking`.
  */
 export function TimerRing({
   startsAt,
@@ -47,49 +53,64 @@ export function TimerRing({
     }
   }, [seconds, urgent, ticking]);
 
-  const stroke = size >= 56 ? 6 : 5;
-  const r = (size - 6) / 2 - stroke / 2 - 1;
-  const c = 2 * Math.PI * r;
-  const color = endsAt === null ? 'var(--color-sky)' : fraction > 0.5 ? 'var(--color-mint)' : fraction > 0.25 ? 'var(--color-sun)' : 'var(--color-danger)';
-  const glass = size - 6 - stroke * 2 - 6;
-  const label = endsAt === null ? '--' : String(seconds);
-  const digits = Math.max(2, label.length);
+  const label = String(seconds);
+  const digits = label.length;
+  // Number size: ~46% of the ring for 1-2 digits, smaller for 3.
+  const numSize = size * (digits >= 3 ? 0.34 : 0.47);
+  const showSec = size >= 56;
 
   return (
-    <motion.div
-      className={cn('relative inline-flex shrink-0 items-center justify-center rounded-full border-3 border-ink bg-cream shadow-pop-sm', urgent && 'animate-shake', className)}
+    <div
+      className={cn('relative inline-flex shrink-0 items-center justify-center', urgent && 'animate-shake', className)}
       style={{ width: size, height: size }}
       role="timer"
       // Only changes on whole seconds (the ring itself re-renders every 100ms).
       aria-label={ARIA[lang](endsAt === null ? null : seconds)}
     >
-      <svg width={size - 6} height={size - 6} className="absolute inset-0 -rotate-90">
-        <circle cx={(size - 6) / 2} cy={(size - 6) / 2} r={r} fill="none" stroke="rgb(27 16 54 / 0.1)" strokeWidth={stroke} />
-        <circle
-          cx={(size - 6) / 2}
-          cy={(size - 6) / 2}
-          r={r}
+      <svg viewBox="0 0 86 86" className="absolute inset-0 size-full overflow-visible" aria-hidden>
+        <circle cx="43" cy="43" r="36" fill="none" stroke="rgb(23 19 15 / 0.13)" strokeWidth="7" />
+        <path
+          d={LOOP}
+          pathLength={1}
           fill="none"
-          stroke={color}
-          strokeWidth={stroke}
+          stroke="var(--color-red)"
+          strokeWidth="7.5"
           strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - fraction)}
-          style={{ transition: 'stroke-dashoffset 0.12s linear, stroke 0.3s' }}
+          strokeDasharray="1 1"
+          strokeDashoffset={1 - fraction}
+          style={{ transition: 'stroke-dashoffset 0.12s linear', mixBlendMode: 'multiply' }}
         />
+        {urgent && (
+          <motion.path
+            d="M50 1.5l2-6M60 4l4-5M68 9l5-3"
+            stroke="var(--color-red)"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.25 }}
+          />
+        )}
       </svg>
-      <span
-        className="relative flex items-center justify-center rounded-full border-2 border-ink bg-ink shadow-[inset_0_-6px_12px_-4px_rgb(255_122_26_/_0.35),inset_0_3px_6px_rgb(255_255_255_/_0.08)]"
-        style={{ width: glass, height: glass }}
-      >
-        <span
-          className={cn('text-stamp font-stamp7 leading-none', urgent && 'animate-pulse-soft')}
-          style={{ fontSize: Math.round((glass * 0.78) / (digits * 0.86)) }}
-          aria-hidden
-        >
-          {label}
+      {endsAt === null ? (
+        <svg viewBox="0 0 40 20" className="relative w-[46%]" aria-hidden>
+          <path d="M20 10C16 3 6 3 6 10s10 7 14 0 14-7 14 0-10 7-14 0" fill="none" stroke="var(--color-ink)" strokeWidth="4" strokeLinecap="round" />
+        </svg>
+      ) : (
+        <span className="relative flex flex-col items-center leading-[0.8]" aria-hidden>
+          <span
+            className={cn('font-display tabular-nums', urgent ? 'text-red' : 'text-ink')}
+            style={{ fontSize: numSize, fontWeight: 900, fontStretch: '112%', letterSpacing: '-0.03em', marginTop: showSec ? size * 0.06 : 0 }}
+          >
+            {label}
+          </span>
+          {showSec && (
+            <span className="text-hand text-red" style={{ fontSize: size * 0.2, lineHeight: 0.9 }}>
+              sec
+            </span>
+          )}
         </span>
-      </span>
-    </motion.div>
+      )}
+    </div>
   );
 }

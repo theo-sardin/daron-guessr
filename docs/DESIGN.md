@@ -25,7 +25,7 @@ and awards.
    change the game mode and photos per player picked when creating the room) and starts
    once at least `MIN_PHOTO_OWNERS` (3) players have at least one photo in an active slot.
    Players without photos can still play: they just guess. The host can kick players in
-   the lobby.
+   the lobby. Anyone can also add an optional **selfie** (see *Selfies*), at any time.
 3. **Voting** — the server shuffles every photo in an active slot (avoiding two photos of
    the same owner back to back when possible). One photo at a time, everyone votes for whose
    photo it is; the question follows the photo's kind ("Whose daronne is this?", "Whose
@@ -91,6 +91,29 @@ the default number of photos (`THEME_DEFAULT_PHOTOS`):
   rejected as a whole.
 - Settings survive `host:playAgain`; photos do not.
 
+### Selfies (profile pictures)
+
+Each player may add one optional selfie, "for comparison": the UI shows it next to the photos
+(on the vote buttons while voting — "he has his dad's nose!" — and side by side with the photo
+at the reveal). Unlike game photos, selfies are **public**: every viewer gets every player's
+`PublicPlayer.selfieUrl`, in every phase (absent when the player has none).
+
+- `player:selfie` `{ mime, data }` sets or replaces the caller's selfie, in any phase (people
+  may add one late); `player:removeSelfie` deletes it (ok when there is none). Only for the
+  calling player.
+- Stored like photos: in memory, checked by header (`image.ts`), at most `MAX_PHOTO_BYTES`,
+  counted in the per-room and server-wide photo byte caps and in the upload rate limits (per
+  socket and bytes per IP, shared with `photo:upload`). Its id is random and unrelated to game
+  photo ids; it is served by `/photos/:code/:id` like a photo. Replacing it gives a new URL
+  and deletes the old image.
+- A selfie is never a game photo: it lives on the player, not in the room's photos, so it is
+  never played and never counts for readiness, candidates or `MIN_PHOTO_OWNERS`.
+- It goes away with the player (lobby leave, kick, lobby disconnect timeout) and with the room.
+  It is **kept** by `host:playAgain`: it is a profile picture, not a game photo. A `room:leave`
+  during a game only disconnects the player (their seat and photos stay for the game), but the
+  selfie is deleted right away: leaving on purpose means "take my face away". A player who
+  merely disconnects keeps it until dropped from the next lobby or until the room goes away.
+
 ### Scoring
 
 `POINTS_PER_CORRECT` (100) per correct guess. Decoy votes score nothing.
@@ -124,13 +147,15 @@ Single Node process, no database: rooms live in memory.
   - `socket.ts`: event handlers, payload validation (zod), acks, rate limits, timers,
     broadcasting per-player views. Abuse limits (everything lives in memory): per socket
     (events, reactions, uploads), per client IP (connections, room creation, room-code
-    lookups, uploaded bytes) and per room / server-wide photo byte caps (36 MiB per room:
-    1 MiB per slot on average for 12 players x 3 slots, while the client's JPEGs are
-    usually 100-400 KB).
-  - `image.ts`: uploads are checked by their header (PNG / JPEG / WebP), not by the declared
-    mime; dimensions above 4096 px per side are refused.
-  - `index.ts`: HTTP server, `/photos/:code/:photoId`, `/api/health`, static client in
-    production with SPA fallback.
+    lookups, uploaded bytes) and per room / server-wide photo byte caps (48 MiB per room:
+    1 MiB per image on average for 12 players x (3 slots + 1 selfie), while the client's JPEGs are
+    usually 100-400 KB). Selfies count in the upload limits and byte caps like photos. A
+    replacement (photo in the same slot, new selfie) is checked by how much it grows memory,
+    so one that is not bigger is never refused by a byte cap.
+  - `image.ts`: uploads (photos and selfies) are checked by their header (PNG / JPEG / WebP),
+    not by the declared mime; dimensions above 4096 px per side are refused.
+  - `index.ts`: HTTP server, `/photos/:code/:photoId` (game photos and selfies), `/api/health`,
+    static client in production with SPA fallback.
 - `src/client/` — React 19 + Vite + Tailwind v4 + Motion (`motion/react`) +
   canvas-confetti. Mobile first.
   - Photos are resized / re-encoded in the browser (max 1080px, JPEG), which also strips
@@ -151,3 +176,6 @@ Single Node process, no database: rooms live in memory.
   (`PublicPlayer.score`) stay at 0 until the results.
 - Photo ids are random and unrelated to owners; photo URLs are only handed out once
   the photo is shown.
+- Selfies are the exception, on purpose: they are profile pictures, public to the whole room
+  in every phase. Their ids are random and unrelated to game photo ids, and a selfie is never
+  played, so they give no game photo away.

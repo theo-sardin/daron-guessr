@@ -84,6 +84,20 @@ export interface Player {
   connected: boolean;
   joinedAt: number;
   disconnectedAt: number | null;
+  /**
+   * Optional profile picture, public to the whole room. Never a game photo: it lives here, not
+   * in `Room.photos`, so it is neither played nor counted for readiness. It goes away with the
+   * player (lobby leave / kick / drop) and survives `playAgain`.
+   */
+  selfie: Selfie | null;
+}
+
+export interface Selfie {
+  /** Random, unrelated to the owner and to game photo ids; served like a photo. */
+  id: string;
+  mime: PhotoMime;
+  data: Buffer;
+  uploadedAt: number;
 }
 
 export interface Photo {
@@ -157,6 +171,12 @@ export interface NewPhoto {
   data: Buffer;
 }
 
+export interface NewSelfie {
+  id: string;
+  mime: PhotoMime;
+  data: Buffer;
+}
+
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
 const DONE: Result = { ok: true, value: undefined };
 const fail = (error: ErrorCode): Failure => ({ ok: false, error });
@@ -195,6 +215,19 @@ export function activePhotos(room: Room, playerId: string): Photo[] {
 /** Lobby readiness: at least one photo in an active slot. */
 export function hasActivePhotos(room: Room, playerId: string): boolean {
   return room.photos.some((ph) => ph.ownerId === playerId && isActiveSlot(room, ph.slot));
+}
+
+/** A game photo or a selfie of the room, by id (what `/photos/:code/:id` serves). */
+export function findImage(room: Room, id: string): Photo | Selfie | undefined {
+  return room.photos.find((ph) => ph.id === id) ?? room.players.find((p) => p.selfie?.id === id)?.selfie ?? undefined;
+}
+
+/** Bytes held in memory by a room: game photos (every slot) and selfies. */
+export function roomImageBytes(room: Room): number {
+  let total = 0;
+  for (const ph of room.photos) total += ph.data.byteLength;
+  for (const p of room.players) total += p.selfie?.data.byteLength ?? 0;
+  return total;
 }
 
 export function isRoomEmpty(room: Room): boolean {
@@ -270,6 +303,7 @@ function addPlayer(room: Room, input: NewPlayer, name: string, now: number): Pla
     connected: true,
     joinedAt: now,
     disconnectedAt: null,
+    selfie: null,
   };
   room.players.push(player);
   return player;
@@ -354,7 +388,7 @@ export function disconnectPlayer(room: Room, playerId: string, now: number): boo
   return true;
 }
 
-/** Lobby: removes the player and their photos. In game: disconnects them. Hands the crown over at once. */
+/** Lobby: removes the player, their photos and selfie. In game: disconnects them. Hands the crown over at once. */
 export function leaveRoom(room: Room, playerId: string, now: number): Result {
   const player = member(room, playerId);
   if (!player.ok) return player;
@@ -363,6 +397,8 @@ export function leaveRoom(room: Room, playerId: string, now: number): Result {
     return DONE;
   }
   disconnectPlayer(room, playerId, now);
+  // Leaving on purpose takes the selfie away now; the seat itself stays for the game's integrity.
+  player.value.selfie = null;
   if (room.hostId === playerId) transferHost(room, playerId, now);
   return DONE;
 }
@@ -386,6 +422,7 @@ export function updatePlayer(room: Room, playerId: string, patch: { name?: strin
   return DONE;
 }
 
+/** The player's selfie goes with them (it lives on the Player). */
 function removePlayer(room: Room, playerId: string, now: number): void {
   room.players = room.players.filter((p) => p.id !== playerId);
   room.photos = room.photos.filter((ph) => ph.ownerId !== playerId);
@@ -403,6 +440,36 @@ function transferHost(room: Room, fromId: string, now: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Selfies (profile pictures, any phase)
+// ---------------------------------------------------------------------------
+
+/** Refuses a declared mime / size that cannot be an accepted image (the socket layer also sniffs the header). */
+function checkImageData(mime: string, data: Buffer): Failure | null {
+  if (!(ACCEPTED_PHOTO_MIME as readonly string[]).includes(mime) || data.byteLength === 0) return fail('INVALID_PHOTO');
+  if (data.byteLength > MAX_PHOTO_BYTES) return fail('PHOTO_TOO_LARGE');
+  return null;
+}
+
+/** Any phase: sets or replaces the player's selfie (the old one is dropped). */
+export function setSelfie(room: Room, playerId: string, input: NewSelfie, now: number): Result<Selfie> {
+  const player = member(room, playerId);
+  if (!player.ok) return player;
+  const invalid = checkImageData(input.mime, input.data);
+  if (invalid) return invalid;
+  const selfie: Selfie = { id: input.id, mime: input.mime, data: input.data, uploadedAt: now };
+  player.value.selfie = selfie;
+  return ok(selfie);
+}
+
+/** Any phase: deletes the player's selfie; a no-op when there is none. */
+export function removeSelfie(room: Room, playerId: string): Result {
+  const player = member(room, playerId);
+  if (!player.ok) return player;
+  player.value.selfie = null;
+  return DONE;
+}
+
+// ---------------------------------------------------------------------------
 // Lobby: photos and settings
 // ---------------------------------------------------------------------------
 
@@ -410,10 +477,8 @@ export function uploadPhoto(room: Room, playerId: string, input: NewPhoto, now: 
   const player = member(room, playerId, 'lobby');
   if (!player.ok) return player;
   if (!canPlacePhoto(room, input.slot, input.kind)) return fail('BAD_REQUEST');
-  if (!(ACCEPTED_PHOTO_MIME as readonly string[]).includes(input.mime) || input.data.byteLength === 0) {
-    return fail('INVALID_PHOTO');
-  }
-  if (input.data.byteLength > MAX_PHOTO_BYTES) return fail('PHOTO_TOO_LARGE');
+  const invalid = checkImageData(input.mime, input.data);
+  if (invalid) return invalid;
   room.photos = room.photos.filter((ph) => !(ph.ownerId === playerId && ph.slot === input.slot));
   const photo: Photo = { ...input, ownerId: playerId, uploadedAt: now };
   room.photos.push(photo);
@@ -625,9 +690,9 @@ export function nextReveal(room: Room, playerId: string, index: number, now: num
 
 /**
  * Host, results: back to the lobby with the same players and settings (theme and photos per
- * player included); every photo is deleted. Players who are disconnected get a fresh lobby
- * grace period (`lobbyDropMs` from now) instead of being dropped at once for having been
- * away during the game.
+ * player included); every game photo is deleted, selfies are kept (profile pictures). Players
+ * who are disconnected get a fresh lobby grace period (`lobbyDropMs` from now) instead of
+ * being dropped at once for having been away during the game.
  */
 export function playAgain(room: Room, playerId: string, now: number): Result {
   const auth = host(room, playerId, 'results');

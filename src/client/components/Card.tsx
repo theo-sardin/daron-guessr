@@ -2,28 +2,41 @@ import { motion, type HTMLMotionProps } from 'motion/react';
 import type { ReactNode } from 'react';
 import { cn } from '../lib/util';
 
+export type CardTone = 'cream' | 'white' | 'pink' | 'sun' | 'mint' | 'sky' | 'lilac' | 'glass' | 'notebook' | 'kraft' | 'postit' | 'grid' | 'ink';
+
 export interface CardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
   children?: ReactNode;
-  /** Visual tone of the card surface. */
-  tone?: 'cream' | 'white' | 'pink' | 'sun' | 'mint' | 'sky' | 'lilac' | 'glass';
+  /**
+   * The paper: cream / white (a sheet from the pad), notebook, grid, kraft, postit (= sun),
+   * pink, mint, sky, lilac, ink; glass is a translucent sheet (over photos).
+   */
+  tone?: CardTone;
   padded?: boolean;
 }
 
-const TONES: Record<NonNullable<CardProps['tone']>, string> = {
-  cream: 'bg-cream text-ink border-ink shadow-pop',
-  white: 'bg-white text-ink border-ink shadow-pop',
-  pink: 'bg-pink text-white border-ink shadow-pop',
-  sun: 'bg-sun text-ink border-ink shadow-pop',
-  mint: 'bg-mint text-ink border-ink shadow-pop',
-  sky: 'bg-sky text-ink border-ink shadow-pop',
-  lilac: 'bg-lilac text-ink border-ink shadow-pop',
-  glass: 'bg-white/8 text-cream border-white/15 backdrop-blur-md',
+const TONES: Record<CardTone, string> = {
+  cream: 'paper-sheet-grain',
+  white: 'paper-sheet',
+  notebook: 'paper-notebook',
+  grid: 'paper-grid',
+  kraft: 'paper-kraft',
+  postit: 'paper-postit',
+  sun: 'paper-postit',
+  pink: 'paper-pink',
+  mint: 'paper-mint',
+  sky: 'paper-sky',
+  lilac: 'paper-lilac',
+  ink: 'paper-ink',
+  glass: 'bg-sheet/75 text-ink backdrop-blur-md',
 };
 
-/** The "sticker" surface used everywhere: thick outline, hard shadow, big radius. */
+/**
+ * A rectangular sheet of paper lifted off the page (soft warm shadow, no outline). For torn
+ * edges, tape or a tilt use <Paper> / <NotebookCard> / <KraftCard> / <PostIt>.
+ */
 export function Card({ children, tone = 'cream', padded = true, className, ...rest }: CardProps) {
   return (
-    <motion.div className={cn('rounded-[var(--radius-blob)] border-3', TONES[tone], padded && 'p-5', className)} {...rest}>
+    <motion.div className={cn('rounded-[3px] shadow-paper', TONES[tone], tone === 'notebook' && 'pl-8', padded && 'p-5', className)} {...rest}>
       {children}
     </motion.div>
   );

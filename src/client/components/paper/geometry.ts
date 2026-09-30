@@ -195,7 +195,7 @@ export function arrowPaths(a: Pt, b: Pt, bend: number, head: number): { shaft: s
 }
 
 /** Points of a star burst (a cut-out "100% GÊNANT" badge), in a 100x100 box. */
-export function burstPoints(spikes: number, seed: number, inner = 0.8): string {
+export function burstPoints(spikes: number, seed: number, inner = 0.72): string {
   const r = rng(seed);
   const pts: string[] = [];
   for (let i = 0; i < spikes * 2; i++) {

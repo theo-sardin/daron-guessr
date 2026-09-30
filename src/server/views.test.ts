@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_VOTED_GRACE_MS, MAX_PLAYERS, POINTS_PER_CORRECT, type RoomView } from '../shared/protocol';
 import * as g from './game';
-import { addPhoto, addPhotos, allCorrect, idOf, makeRoom, newPlayer, playAllRounds, revealAll, seededRng, unwrap } from './testUtils';
+import { addPhoto, addPhotos, addSelfie, allCorrect, idOf, makeRoom, newPlayer, playAllRounds, revealAll, seededRng, unwrap } from './testUtils';
 import { buildView, peekRoom } from './views';
 
 const NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'];
@@ -38,6 +38,8 @@ function normalizeVoting(view: RoomView, ownerIds: string[]): RoomView {
 const keys = (o: object) => Object.keys(o).sort();
 const ROOM_VIEW_KEYS = ['code', 'hostId', 'meId', 'myPhotos', 'phase', 'players', 'results', 'reveal', 'serverNow', 'settings', 'voting'];
 const PLAYER_KEYS = ['avatar', 'color', 'connected', 'id', 'isHost', 'name', 'ready', 'score'];
+/** `selfieUrl` is optional: only there when the player has a selfie. */
+const PLAYER_WITH_SELFIE_KEYS = [...PLAYER_KEYS, 'selfieUrl'].sort();
 const PHOTO_REF_KEYS = ['id', 'kind', 'url'];
 const VOTING_KEYS = ['candidates', 'endsAt', 'isMine', 'myVote', 'photo', 'round', 'startsAt', 'totalRounds', 'votedIds'];
 const REVEAL_KEYS = ['current', 'index', 'startedAt', 'total'];
@@ -50,7 +52,10 @@ const PHOTO_RESULT_KEYS = ['correctVotes', 'index', 'myVote', 'ownerId', 'photo'
 function expectExactShape(view: RoomView): void {
   expect(keys(view)).toEqual(ROOM_VIEW_KEYS);
   expect(keys(view.settings)).toEqual(['anonymousVotes', 'photosPerPlayer', 'theme', 'voteSeconds']);
-  for (const p of view.players) expect(keys(p)).toEqual(PLAYER_KEYS);
+  for (const p of view.players) {
+    expect(keys(p)).toEqual(p.selfieUrl === undefined ? PLAYER_KEYS : PLAYER_WITH_SELFIE_KEYS);
+    if (p.selfieUrl !== undefined) expect(p.selfieUrl).toMatch(new RegExp(`^/photos/${view.code}/[^/]+$`));
+  }
   for (const ph of view.myPhotos) expect(keys(ph)).toEqual([...PHOTO_REF_KEYS, 'slot'].sort());
   if (view.voting) {
     expect(keys(view.voting)).toEqual(VOTING_KEYS);
@@ -351,6 +356,67 @@ describe('themes and photos per player in views', () => {
   });
 });
 
+describe('selfies in views', () => {
+  const selfieUrls = (view: RoomView) => view.players.map((p) => p.selfieUrl ?? null);
+  const EXPECTED = ['/photos/ABCD/selfieA', null, null, null, '/photos/ABCD/selfieE'];
+
+  /** Every viewer gets the same public selfie URLs, and no game photo is ever a selfie. */
+  function expectPublicSelfies(room: g.Room, now: number, expected: (string | null)[]): void {
+    for (const view of viewsOf(room, now)) {
+      expectExactShape(view);
+      expect(selfieUrls(view)).toEqual(expected);
+      // No key at all (not `undefined`) without a selfie.
+      expect(view.players.filter((p) => 'selfieUrl' in p).length).toBe(expected.filter(Boolean).length);
+      const gamePhotoIds = [
+        ...view.myPhotos.map((ph) => ph.id),
+        ...(view.voting ? [view.voting.photo.id] : []),
+        ...(view.reveal ? [view.reveal.current.photo.id] : []),
+        ...(view.results?.photos.map((r) => r.photo.id) ?? []),
+      ];
+      for (const id of gamePhotoIds) expect(['selfieA', 'selfieE']).not.toContain(id);
+    }
+  }
+
+  it('are public: every viewer sees every selfie in every phase, and they survive playAgain', () => {
+    const room = lobbyRoom();
+    addSelfie(room, A, 'selfieA');
+    addSelfie(room, E, 'selfieE');
+    expectPublicSelfies(room, 0, EXPECTED);
+    // Eve only has a selfie: still not ready.
+    expect(buildView(room, B, 0).players.map((p) => p.ready)).toEqual([true, true, true, true, false]);
+
+    unwrap(g.startGame(room, A, 0, seededRng(11)));
+    const t0 = game(room).roundStartsAt;
+    expectPublicSelfies(room, t0, EXPECTED);
+    // Selfies are the same for everybody, so voting views stay indistinguishable.
+    expectIndistinguishable(room, t0);
+    expect(buildView(room, B, t0).voting!.candidates).not.toContain(E);
+
+    let t = playAllRounds(room, allCorrect, t0);
+    expect(room.phase).toBe('reveal');
+    expectPublicSelfies(room, t, EXPECTED);
+    t = revealAll(room, t);
+    expect(room.phase).toBe('results');
+    expectPublicSelfies(room, t, EXPECTED);
+
+    unwrap(g.playAgain(room, A, t));
+    expectPublicSelfies(room, t, EXPECTED);
+    unwrap(g.removeSelfie(room, A));
+    expectPublicSelfies(room, t, [null, null, null, null, '/photos/ABCD/selfieE']);
+  });
+
+  it('follow a replaced selfie and forget a removed player', () => {
+    const room = lobbyRoom();
+    addSelfie(room, A, 'oldSelfie');
+    addSelfie(room, A, 'selfieA');
+    addSelfie(room, E, 'selfieE');
+    expectPublicSelfies(room, 0, EXPECTED);
+    unwrap(g.leaveRoom(room, E, 1));
+    expectPublicSelfies(room, 1, EXPECTED.slice(0, 4));
+    for (const view of viewsOf(room, 1)) expect(JSON.stringify(view)).not.toMatch(/oldSelfie|selfieE/);
+  });
+});
+
 describe('peekRoom', () => {
   it('summarizes a room for the join screen', () => {
     const room = lobbyRoom();
@@ -369,5 +435,14 @@ describe('peekRoom', () => {
     const full = makeRoom(['P0']);
     for (let i = 1; i < MAX_PLAYERS; i++) unwrap(g.joinRoom(full, newPlayer(`P${i}`), i));
     expect(peekRoom(full).joinable).toBe(false);
+  });
+
+  it('never gives a selfie away: the peek is public, selfies are for the room only', () => {
+    const room = lobbyRoom();
+    addSelfie(room, A, 'hostSelfie');
+    addSelfie(room, B, 'bobSelfie');
+    const peek = peekRoom(room);
+    expect(Object.keys(peek).sort()).toEqual(['code', 'exists', 'hostAvatar', 'hostName', 'joinable', 'phase', 'playerCount']);
+    expect(JSON.stringify(peek)).not.toMatch(/Selfie|photos/);
   });
 });

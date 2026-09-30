@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   GAME_INTRO_MS,
   HOST_GRACE_MS,
+  MAX_PHOTO_BYTES,
   MAX_PLAYERS,
   PLAYER_COLORS,
   POINTS_PER_CORRECT,
@@ -22,11 +23,13 @@ import {
   PNG_BYTES,
   addPhoto,
   addPhotos,
+  addSelfie,
   allCorrect,
   idOf,
   makeRoom,
   newPhoto,
   newPlayer,
+  newSelfie,
   playAllRounds,
   revealAll,
   seededRng,
@@ -1095,5 +1098,136 @@ describe('time bookkeeping', () => {
     expect(lobby.players.map((p) => p.id)).toEqual([C]);
     expect(lobby.hostId).toBe(C);
     expect(g.nextWakeAt(lobby)).toBeNull();
+  });
+});
+
+describe('selfies', () => {
+  const selfieIds = (room: g.Room) => room.players.map((p) => p.selfie?.id ?? null);
+
+  it('sets, replaces and removes the caller own selfie', () => {
+    const room = makeRoom(FOUR);
+    const first = addSelfie(room, B, 's1', 5);
+    expect(first).toEqual({ id: 's1', mime: 'image/png', data: PNG_BYTES, uploadedAt: 5 });
+    expect(g.findPlayer(room, B)!.selfie).toBe(first);
+    expect(selfieIds(room)).toEqual([null, 's1', null, null]);
+
+    // Replacing drops the old image.
+    addSelfie(room, B, 's2', 6);
+    expect(g.findImage(room, 's1')).toBeUndefined();
+    expect(g.findImage(room, 's2')).toMatchObject({ id: 's2', uploadedAt: 6 });
+    expect(g.roomImageBytes(room)).toBe(PNG_BYTES.byteLength);
+
+    unwrap(g.removeSelfie(room, B));
+    expect(g.findImage(room, 's2')).toBeUndefined();
+    unwrap(g.removeSelfie(room, B)); // nothing left: a no-op
+    expect(selfieIds(room)).toEqual([null, null, null, null]);
+    expect(g.roomImageBytes(room)).toBe(0);
+  });
+
+  it('works in every phase', () => {
+    const room = startedRoom([1, 1, 1, 0]);
+    addSelfie(room, D, 'voting', 1000);
+    let t = playAllRounds(room, allCorrect, 1000);
+    expect(room.phase).toBe('reveal');
+    addSelfie(room, C, 'reveal', t);
+    t = revealAll(room, t);
+    expect(room.phase).toBe('results');
+    addSelfie(room, A, 'results', t);
+    unwrap(g.removeSelfie(room, D));
+    expect(selfieIds(room)).toEqual(['results', null, 'reveal', null]);
+  });
+
+  it('validates the caller and the image', () => {
+    const room = makeRoom(FOUR);
+    expect(errorOf(g.setSelfie(room, 'id-Nobody', newSelfie(), 0))).toBe('NOT_IN_ROOM');
+    expect(errorOf(g.removeSelfie(room, 'id-Nobody'))).toBe('NOT_IN_ROOM');
+    const gif = { ...newSelfie(), mime: 'image/gif' as g.PhotoMime };
+    expect(errorOf(g.setSelfie(room, A, gif, 0))).toBe('INVALID_PHOTO');
+    expect(errorOf(g.setSelfie(room, A, newSelfie('empty', Buffer.alloc(0)), 0))).toBe('INVALID_PHOTO');
+    expect(errorOf(g.setSelfie(room, A, newSelfie('huge', Buffer.alloc(MAX_PHOTO_BYTES + 1)), 0))).toBe('PHOTO_TOO_LARGE');
+    // A refused replacement keeps the current selfie.
+    addSelfie(room, A, 'kept');
+    expect(errorOf(g.setSelfie(room, A, gif, 1))).toBe('INVALID_PHOTO');
+    expect(selfieIds(room)).toEqual(['kept', null, null, null]);
+  });
+
+  it('is never a game photo: no readiness, no candidate, never played', () => {
+    const room = makeRoom(FOUR);
+    for (const p of room.players) addSelfie(room, p.id, `s-${p.name}`);
+    expect(room.photos).toEqual([]);
+    expect(room.players.some((p) => g.hasPhotos(room, p.id) || g.hasActivePhotos(room, p.id))).toBe(false);
+    expect(errorOf(g.startGame(room, A, 0, seededRng(1)))).toBe('NOT_ENOUGH_PLAYERS');
+    addPhotos(room, [1, 1]);
+    expect(errorOf(g.startGame(room, A, 0, seededRng(1)))).toBe('NOT_ENOUGH_PLAYERS');
+    addPhoto(room, C);
+    unwrap(g.startGame(room, A, 0, seededRng(1)));
+    expect(game(room).ownerIds).toEqual([A, B, C]);
+    expect(game(room).order).toHaveLength(3);
+    for (const id of game(room).order) expect(selfieIds(room)).not.toContain(id);
+    // Dave only has a selfie: he guesses, nobody can vote for him.
+    expect(errorOf(g.castVote(room, A, 0, D, game(room).roundStartsAt))).toBe('INVALID_VOTE');
+  });
+
+  it('survives playAgain, unlike game photos', () => {
+    const room = startedRoom([1, 1, 1, 0]);
+    addSelfie(room, D, 'keep', 1000);
+    const t = revealAll(room, playAllRounds(room, allCorrect, 1000));
+    unwrap(g.playAgain(room, A, t));
+    expect(room.photos).toEqual([]);
+    expect(selfieIds(room)).toEqual([null, null, null, 'keep']);
+    expect(g.roomImageBytes(room)).toBe(PNG_BYTES.byteLength);
+  });
+
+  it('goes away with the player: lobby leave, kick, disconnect timeout, and an in-game leave', () => {
+    const room = makeRoom(FOUR);
+    for (const p of room.players) addSelfie(room, p.id, `s-${p.name}`);
+    addPhoto(room, B);
+    expect(g.roomImageBytes(room)).toBe(5 * PNG_BYTES.byteLength);
+    unwrap(g.leaveRoom(room, D, 1));
+    expect(g.findImage(room, 's-Dave')).toBeUndefined();
+    unwrap(g.kickPlayer(room, A, C, 2));
+    expect(g.findImage(room, 's-Carol')).toBeUndefined();
+    g.disconnectPlayer(room, B, 3);
+    g.tick(room, 3 + room.timing.lobbyDropMs);
+    expect(room.players.map((p) => p.id)).toEqual([A]);
+    expect(g.findImage(room, 's-Bob')).toBeUndefined();
+    expect(g.roomImageBytes(room)).toBe(PNG_BYTES.byteLength);
+
+    // In game, leaving only disconnects (the seat stays) but the selfie goes right away.
+    const started = startedRoom([1, 1, 1, 0]);
+    addSelfie(started, D, 'in-game', 1000);
+    unwrap(g.leaveRoom(started, D, 1001));
+    expect(started.players.some((p) => p.id === D)).toBe(true);
+    expect(g.findImage(started, 'in-game')).toBeUndefined();
+  });
+
+  it('a disconnected (not left) player keeps the selfie until dropped from the next lobby', () => {
+    const room = startedRoom([1, 1, 1, 0]);
+    addSelfie(room, D, 'leaver', 1000);
+    addSelfie(room, A, 'stays', 1000);
+    g.disconnectPlayer(room, D, 1001);
+    const t = revealAll(room, playAllRounds(room, allCorrect, 1001));
+    unwrap(g.playAgain(room, A, t));
+    // A fresh lobby grace period, then Dave goes, and his selfie with him.
+    expect(g.findImage(room, 'leaver')).toBeDefined();
+    expect(g.tick(room, t + room.timing.lobbyDropMs - 1)).toBe(false);
+    expect(g.tick(room, t + room.timing.lobbyDropMs)).toBe(true);
+    expect(room.players.map((p) => p.id)).toEqual([A, B, C]);
+    expect(g.findImage(room, 'leaver')).toBeUndefined();
+    expect(selfieIds(room)).toEqual(['stays', null, null]);
+    expect(g.roomImageBytes(room)).toBe(PNG_BYTES.byteLength);
+  });
+
+  it('findImage finds game photos and selfies; roomImageBytes counts both, inactive slots included', () => {
+    const room = makeRoom(FOUR);
+    const photo = addPhoto(room, A, 0);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 3 }));
+    addPhoto(room, A, 2);
+    unwrap(g.updateSettings(room, A, { photosPerPlayer: 1 }));
+    const selfie = unwrap(g.setSelfie(room, B, newSelfie('big', Buffer.alloc(100, 1)), 0));
+    expect(g.findImage(room, photo.id)).toBe(photo);
+    expect(g.findImage(room, 'big')).toBe(selfie);
+    expect(g.findImage(room, 'nope')).toBeUndefined();
+    expect(g.roomImageBytes(room)).toBe(2 * PNG_BYTES.byteLength + 100);
   });
 });

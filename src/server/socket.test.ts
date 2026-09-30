@@ -815,3 +815,217 @@ describe('socket server: abuse limits', () => {
     expect(await join(code)).toEqual({ ok: false, error: 'RATE_LIMITED' });
   });
 });
+
+describe('socket server: selfies', () => {
+  const putSelfie = (c: Client, data: Buffer, mime = 'image/png') => c.socket.emitWithAck('player:selfie', { mime, data });
+  const removeSelfie = (c: Client) => c.socket.emitWithAck('player:removeSelfie');
+  const putPhoto = (c: Client, slot: PhotoSlot = 0) =>
+    c.socket.emitWithAck('photo:upload', { slot, kind: slot === 0 ? 'daron' : 'daronne', mime: 'image/png', data: PNG });
+  const selfieOf = (v: RoomView, id: string) => v.players.find((p) => p.id === id)?.selfieUrl;
+  const status = async (url: string) => (await fetch(url)).status;
+  const INVALID = { ok: false, error: 'INVALID_PHOTO' };
+
+  async function selfieUrl(c: Client, data: Buffer, mime = 'image/png'): Promise<string> {
+    const res = await putSelfie(c, data, mime);
+    if (!res.ok) throw new Error(res.error);
+    return res.selfieUrl;
+  }
+
+  it('shows a selfie to everybody in every phase, replaces and removes it, and keeps it on playAgain', async () => {
+    const { url } = await startServer({ timing: { ...FAST, revealOwnerAtMs: 60 } });
+    const { code, players } = await fourPlayers(url);
+    const [alice, bob, carol, dave] = players;
+    const everybodySees = (label: string, who: Client, expected: string | undefined) =>
+      Promise.all(players.map((p) => p.until(label, (v) => selfieOf(v, who.id) === expected)));
+
+    // Lobby: Dave adds a selfie; everybody gets its URL, served like a photo.
+    const first = await selfieUrl(dave, PNG);
+    expect(first).toMatch(new RegExp(`^/photos/${code}/[0-9a-f]{32}$`));
+    await everybodySees('dave selfie', dave, first);
+    const served = await fetch(`${url}${first}`);
+    expect(served.status).toBe(200);
+    expect(served.headers.get('content-type')).toBe('image/png');
+    expect(served.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(Buffer.from(await served.arrayBuffer()).equals(PNG)).toBe(true);
+
+    // Replacing: a new URL, the old image is gone.
+    const second = await selfieUrl(dave, JPEG, 'image/jpg');
+    expect(second).not.toBe(first);
+    await everybodySees('dave new selfie', dave, second);
+    expect(await status(`${url}${first}`)).toBe(404);
+    expect((await fetch(`${url}${second}`)).headers.get('content-type')).toBe('image/jpeg');
+
+    // Not a game photo: a player with only a selfie is not ready, and it is not in myPhotos.
+    const gamePhotos = new Set<string>();
+    for (const c of [alice, bob, carol]) gamePhotos.add((await c.upload(0, PNG, 'image/png')).id);
+    const bobSelfie = await selfieUrl(bob, WEBP, 'image/webp');
+    await everybodySees('bob selfie', bob, bobSelfie);
+    const lobby = await dave.until('3 ready', (v) => v.players.filter((p) => p.ready).length === 3);
+    expect(lobby.players.find((p) => p.id === dave.id)!.ready).toBe(false);
+    expect(lobby.myPhotos).toEqual([]);
+    expect(bob.view.myPhotos.map((ph) => ph.url)).not.toContain(bobSelfie);
+    expect(bob.view.myPhotos).toHaveLength(1);
+
+    // Voting: selfies can be added in game; Dave is no candidate and no selfie is played.
+    expect(await alice.socket.emitWithAck('host:start')).toEqual({ ok: true });
+    await Promise.all(players.map((p) => p.until('voting', (v) => v.phase === 'voting')));
+    const carolSelfie = await selfieUrl(carol, PNG);
+    const voting = await everybodySees('carol selfie in game', carol, carolSelfie);
+    for (const v of voting) {
+      expect(v.phase).toBe('voting');
+      expect(v.voting!.totalRounds).toBe(3);
+      expect(v.voting!.candidates).not.toContain(dave.id);
+      expect([second, bobSelfie, carolSelfie]).not.toContain(v.voting!.photo.url);
+      expect(selfieOf(v, dave.id)).toBe(second);
+    }
+    for (let round = 0; round < 3; round++) {
+      await alice.until(`round ${round}`, (v) => v.voting?.round === round);
+      expect(await alice.socket.emitWithAck('host:skipRound', { round })).toEqual({ ok: true });
+    }
+
+    // Reveal: Bob removes his selfie, for everybody.
+    await Promise.all(players.map((p) => p.until('reveal', (v) => v.phase === 'reveal')));
+    expect(await removeSelfie(bob)).toEqual({ ok: true });
+    for (const v of await everybodySees('bob selfie removed', bob, undefined)) {
+      expect(v.players.find((p) => p.id === bob.id)).not.toHaveProperty('selfieUrl');
+    }
+    expect(await status(`${url}${bobSelfie}`)).toBe(404);
+    for (let index = 0; index < 3; index++) {
+      const reveal = (await alice.until(`reveal ${index}`, (v) => v.reveal?.index === index)).reveal!;
+      expect(gamePhotos.has(reveal.current.photo.id)).toBe(true);
+      await waitFor('owner revealed', () => Date.now() >= reveal.startedAt + 60 + 5);
+      expect(await alice.socket.emitWithAck('host:nextReveal', { index })).toEqual({ ok: true });
+    }
+
+    // Results, then playAgain: game photos are cleared, selfies are kept.
+    const results = await dave.until('results', (v) => v.phase === 'results');
+    expect(results.players.map((p) => p.selfieUrl ?? null)).toEqual([null, null, carolSelfie, second]);
+    expect(results.results!.photos.map((r) => r.photo.id).sort()).toEqual([...gamePhotos].sort());
+    expect(await alice.socket.emitWithAck('host:playAgain')).toEqual({ ok: true });
+    for (const p of players) {
+      const v = await p.until('back to lobby', (view) => view.phase === 'lobby');
+      expect(v.myPhotos).toEqual([]);
+      expect(v.players.map((pl) => [pl.ready, pl.selfieUrl ?? null])).toEqual([
+        [false, null],
+        [false, null],
+        [false, carolSelfie],
+        [false, second],
+      ]);
+    }
+    expect(await status(`${url}${second}`)).toBe(200);
+    expect(await status(`${url}${carolSelfie}`)).toBe(200);
+    for (const id of gamePhotos) expect(await status(`${url}/photos/${code}/${id}`)).toBe(404);
+  }, 15_000);
+
+  it('validates selfies like photos, and only for a seated player', async () => {
+    const { url } = await startServer();
+    const [c, stranger] = await Promise.all([client(url), client(url)]);
+    expect(await putSelfie(stranger, PNG)).toEqual({ ok: false, error: 'NOT_IN_ROOM' });
+    expect(await removeSelfie(stranger)).toEqual({ ok: false, error: 'NOT_IN_ROOM' });
+
+    await c.create('Selfie');
+    expect(await putSelfie(c, Buffer.from('not an image at all'))).toEqual(INVALID);
+    expect(await putSelfie(c, PNG, 'image/jpeg')).toEqual(INVALID);
+    expect(await putSelfie(c, PNG, 'text/html')).toEqual(INVALID);
+    expect(await putSelfie(c, PNG_BOMB)).toEqual(INVALID);
+    expect(await putSelfie(c, Buffer.concat([PNG, Buffer.alloc(MAX_PHOTO_BYTES)]))).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    for (const payload of [undefined, null, 'selfie', {}, { mime: 'image/png' }, { mime: 'image/png', data: 'iVBOR' }, { mime: 5, data: PNG }]) {
+      expect(await c.raw.emitWithAck('player:selfie', payload)).toEqual({ ok: false, error: 'BAD_REQUEST' });
+    }
+    // Nothing was stored, and removing without a selfie is fine.
+    expect(await removeSelfie(c)).toEqual({ ok: true });
+    const view = await c.until('lobby', (v) => v.phase === 'lobby');
+    expect(view.players[0]).not.toHaveProperty('selfieUrl');
+    expect(await putSelfie(c, JPEG, 'image/jpeg')).toEqual({ ok: true, selfieUrl: expect.stringMatching(/^\/photos\/[A-Z]{4}\/[0-9a-f]{32}$/) });
+  });
+
+  it('shares the upload limits of photos: per socket, and uploaded bytes per IP', async () => {
+    const perSocket = await startServer({ rateLimits: { uploadBurst: 2, uploadsPerSecond: 0.001 } });
+    const s = await client(perSocket.url);
+    await s.create('Spam');
+    expect(await putPhoto(s)).toMatchObject({ ok: true });
+    expect(await putSelfie(s, PNG)).toMatchObject({ ok: true });
+    expect(await putSelfie(s, PNG)).toEqual({ ok: false, error: 'RATE_LIMITED' });
+    expect(await putPhoto(s, 1)).toEqual({ ok: false, error: 'RATE_LIMITED' });
+    // Removing is not an upload.
+    expect(await removeSelfie(s)).toEqual({ ok: true });
+
+    const perIp = await startServer({ rateLimits: { uploadBytesPerIp: PNG.length * 2 } });
+    const [a, b] = await Promise.all([client(perIp.url), client(perIp.url)]);
+    await a.create('A');
+    await b.create('B');
+    expect(await putSelfie(a, PNG)).toMatchObject({ ok: true });
+    expect(await putPhoto(b)).toMatchObject({ ok: true });
+    expect(await putSelfie(b, PNG)).toEqual({ ok: false, error: 'RATE_LIMITED' });
+  });
+
+  it('counts selfies in the room and server photo byte quotas (replacing one frees it)', async () => {
+    const { url, app } = await startServer({ maxRoomPhotoBytes: PNG.length * 2, maxTotalPhotoBytes: PNG.length * 3 });
+    const [a, b, c] = await Promise.all([client(url), client(url), client(url)]);
+    const { code } = await a.create('A');
+    await b.join(code, 'B');
+    expect(await putSelfie(a, PNG)).toMatchObject({ ok: true });
+    expect(await putSelfie(b, PNG)).toMatchObject({ ok: true });
+    // The room is full of selfies: no room left for a game photo, but replacing a selfie is fine.
+    expect(await putPhoto(a)).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    expect(await putSelfie(b, PNG)).toMatchObject({ ok: true });
+    expect(app.registry.photoBytes()).toBe(PNG.length * 2);
+
+    await c.create('C');
+    expect(await putSelfie(c, PNG)).toMatchObject({ ok: true });
+    expect(await putPhoto(c)).toEqual({ ok: false, error: 'SERVER_BUSY' });
+    expect(app.registry.photoBytes()).toBe(PNG.length * 3);
+  });
+
+  it('at the server-wide cap, still lets a player replace an image with one that is not bigger', async () => {
+    const { url, app } = await startServer({ maxTotalPhotoBytes: PNG.length * 2 });
+    const [a, b] = await Promise.all([client(url), client(url)]);
+    await a.create('A');
+    await b.create('B');
+    expect(await putPhoto(a)).toMatchObject({ ok: true });
+    expect(await putSelfie(a, PNG)).toMatchObject({ ok: true });
+    expect(app.registry.photoBytes()).toBe(PNG.length * 2);
+
+    // Same size: memory does not grow, so neither replacement is refused.
+    expect(await putSelfie(a, PNG)).toMatchObject({ ok: true });
+    expect(await putPhoto(a)).toMatchObject({ ok: true });
+    // Growing past the cap, or a new image elsewhere, still is.
+    expect(await putSelfie(a, Buffer.concat([PNG, Buffer.alloc(10)]))).toEqual({ ok: false, error: 'SERVER_BUSY' });
+    expect(await putSelfie(b, PNG)).toEqual({ ok: false, error: 'SERVER_BUSY' });
+    expect(app.registry.photoBytes()).toBe(PNG.length * 2);
+  });
+
+  it('deletes a selfie with its player (kick, lobby leave, lobby timeout) and with the room, freeing its bytes', async () => {
+    const { url, app } = await startServer({ timing: { ...FAST, lobbyDropMs: 200 }, maxRoomPhotoBytes: PNG.length * 3 });
+    const { players } = await fourPlayers(url);
+    const [alice, bob, carol, dave] = players;
+    const urls = new Map<Client, string>();
+    for (const c of [alice, bob, carol]) urls.set(c, await selfieUrl(c, PNG));
+    expect(await putSelfie(dave, PNG)).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    expect(app.registry.photoBytes()).toBe(PNG.length * 3);
+
+    // Kick: Bob's selfie goes, and its bytes are free for Dave's.
+    expect(await alice.socket.emitWithAck('host:kick', { playerId: bob.id })).toEqual({ ok: true });
+    expect(await status(`${url}${urls.get(bob)}`)).toBe(404);
+    expect(app.registry.photoBytes()).toBe(PNG.length * 2);
+    urls.set(dave, await selfieUrl(dave, PNG));
+
+    // Leaving the lobby.
+    expect(await carol.socket.emitWithAck('room:leave')).toEqual({ ok: true });
+    expect(await status(`${url}${urls.get(carol)}`)).toBe(404);
+    expect(app.registry.photoBytes()).toBe(PNG.length * 2);
+
+    // Dropped after the lobby disconnect timeout.
+    dave.close();
+    await alice.until('dave dropped', (v) => v.players.length === 1);
+    expect(await status(`${url}${urls.get(dave)}`)).toBe(404);
+    expect(app.registry.photoBytes()).toBe(PNG.length);
+
+    // The room goes away with its last player, selfie included.
+    expect(await status(`${url}${urls.get(alice)}`)).toBe(200);
+    expect(await alice.socket.emitWithAck('room:leave')).toEqual({ ok: true });
+    expect(app.registry.size).toBe(0);
+    expect(app.registry.photoBytes()).toBe(0);
+    expect(await status(`${url}${urls.get(alice)}`)).toBe(404);
+  });
+});

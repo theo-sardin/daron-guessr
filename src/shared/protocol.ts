@@ -25,7 +25,7 @@ export const MAX_NAME_LENGTH = 16;
  */
 export const PHOTO_SLOTS = [0, 1, 2] as const;
 export const PHOTOS_PER_PLAYER_OPTIONS = [1, 2, 3] as const;
-/** Max accepted upload size (the client compresses to well under this). */
+/** Max accepted upload size, for game photos and selfies alike (the client compresses to well under this). */
 export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 export const ACCEPTED_PHOTO_MIME = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
@@ -185,6 +185,14 @@ export interface PublicPlayer {
    * which photo right. In `results` it is the final score.
    */
   score: number;
+  /**
+   * The player's optional selfie (profile picture): a relative URL like `/photos/ABCD/9c1e…`,
+   * absent when they have none. Public on purpose — every viewer gets it, in every phase — so
+   * the UI can show faces next to the photos (vote buttons, reveal) for comparison. Its id is
+   * random and unrelated to game photo ids, and a selfie is never a game photo (not played,
+   * not counted in `ready`). Kept by `host:playAgain`. See `player:selfie`.
+   */
+  selfieUrl?: string;
 }
 
 export interface PhotoRef {
@@ -377,11 +385,23 @@ export interface ClientToServerEvents {
    * `session:replaced`); `takeover: false` fails with SESSION_ACTIVE instead.
    */
   'room:rejoin': (p: { code: string; token: string; takeover: boolean }, ack: Ack<{ session: Session }>) => void;
-  /** Leave the room for good (lobby: removes the player and their photos; in game: just disconnects). */
+  /** Leave the room for good (lobby: removes the player, their photos and selfie; in game: just disconnects). */
   'room:leave': (ack: Ack) => void;
 
   /** Lobby only: change name and/or avatar. */
   'player:update': (p: { name?: string; avatar?: string }, ack: Ack) => void;
+  /**
+   * Any phase: set (or replace) the calling player's selfie, an optional profile picture that
+   * everyone in the room sees (`PublicPlayer.selfieUrl`). `data` is the raw image bytes, checked
+   * like `photo:upload` (header sniffing, MAX_PHOTO_BYTES, same upload rate limits and photo
+   * byte quotas): INVALID_PHOTO, PHOTO_TOO_LARGE, RATE_LIMITED or SERVER_BUSY otherwise.
+   * Replacing gets a new URL and deletes the old image. Kept by `host:playAgain`; deleted when
+   * the player is removed from the room (leave or kick in the lobby, lobby disconnect timeout)
+   * and with the room. Never a game photo.
+   */
+  'player:selfie': (p: { mime: string; data: ArrayBuffer | Uint8Array }, ack: Ack<{ selfieUrl: string }>) => void;
+  /** Any phase: delete the calling player's selfie. Ok (no-op) when there is none. */
+  'player:removeSelfie': (ack: Ack) => void;
   /**
    * Lobby only: upload (or replace) the photo in a slot. `data` is the raw image bytes.
    * `slot` must be < settings.photosPerPlayer and `kind` allowed by settings.theme (else BAD_REQUEST).
@@ -405,7 +425,10 @@ export interface ClientToServerEvents {
   'host:skipRound': (p: { round: number }, ack: Ack) => void;
   /** Host, reveal: move past reveal `index` (to the next photo, or to results after the last). Idempotent. */
   'host:nextReveal': (p: { index: number }, ack: Ack) => void;
-  /** Host, results: back to the lobby with the same players and settings (photos, votes and scores are cleared). */
+  /**
+   * Host, results: back to the lobby with the same players and settings (photos, votes and
+   * scores are cleared; selfies are kept, they are profile pictures).
+   */
   'host:playAgain': (ack: Ack) => void;
 
   /** Voting: cast or change the vote for `round`. */

@@ -52,14 +52,14 @@ export function PreviewApp() {
   if (!spec) {
     return (
       <main className="mx-auto max-w-xl px-4 pt-20 pb-10">
-        <h1 className="mb-4 font-display text-4xl text-sun">Previews</h1>
+        <h1 className="mb-4 font-display text-4xl">Previews</h1>
         {Object.entries(REGISTRY).map(([name, reg]) => (
           <section key={name} className="mb-4">
             <h2 className="font-display text-2xl">{name}</h2>
             <ul className="ml-4 list-disc">
               {Object.keys(reg).map((v) => (
                 <li key={v}>
-                  <a className="text-sky underline" href={`/__preview/${name}/${v}`}>
+                  <a className="font-semibold text-blue underline" href={`/__preview/${name}/${v}`}>
                     {v}
                   </a>
                 </li>
