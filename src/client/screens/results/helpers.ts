@@ -1,4 +1,4 @@
-import type { Award, AwardId, PhotoKind, PhotoResult, PublicPlayer, RankingEntry, ResultsView, Theme } from '../../../shared/protocol';
+import { BODY_PARTS, type Award, type AwardId, type PhotoKind, type PhotoResult, type PublicPlayer, type RankingEntry, type ResultsView, type Theme } from '../../../shared/protocol';
 import type { IconName } from '../../components/Icon';
 import type { IconBadgeTone } from '../../components/IconBadge';
 import { hashString } from '../../lib/util';
@@ -66,13 +66,16 @@ export function markCelebrated(key: string) {
 }
 
 /**
- * Which set of copy fits the photos being talked about (see i18n/strings/results.ts):
- * `parents` (only dads & moms), `childhood` (only players as kids), `pick` (only picked
- * pictures), `family` for everything else (siblings, friends, pets, a mix of kinds…).
+ * Which set of copy fits the photos being talked about (see i18n/strings/results.ts): one per
+ * mode — `parents` (only dads & moms), `childhood` (players as kids), `pick` (picked pictures),
+ * `roll` (camera-roll roulette), `crush` (teen crushes), `whois` (photos of the players
+ * themselves), `body` (body parts) — and `family` for everything else (siblings, friends, pets,
+ * a mix of kinds…).
  */
-export type Flavor = 'parents' | 'family' | 'childhood' | 'pick';
+export type Flavor = 'parents' | 'family' | 'childhood' | 'pick' | 'roll' | 'crush' | 'whois' | 'body';
 
 const PARENT_KINDS: readonly PhotoKind[] = ['daron', 'daronne'];
+const ONLY: Partial<Record<PhotoKind, Flavor>> = { kid: 'childhood', pick: 'pick', roll: 'roll', crush: 'crush', me: 'whois' };
 
 export function flavorOfTheme(theme: Theme): Flavor {
   return theme === 'mix' ? 'family' : theme;
@@ -82,8 +85,9 @@ export function flavorOfTheme(theme: Theme): Flavor {
 export function flavorOfKinds(kinds: readonly PhotoKind[], fallback: Flavor): Flavor {
   if (kinds.length === 0) return fallback;
   if (kinds.every((k) => PARENT_KINDS.includes(k))) return 'parents';
-  if (kinds.every((k) => k === 'kid')) return 'childhood';
-  if (kinds.every((k) => k === 'pick')) return 'pick';
+  if (kinds.every((k) => (BODY_PARTS as readonly PhotoKind[]).includes(k))) return 'body';
+  const only = ONLY[kinds[0]];
+  if (only && kinds.every((k) => k === kinds[0])) return only;
   return 'family';
 }
 
@@ -107,29 +111,31 @@ export function awardFlavor(award: Award, photos: readonly PhotoResult[], game: 
   );
 }
 
-/** Icon of an award (a sticker on its card), with a few flavor-specific twists. */
+/** Icon of an award (a scrap on its clipping), with a few flavor-specific twists. */
 export function awardIcon(id: AwardId, flavor: Flavor): IconName {
   switch (id) {
     case 'sherlock':
-      return flavor === 'pick' ? 'eye' : 'zoom';
+      return flavor === 'pick' || flavor === 'roll' ? 'eye' : 'zoom';
     case 'needsGlasses':
       return 'eye-off';
     case 'carbonCopy':
       return 'copy';
     case 'masterOfDisguise':
       // "Glow-up of the year": the flash burst.
-      return flavor === 'childhood' ? 'sparkle' : 'mask';
+      return flavor === 'childhood' || flavor === 'whois' ? 'sparkle' : flavor === 'crush' ? 'heart' : 'mask';
     case 'doppelganger':
       // "Usual suspect": always in the crosshairs.
-      return flavor === 'pick' ? 'target' : 'users';
+      return flavor === 'pick' || flavor === 'roll' ? 'target' : 'users';
     case 'mostConfusing':
       return 'shuffle';
     case 'biggestMixup':
       return 'swap';
+    case 'eagleEye':
+      return 'flash';
   }
 }
 
-/** One accent per award: the color of its icon sticker. */
+/** One paper per award: the color of its icon scrap. */
 export const AWARD_TONE: Record<AwardId, IconBadgeTone> = {
   sherlock: 'sun',
   needsGlasses: 'sky',
@@ -138,17 +144,8 @@ export const AWARD_TONE: Record<AwardId, IconBadgeTone> = {
   doppelganger: 'pink',
   mostConfusing: 'tangerine',
   biggestMixup: 'sky',
+  eagleEye: 'sun',
 };
-
-/** Medal colors of the top three (podium caps, ranking badges). */
-export const MEDAL_TONE: Record<number, IconBadgeTone> = { 1: 'sun', 2: 'lilac', 3: 'tangerine' };
-
-/** Trophy for the winner, medals for 2nd and 3rd, nothing below. */
-export function medalIcon(rank: number): IconName | null {
-  if (rank === 1) return 'trophy';
-  if (rank <= 3) return 'medal';
-  return null;
-}
 
 /** Player lookup that never crashes on a player that left: falls back to a neutral ghost. */
 export function playerOr(players: Map<string, PublicPlayer>, id: string): PublicPlayer {

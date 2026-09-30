@@ -10,9 +10,13 @@ import {
   ACCEPTED_PHOTO_MIME,
   ALL_VOTED_GRACE_MS,
   AVATARS,
+  BLUR_BONUS_BY_STEP,
+  BLUR_NO_TIMER_ROUND_MS,
+  BLUR_VARIANT_WIDTHS,
   DEFAULT_SETTINGS,
   GAME_INTRO_MS,
   HOST_GRACE_MS,
+  MAX_BLUR_VARIANT_BYTES,
   MAX_PHOTO_BYTES,
   MAX_PLAYERS,
   MIN_PHOTO_OWNERS,
@@ -25,6 +29,7 @@ import {
   REVEAL_OWNER_AT_MS,
   ROUND_GAP_MS,
   THEMES,
+  THEME_DEFAULT_BLUR,
   THEME_DEFAULT_PHOTOS,
   VOTE_SECONDS_OPTIONS,
   defaultKindForSlot,
@@ -109,12 +114,26 @@ export interface Photo {
   mime: PhotoMime;
   data: Buffer;
   uploadedAt: number;
+  /**
+   * Low-resolution copies for blurred rounds, one per BLUR_VARIANT_WIDTHS entry (same order),
+   * or none. They live and die with the photo and count in the byte quotas.
+   */
+  variants: PhotoVariant[];
+}
+
+/** A blur step's small copy of a photo; its id is random and unrelated to the photo's. */
+export interface PhotoVariant {
+  id: string;
+  mime: PhotoMime;
+  data: Buffer;
 }
 
 export interface Vote {
   candidateId: string;
   /** Cast by the photo owner to blend in; never counted. */
   decoy: boolean;
+  /** Blur step (see `blurStepAt`) at which the voter last changed their vote; 0 without blur. */
+  step: number;
 }
 
 export interface RevealState {
@@ -135,6 +154,8 @@ export interface GameState {
   roundStartsAt: number;
   /** Effective close time of the current round, null while nothing closes it (no timer). */
   roundCloseAt: number | null;
+  /** Blur games: last blur step `tick` reported for the current round (views are re-sent at each step). */
+  blurStep: number;
   reveal: RevealState | null;
 }
 
@@ -169,6 +190,8 @@ export interface NewPhoto {
   kind: PhotoKind;
   mime: PhotoMime;
   data: Buffer;
+  /** Exactly BLUR_VARIANT_WIDTHS.length variants, or none (omitted or empty). */
+  variants?: PhotoVariant[];
 }
 
 export interface NewSelfie {
@@ -217,15 +240,25 @@ export function hasActivePhotos(room: Room, playerId: string): boolean {
   return room.photos.some((ph) => ph.ownerId === playerId && isActiveSlot(room, ph.slot));
 }
 
-/** A game photo or a selfie of the room, by id (what `/photos/:code/:id` serves). */
-export function findImage(room: Room, id: string): Photo | Selfie | undefined {
-  return room.photos.find((ph) => ph.id === id) ?? room.players.find((p) => p.selfie?.id === id)?.selfie ?? undefined;
+/** A game photo, a blur variant or a selfie of the room, by id (what `/photos/:code/:id` serves). */
+export function findImage(room: Room, id: string): Photo | PhotoVariant | Selfie | undefined {
+  for (const ph of room.photos) {
+    if (ph.id === id) return ph;
+    const variant = ph.variants.find((v) => v.id === id);
+    if (variant) return variant;
+  }
+  return room.players.find((p) => p.selfie?.id === id)?.selfie ?? undefined;
 }
 
-/** Bytes held in memory by a room: game photos (every slot) and selfies. */
+/** Bytes of a photo, its blur variants included. */
+export function photoBytes(photo: Photo): number {
+  return photo.variants.reduce((sum, v) => sum + v.data.byteLength, photo.data.byteLength);
+}
+
+/** Bytes held in memory by a room: game photos (every slot, blur variants included) and selfies. */
 export function roomImageBytes(room: Room): number {
   let total = 0;
-  for (const ph of room.photos) total += ph.data.byteLength;
+  for (const ph of room.photos) total += photoBytes(ph);
   for (const p of room.players) total += p.selfie?.data.byteLength ?? 0;
   return total;
 }
@@ -315,14 +348,21 @@ function addPlayer(room: Room, input: NewPlayer, name: string, now: number): Pla
 
 /**
  * Settings a new room starts with: DEFAULT_SETTINGS, with the game mode picked on the home
- * screen when there is one (`photosPerPlayer` defaults to that theme's THEME_DEFAULT_PHOTOS).
+ * screen when there is one (`photosPerPlayer` and `blur` default to that theme's
+ * THEME_DEFAULT_PHOTOS / THEME_DEFAULT_BLUR).
  */
 function initialSettings(setup?: RoomSetup): Result<Settings> {
   if (setup === undefined) return ok({ ...DEFAULT_SETTINGS });
-  const { theme, photosPerPlayer } = setup;
+  const { theme, photosPerPlayer, blur } = setup;
   if (!isTheme(theme)) return fail('BAD_REQUEST');
   if (photosPerPlayer !== undefined && !isPhotosPerPlayer(photosPerPlayer)) return fail('BAD_REQUEST');
-  return ok({ ...DEFAULT_SETTINGS, theme, photosPerPlayer: photosPerPlayer ?? THEME_DEFAULT_PHOTOS[theme] });
+  if (blur !== undefined && typeof blur !== 'boolean') return fail('BAD_REQUEST');
+  return ok({
+    ...DEFAULT_SETTINGS,
+    theme,
+    photosPerPlayer: photosPerPlayer ?? THEME_DEFAULT_PHOTOS[theme],
+    blur: blur ?? THEME_DEFAULT_BLUR[theme],
+  });
 }
 
 /** New lobby with `hostInput` as its host. An invalid `setup` fails with BAD_REQUEST. */
@@ -444,9 +484,20 @@ function transferHost(room: Room, fromId: string, now: number): boolean {
 // ---------------------------------------------------------------------------
 
 /** Refuses a declared mime / size that cannot be an accepted image (the socket layer also sniffs the header). */
-function checkImageData(mime: string, data: Buffer): Failure | null {
+function checkImageData(mime: string, data: Buffer, maxBytes = MAX_PHOTO_BYTES): Failure | null {
   if (!(ACCEPTED_PHOTO_MIME as readonly string[]).includes(mime) || data.byteLength === 0) return fail('INVALID_PHOTO');
-  if (data.byteLength > MAX_PHOTO_BYTES) return fail('PHOTO_TOO_LARGE');
+  if (data.byteLength > maxBytes) return fail('PHOTO_TOO_LARGE');
+  return null;
+}
+
+/** Blur variants: none, or exactly one per BLUR_VARIANT_WIDTHS entry, each small (MAX_BLUR_VARIANT_BYTES). */
+function checkVariants(variants: readonly PhotoVariant[]): Failure | null {
+  if (variants.length === 0) return null;
+  if (variants.length !== BLUR_VARIANT_WIDTHS.length) return fail('BAD_REQUEST');
+  for (const v of variants) {
+    const invalid = checkImageData(v.mime, v.data, MAX_BLUR_VARIANT_BYTES);
+    if (invalid) return invalid;
+  }
   return null;
 }
 
@@ -477,10 +528,11 @@ export function uploadPhoto(room: Room, playerId: string, input: NewPhoto, now: 
   const player = member(room, playerId, 'lobby');
   if (!player.ok) return player;
   if (!canPlacePhoto(room, input.slot, input.kind)) return fail('BAD_REQUEST');
-  const invalid = checkImageData(input.mime, input.data);
+  const variants = input.variants ?? [];
+  const invalid = checkImageData(input.mime, input.data) ?? checkVariants(variants);
   if (invalid) return invalid;
   room.photos = room.photos.filter((ph) => !(ph.ownerId === playerId && ph.slot === input.slot));
-  const photo: Photo = { ...input, ownerId: playerId, uploadedAt: now };
+  const photo: Photo = { ...input, variants: [...variants], ownerId: playerId, uploadedAt: now };
   room.photos.push(photo);
   return ok(photo);
 }
@@ -506,28 +558,31 @@ export function setPhotoKind(room: Room, playerId: string, slot: PhotoSlot, kind
 /**
  * Host, lobby. All-or-nothing: an invalid field rejects the whole update. Switching to
  * another theme relabels every uploaded photo whose kind it does not allow (inactive slots
- * included) to `defaultKindForSlot`, and resets `photosPerPlayer` to the theme's default
- * unless the same update sets it. Sending the current theme again changes nothing.
+ * included) to `defaultKindForSlot`, and resets `photosPerPlayer` and `blur` to the theme's
+ * defaults unless the same update sets them. Sending the current theme again changes nothing.
  */
 export function updateSettings(room: Room, playerId: string, patch: Partial<Settings>): Result {
   const auth = host(room, playerId, 'lobby');
   if (!auth.ok) return auth;
-  const { voteSeconds, anonymousVotes, theme, photosPerPlayer } = patch;
+  const { voteSeconds, anonymousVotes, theme, photosPerPlayer, blur } = patch;
   if (voteSeconds !== undefined && !(VOTE_SECONDS_OPTIONS as readonly number[]).includes(voteSeconds)) {
     return fail('BAD_REQUEST');
   }
   if (anonymousVotes !== undefined && typeof anonymousVotes !== 'boolean') return fail('BAD_REQUEST');
   if (theme !== undefined && !isTheme(theme)) return fail('BAD_REQUEST');
   if (photosPerPlayer !== undefined && !isPhotosPerPlayer(photosPerPlayer)) return fail('BAD_REQUEST');
+  if (blur !== undefined && typeof blur !== 'boolean') return fail('BAD_REQUEST');
   const settings = room.settings;
   if (voteSeconds !== undefined) settings.voteSeconds = voteSeconds;
   if (anonymousVotes !== undefined) settings.anonymousVotes = anonymousVotes;
   if (theme !== undefined && theme !== settings.theme) {
     settings.theme = theme;
     settings.photosPerPlayer = THEME_DEFAULT_PHOTOS[theme];
+    settings.blur = THEME_DEFAULT_BLUR[theme];
     for (const ph of room.photos) if (!isKindAllowed(theme, ph.kind)) ph.kind = defaultKindForSlot(theme, ph.slot);
   }
   if (photosPerPlayer !== undefined) settings.photosPerPlayer = photosPerPlayer;
+  if (blur !== undefined) settings.blur = blur;
   return DONE;
 }
 
@@ -553,6 +608,7 @@ export function startGame(room: Room, playerId: string, now: number, rng: Rng): 
     round: 0,
     roundStartsAt: startsAt,
     roundCloseAt: timedClose(room, startsAt),
+    blurStep: 0,
     reveal: null,
   };
   room.phase = 'voting';
@@ -617,7 +673,10 @@ export function castVote(room: Room, voterId: string, round: number, candidateId
   if (!isRoundOpen(room, round, now)) return fail('WRONG_PHASE');
   if (candidateId === voterId || !game.ownerIds.includes(candidateId)) return fail('INVALID_VOTE');
   const decoy = gamePhoto(room, round).ownerId === voterId;
-  game.votes[round].set(voterId, { candidateId, decoy });
+  const previous = game.votes[round].get(voterId);
+  // Voting again for the same candidate is not a change: the speed bonus keeps its step.
+  const step = previous?.candidateId === candidateId ? previous.step : (blurStepAt(room, now) ?? 0);
+  game.votes[round].set(voterId, { candidateId, decoy, step });
   applyAllVoted(room, now);
   return DONE;
 }
@@ -660,6 +719,7 @@ function closeRound(room: Room, at: number): void {
     game.round += 1;
     game.roundStartsAt = at + room.timing.roundGapMs;
     game.roundCloseAt = timedClose(room, game.roundStartsAt);
+    game.blurStep = 0;
     return;
   }
   game.roundCloseAt = null;
@@ -711,9 +771,10 @@ export function playAgain(room: Room, playerId: string, now: number): Result {
 /** Applies every time-based transition due at `now`. Returns whether anything changed. */
 export function tick(room: Room, now: number): boolean {
   const closed = closeDueRounds(room, now);
+  const sharpened = advanceBlurStep(room, now);
   const migrated = migrateHost(room, now);
   const dropped = dropStaleLobbyPlayers(room, now);
-  return closed || migrated || dropped;
+  return closed || sharpened || migrated || dropped;
 }
 
 function closeDueRounds(room: Room, now: number): boolean {
@@ -725,6 +786,52 @@ function closeDueRounds(room: Room, now: number): boolean {
   }
   return changed;
 }
+
+// Blur steps -------------------------------------------------------------------
+
+/** Number of blur steps: one per variant width, then the full photo. */
+export const BLUR_STEPS = BLUR_VARIANT_WIDTHS.length + 1;
+export const LAST_BLUR_STEP = BLUR_STEPS - 1;
+
+/** Length of one blur step: the round (or BLUR_NO_TIMER_ROUND_MS without a timer) split evenly. */
+export function blurStepMs(settings: Settings): number {
+  const roundMs = settings.voteSeconds > 0 ? settings.voteSeconds * 1000 : BLUR_NO_TIMER_ROUND_MS;
+  return roundMs / BLUR_STEPS;
+}
+
+/**
+ * Blur step of the current round at `now` (0 = blurriest, LAST_BLUR_STEP = full photo), or
+ * null when blur is off or no round is being voted on. Step 0 lasts until
+ * `roundStartsAt + stepMs` (it covers the intro and the gap before the round).
+ */
+export function blurStepAt(room: Room, now: number): number | null {
+  if (!room.settings.blur || room.phase !== 'voting' || !room.game) return null;
+  const elapsed = now - room.game.roundStartsAt;
+  if (elapsed < 0) return 0;
+  return Math.min(LAST_BLUR_STEP, Math.floor(elapsed / blurStepMs(room.settings)));
+}
+
+/** When `step` of the current round starts (`step` 0 starts with the round). */
+export function blurStepStartsAt(room: Room, step: number): number {
+  return requireGame(room).roundStartsAt + step * blurStepMs(room.settings);
+}
+
+/** Records the current blur step; true when it moved on since the last tick (views must be re-sent). */
+function advanceBlurStep(room: Room, now: number): boolean {
+  const step = blurStepAt(room, now);
+  if (step === null || !room.game || step === room.game.blurStep) return false;
+  room.game.blurStep = step;
+  return true;
+}
+
+/** Points a real vote earns on a photo owned by `ownerId`: POINTS_PER_CORRECT plus, in blur games, the speed bonus. */
+export function votePoints(room: Room, vote: Vote, ownerId: string): { points: number; bonus: number } {
+  if (vote.decoy || vote.candidateId !== ownerId) return { points: 0, bonus: 0 };
+  const bonus = room.settings.blur ? (BLUR_BONUS_BY_STEP[vote.step] ?? 0) : 0;
+  return { points: POINTS_PER_CORRECT + bonus, bonus };
+}
+
+// Host and lobby housekeeping ----------------------------------------------------
 
 function hostMigrationDueAt(room: Room): number | null {
   const current = findPlayer(room, room.hostId);
@@ -758,6 +865,10 @@ function dropStaleLobbyPlayers(room: Room, now: number): boolean {
 export function nextWakeAt(room: Room): number | null {
   const times: number[] = [];
   if (room.phase === 'voting' && room.game?.roundCloseAt != null) times.push(room.game.roundCloseAt);
+  // Blur games: wake at the next step boundary so that every player gets the sharper step.
+  if (room.phase === 'voting' && room.settings.blur && room.game && room.game.blurStep < LAST_BLUR_STEP) {
+    times.push(blurStepStartsAt(room, room.game.blurStep + 1));
+  }
   const hostDue = hostMigrationDueAt(room);
   if (hostDue !== null) times.push(hostDue);
   if (room.phase === 'lobby') {
@@ -805,12 +916,16 @@ export interface PlayerStats {
   correct: number;
   /** Real (non-decoy) votes cast. */
   guesses: number;
+  /** Blur speed-bonus points (included in `score`). */
+  bonus: number;
   score: number;
 }
 
 /** Stats of every player (join order) over rounds [0, rounds). */
 export function playerStats(room: Room, rounds: number): PlayerStats[] {
-  const stats = new Map(room.players.map((p) => [p.id, { playerId: p.id, correct: 0, guesses: 0, score: 0 }]));
+  const stats = new Map<string, PlayerStats>(
+    room.players.map((p) => [p.id, { playerId: p.id, correct: 0, guesses: 0, bonus: 0, score: 0 }]),
+  );
   const played = room.game ? Math.min(rounds, room.game.order.length) : 0;
   for (let i = 0; i < played; i++) {
     const ownerId = gamePhoto(room, i).ownerId;
@@ -818,10 +933,13 @@ export function playerStats(room: Room, rounds: number): PlayerStats[] {
       const s = stats.get(voterId);
       if (!s || vote.decoy) continue;
       s.guesses += 1;
-      if (vote.candidateId === ownerId) s.correct += 1;
+      if (vote.candidateId !== ownerId) continue;
+      const { points, bonus } = votePoints(room, vote, ownerId);
+      s.correct += 1;
+      s.bonus += bonus;
+      s.score += points;
     }
   }
-  for (const s of stats.values()) s.score = s.correct * POINTS_PER_CORRECT;
   return [...stats.values()];
 }
 
@@ -849,7 +967,7 @@ export function computeRanking(room: Room): RankingEntry[] {
   sorted.forEach((s, i) => {
     const prev = ranking[i - 1];
     const rank = prev && prev.score === s.score ? prev.rank : i + 1;
-    ranking.push({ playerId: s.playerId, score: s.score, correct: s.correct, guesses: s.guesses, rank });
+    ranking.push({ playerId: s.playerId, score: s.score, correct: s.correct, guesses: s.guesses, bonus: s.bonus, rank });
   });
   return ranking;
 }
@@ -868,8 +986,10 @@ export function computeAwards(room: Room): Award[] {
   const game = requireGame(room);
   const rounds = game.order.map((_, i) => roundResult(room, i));
   const owners = ownerStats(game.ownerIds, rounds);
+  const stats = playerStats(room, rounds.length);
   return [
-    ...guesserAwards(playerStats(room, rounds.length)),
+    ...guesserAwards(stats),
+    ...(room.settings.blur ? eagleEyeAward(stats) : []),
     ...lookalikeAwards(owners),
     ...doppelgangerAward(owners),
     ...mostConfusingAward(rounds),
@@ -911,6 +1031,15 @@ function guesserAwards(stats: PlayerStats[]): Award[] {
     awards.push({ id: 'needsGlasses', playerIds: idsOf(glasses), value: glasses[0].correct, total: maxOf(glasses, (s) => s.guesses) });
   }
   return awards;
+}
+
+/** Blur games: the most speed-bonus points (at least some). */
+function eagleEyeAward(stats: PlayerStats[]): Award[] {
+  const best = allBest(
+    stats.filter((s) => s.bonus > 0),
+    (a, b) => a.bonus - b.bonus,
+  );
+  return best.length > 0 ? [{ id: 'eagleEye', playerIds: idsOf(best), value: best[0].bonus }] : [];
 }
 
 function ownerStats(ownerIds: string[], rounds: RoundResult[]): OwnerStats[] {

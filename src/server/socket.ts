@@ -7,6 +7,8 @@ import { randomInt } from 'node:crypto';
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
 import {
+  BLUR_VARIANT_WIDTHS,
+  MAX_BLUR_VARIANT_BYTES,
   MAX_PHOTO_BYTES,
   PHOTO_KINDS,
   PHOTO_SLOTS,
@@ -33,6 +35,7 @@ import {
   leaveRoom,
   nextReveal,
   nextWakeAt,
+  photoBytes,
   playAgain,
   reconnectPlayer,
   removePhoto,
@@ -48,12 +51,13 @@ import {
   uploadPhoto,
   type Failure,
   type PhotoMime,
+  type PhotoVariant,
   type Player,
   type Result,
   type Rng,
   type Room,
 } from './game';
-import { inspectImage, normalizeMime, toBuffer } from './image';
+import { inspectImage, inspectVariant, normalizeMime, toBuffer } from './image';
 import { KeyedRateLimiter, TokenBucket, clientIp } from './rateLimit';
 import { newPhotoId, newPlayerId, newReactionId, newToken, type RoomRegistry } from './rooms';
 import { buildView, toMyPhoto } from './views';
@@ -110,7 +114,8 @@ export const DEFAULT_RATE_LIMITS: RateLimits = {
 export const DEFAULT_MAX_TOTAL_PHOTO_BYTES = 256 * MIB;
 /**
  * Per room: 1 MiB per image on average (12 players x (3 slots + 1 selfie); photos in inactive
- * slots count too). Real clients send JPEGs of at most 1080 px, usually 100-400 KB.
+ * slots count too, blur variants too). Real clients send JPEGs of at most 1080 px, usually
+ * 100-400 KB, plus a few KB of blur variants.
  */
 export const DEFAULT_MAX_ROOM_PHOTO_BYTES = 48 * MIB;
 const UPLOAD_BYTES_REFILL_SECONDS = 30 * 60;
@@ -346,6 +351,7 @@ const slot = z.literal(PHOTO_SLOTS);
 const kind = z.enum(PHOTO_KINDS);
 const index = z.number().int().min(0).max(10_000);
 const binary = z.custom<ArrayBuffer | Uint8Array>((v) => v instanceof ArrayBuffer || v instanceof Uint8Array);
+const bytesOf = (data: ArrayBuffer | Uint8Array): Uint8Array => (data instanceof ArrayBuffer ? new Uint8Array(data) : data);
 
 const schemas = {
   none: z.unknown(),
@@ -354,13 +360,14 @@ const schemas = {
     avatar: text(32),
     // Game mode picked on the home screen; omitted (older clients, bots) -> DEFAULT_SETTINGS.
     settings: z
-      .object({ theme: z.enum(THEMES), photosPerPlayer: z.literal(PHOTOS_PER_PLAYER_OPTIONS).optional() })
+      .object({ theme: z.enum(THEMES), photosPerPlayer: z.literal(PHOTOS_PER_PLAYER_OPTIONS).optional(), blur: z.boolean().optional() })
       .optional(),
   }),
   join: z.object({ code: text(32), name: text(200), avatar: text(32) }),
   rejoin: z.object({ code: text(32), token: text(200), takeover: z.boolean() }),
   update: z.object({ name: text(200).optional(), avatar: text(32).optional() }),
-  upload: z.object({ slot, kind, mime: text(100), data: binary }),
+  // Blur variants: none, or exactly one per BLUR_VARIANT_WIDTHS entry (in that order).
+  upload: z.object({ slot, kind, mime: text(100), data: binary, variants: z.array(binary).length(BLUR_VARIANT_WIDTHS.length).optional() }),
   selfie: z.object({ mime: text(100), data: binary }),
   remove: z.object({ slot }),
   setKind: z.object({ slot, kind }),
@@ -369,6 +376,7 @@ const schemas = {
     anonymousVotes: z.boolean().optional(),
     theme: z.enum(THEMES).optional(),
     photosPerPlayer: z.literal(PHOTOS_PER_PLAYER_OPTIONS).optional(),
+    blur: z.boolean().optional(),
   }),
   kick: z.object({ playerId: text(100) }),
   skip: z.object({ round: index }),
@@ -477,23 +485,37 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
   const session = (room: Room, player: Player): Session => ({ code: room.code, playerId: player.id, token: player.token });
 
   /**
-   * Checks shared by photo and selfie uploads, cheapest first: per-socket upload rate, size,
-   * image header (never the declared mime alone), room and server byte quotas (`replacedBytes`:
-   * what the upload frees, e.g. the photo in the same slot, so a replacement that does not grow
-   * memory is never refused by a quota) and the IP byte budget. Only the upload token is spent
-   * here; the caller takes the bytes from the IP budget once stored.
+   * Checks shared by photo and selfie uploads, cheapest first: per-socket upload rate, sizes,
+   * image headers (never the declared mime alone; blur variants: dimensions within their
+   * width), room and server byte quotas (`replacedBytes`: what the upload frees, e.g. the photo
+   * in the same slot, so a replacement that does not grow memory is never refused by a quota)
+   * and the IP byte budget. Only the upload token is spent here; the caller takes the bytes
+   * (`size`, variants included) from the IP budget once stored.
    */
-  const acceptImage = (room: Room, p: { mime: string; data: ArrayBuffer | Uint8Array }, replacedBytes: number): Result<PhotoMime> => {
+  const acceptImage = (
+    room: Room,
+    p: { mime: string; data: ArrayBuffer | Uint8Array; variants?: Array<ArrayBuffer | Uint8Array> },
+    replacedBytes: number,
+  ): Result<{ mime: PhotoMime; variantMimes: PhotoMime[]; size: number }> => {
     if (!uploads.take(now())) return failure('RATE_LIMITED');
-    const size = p.data.byteLength;
-    if (size > MAX_PHOTO_BYTES) return failure('PHOTO_TOO_LARGE');
-    const info = inspectImage(p.data instanceof ArrayBuffer ? new Uint8Array(p.data) : p.data);
+    const variants = p.variants ?? [];
+    if (p.data.byteLength > MAX_PHOTO_BYTES || variants.some((v) => v.byteLength > MAX_BLUR_VARIANT_BYTES)) {
+      return failure('PHOTO_TOO_LARGE');
+    }
+    const info = inspectImage(bytesOf(p.data));
     if (!info || info.mime !== normalizeMime(p.mime)) return failure('INVALID_PHOTO');
+    const variantMimes: PhotoMime[] = [];
+    for (const [i, v] of variants.entries()) {
+      const variant = inspectVariant(bytesOf(v), BLUR_VARIANT_WIDTHS[i]);
+      if (!variant) return failure('INVALID_PHOTO');
+      variantMimes.push(variant.mime);
+    }
+    const size = variants.reduce((sum, v) => sum + v.byteLength, p.data.byteLength);
     const growth = size - replacedBytes;
     if (roomImageBytes(room) + growth > deps.maxRoomPhotoBytes) return failure('PHOTO_TOO_LARGE');
     if (registry.photoBytes() + growth > deps.maxTotalPhotoBytes) return failure('SERVER_BUSY');
     if (!deps.uploadBytesLimiter.has(ip, now(), size)) return failure('RATE_LIMITED');
-    return { ok: true, value: info.mime };
+    return { ok: true, value: { mime: info.mime, variantMimes, size } };
   };
 
   bind('room:create', schemas.create, (p, dirty) => {
@@ -551,14 +573,17 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
     seated((room, player) => {
       // Stale lobby (e.g. the host just changed the theme): refuse before any work.
       if (room.phase === 'lobby' && !canPlacePhoto(room, p.slot, p.kind)) return failure('BAD_REQUEST');
-      // The photo this one replaces (same slot) is freed.
+      // The photo this one replaces (same slot) is freed, with its blur variants.
       const replaced = room.photos.find((ph) => ph.ownerId === player.id && ph.slot === p.slot);
-      const accepted = acceptImage(room, p, replaced?.data.byteLength ?? 0);
+      const accepted = acceptImage(room, p, replaced ? photoBytes(replaced) : 0);
       if (!accepted.ok) return accepted;
-      const data = toBuffer(p.data);
-      const uploaded = uploadPhoto(room, player.id, { id: newPhotoId(), slot: p.slot, kind: p.kind, mime: accepted.value, data }, now());
+      const { mime, variantMimes, size } = accepted.value;
+      // Variant ids are random too, unrelated to the photo's: a variant URL gives nothing away.
+      const variants: PhotoVariant[] = (p.variants ?? []).map((v, i) => ({ id: newPhotoId(), mime: variantMimes[i], data: toBuffer(v) }));
+      const photo = { id: newPhotoId(), slot: p.slot, kind: p.kind, mime, data: toBuffer(p.data), variants };
+      const uploaded = uploadPhoto(room, player.id, photo, now());
       if (!uploaded.ok) return uploaded;
-      deps.uploadBytesLimiter.take(ip, now(), data.byteLength);
+      deps.uploadBytesLimiter.take(ip, now(), size);
       dirty.add(room);
       return { ok: true, photo: toMyPhoto(room.code, uploaded.value) };
     }),
@@ -571,7 +596,7 @@ function registerHandlers(socket: IoSocket, deps: Deps): void {
       const accepted = acceptImage(room, p, player.selfie?.data.byteLength ?? 0);
       if (!accepted.ok) return accepted;
       const data = toBuffer(p.data);
-      const stored = setSelfie(room, player.id, { id: newPhotoId(), mime: accepted.value, data }, now());
+      const stored = setSelfie(room, player.id, { id: newPhotoId(), mime: accepted.value.mime, data }, now());
       if (!stored.ok) return stored;
       deps.uploadBytesLimiter.take(ip, now(), data.byteLength);
       dirty.add(room);

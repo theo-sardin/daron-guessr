@@ -1,12 +1,13 @@
 // Strings for the results screen. `fr` must mirror `en` exactly (enforced by the type).
 //
-// Copy that depends on what the photos show comes in four "flavors" (see `Flavor` in
-// screens/results/helpers.ts): `parents` (dads & moms), `family` (anything else: siblings,
-// friends, pets, a mix of kinds…), `childhood` (players as kids) and `pick` (pictures players
-// picked). Per-photo copy is keyed by photo kind instead.
+// Copy that depends on what the photos show comes in eight "flavors" (see `Flavor` in
+// screens/results/helpers.ts): one per mode — `parents` (dads & moms), `childhood` (players as
+// kids), `pick` (pictures players picked), `roll` (camera-roll roulette), `crush` (teen crushes),
+// `whois` (photos of the players themselves), `body` (body parts) — and `family` for anything
+// else (siblings, friends, pets, a mix of kinds…). Per-photo copy is keyed by photo kind instead.
 
 /** Same text whatever the flavor. */
-const same = (text: string) => ({ parents: text, family: text, childhood: text, pick: text });
+const same = (text: string) => ({ parents: text, family: text, childhood: text, pick: text, roll: text, crush: text, whois: text, body: text });
 
 const en = {
   title: 'And the winner is…',

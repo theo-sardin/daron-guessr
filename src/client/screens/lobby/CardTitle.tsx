@@ -1,26 +1,15 @@
 import type { ReactNode } from 'react';
-import type { IconName } from '../../components/Icon';
-import { IconBadge, type IconBadgeTone } from '../../components/IconBadge';
 import { cn } from '../../lib/util';
 
-/** Heading of a lobby card: a small icon sticker (the card's one accent) + the title. */
-export function CardTitle({
-  icon,
-  tone,
-  tilt = -6,
-  children,
-  className,
-}: {
-  icon: IconName;
-  tone: IconBadgeTone;
-  tilt?: number;
-  children: ReactNode;
-  className?: string;
-}) {
+/**
+ * Heading of a lobby card: bold Archivo Black words on the paper, an optional ballpoint note
+ * scribbled next to them ("psst, only you can see them").
+ */
+export function CardTitle({ children, note, className }: { children: ReactNode; note?: ReactNode; className?: string }) {
   return (
-    <h2 className={cn('flex min-w-0 items-center gap-2.5 font-display text-2xl leading-none tracking-[-0.02em]', className)}>
-      <IconBadge name={icon} tone={tone} size="sm" tilt={tilt} />
+    <h2 className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 font-heavy text-[1.55rem] leading-[0.95] tracking-[-0.02em] text-ink sm:text-[1.75rem]', className)}>
       <span className="min-w-0">{children}</span>
+      {note && <span className="text-pen -rotate-2 text-[1.15rem] leading-none font-bold tracking-normal">{note}</span>}
     </h2>
   );
 }

@@ -41,7 +41,7 @@ const PLAYER_KEYS = ['avatar', 'color', 'connected', 'id', 'isHost', 'name', 're
 /** `selfieUrl` is optional: only there when the player has a selfie. */
 const PLAYER_WITH_SELFIE_KEYS = [...PLAYER_KEYS, 'selfieUrl'].sort();
 const PHOTO_REF_KEYS = ['id', 'kind', 'url'];
-const VOTING_KEYS = ['candidates', 'endsAt', 'isMine', 'myVote', 'photo', 'round', 'startsAt', 'totalRounds', 'votedIds'];
+const VOTING_KEYS = ['blur', 'candidates', 'endsAt', 'isMine', 'myVote', 'photo', 'round', 'startsAt', 'totalRounds', 'votedIds'];
 const REVEAL_KEYS = ['current', 'index', 'startedAt', 'total'];
 const PHOTO_RESULT_KEYS = ['correctVotes', 'index', 'myVote', 'ownerId', 'photo', 'tally', 'totalVotes', 'voters'];
 
@@ -51,7 +51,7 @@ const PHOTO_RESULT_KEYS = ['correctVotes', 'index', 'myVote', 'ownerId', 'photo'
  */
 function expectExactShape(view: RoomView): void {
   expect(keys(view)).toEqual(ROOM_VIEW_KEYS);
-  expect(keys(view.settings)).toEqual(['anonymousVotes', 'photosPerPlayer', 'theme', 'voteSeconds']);
+  expect(keys(view.settings)).toEqual(['anonymousVotes', 'blur', 'photosPerPlayer', 'theme', 'voteSeconds']);
   for (const p of view.players) {
     expect(keys(p)).toEqual(p.selfieUrl === undefined ? PLAYER_KEYS : PLAYER_WITH_SELFIE_KEYS);
     if (p.selfieUrl !== undefined) expect(p.selfieUrl).toMatch(new RegExp(`^/photos/${view.code}/[^/]+$`));
@@ -65,12 +65,13 @@ function expectExactShape(view: RoomView): void {
   if (view.reveal) expect(keys(view.reveal)).toEqual(REVEAL_KEYS);
   if (view.results) expect(keys(view.results)).toEqual(['awards', 'photos', 'ranking']);
   for (const r of results) {
-    expect(keys(r)).toEqual(PHOTO_RESULT_KEYS);
+    // `myPoints` is left out for the photo's owner (their vote is a decoy).
+    expect(keys(r)).toEqual(r.ownerId === view.meId ? PHOTO_RESULT_KEYS : [...PHOTO_RESULT_KEYS, 'myPoints'].sort());
     expect(keys(r.photo)).toEqual(PHOTO_REF_KEYS);
     for (const n of Object.values(r.tally)) expect(typeof n).toBe('number');
     if (r.voters) for (const ids of Object.values(r.voters)) expect(ids.every((id) => typeof id === 'string')).toBe(true);
   }
-  for (const entry of view.results?.ranking ?? []) expect(keys(entry)).toEqual(['correct', 'guesses', 'playerId', 'rank', 'score']);
+  for (const entry of view.results?.ranking ?? []) expect(keys(entry)).toEqual(['bonus', 'correct', 'guesses', 'playerId', 'rank', 'score']);
 }
 
 function expectIndistinguishable(room: g.Room, now: number): void {
@@ -298,7 +299,7 @@ describe('themes and photos per player in views', () => {
     unwrap(g.updateSettings(room, A, { photosPerPlayer: 2 }));
     expect(ready()).toEqual([true, false, true, true, false]);
     const alice = buildView(room, A, 0);
-    expect(alice.settings).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2 });
+    expect(alice.settings).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2, blur: false });
     expect(alice.myPhotos.map((ph) => [ph.slot, ph.kind])).toEqual([[0, 'daron'], [1, 'daronne'], [2, 'daron']]);
     expect(buildView(room, B, 0).myPhotos.map((ph) => ph.slot)).toEqual([2]);
 

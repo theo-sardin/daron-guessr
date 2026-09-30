@@ -42,18 +42,17 @@ export function CodeInput({
               key={i}
               style={{ rotate: `${ch ? TILTS[i] : 0}deg` }}
               className={cn(
-                // Typed letters light up like the camera's date imprint: orange Space Mono on an ink plate.
-                'relative flex h-16 items-center justify-center rounded-2xl border-3 font-mono text-4xl font-bold transition-[background-color,border-color,rotate,box-shadow] duration-200',
+                // Letter boxes drawn on the kraft: a typed letter is a white paper tile in bold ink.
+                'relative flex h-14 items-center justify-center rounded-[4px] font-num text-[2.1rem] leading-none transition-[background-color,border-color,rotate,box-shadow] duration-200 sm:h-16',
                 bad
-                  ? 'border-ink bg-danger text-white shadow-pop-sm'
+                  ? 'border-2 border-red-ink bg-red text-white shadow-paper-sm'
                   : ch
-                    ? 'text-stamp border-ink bg-ink shadow-pop-sm'
+                    ? 'border-2 border-transparent bg-sheet text-ink shadow-paper-sm'
                     : invalid
-                      ? 'border-danger bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]'
-                      : // Empty: an unlit slot pressed into the card, waiting for its letter.
-                        'border-ink/35 bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]',
-                isActive && !ch && 'border-pink bg-white shadow-none',
-                isActive && 'ring-4 ring-pink/50',
+                      ? 'border-2 border-dashed border-red-ink bg-sheet/40 text-ink'
+                      : 'border-2 border-ink/70 bg-sheet/35 text-ink',
+                isActive && !ch && 'border-solid border-blue bg-sheet',
+                isActive && 'shadow-[0_0_0_3px_rgb(35_68_200_/_0.35)]',
               )}
             >
               <AnimatePresence mode="popLayout" initial={false}>
@@ -70,7 +69,7 @@ export function CodeInput({
                 ) : isActive ? (
                   <motion.span
                     key="caret"
-                    className="h-8 w-1 rounded-full bg-pink"
+                    className="h-8 w-[3px] rounded-full bg-blue"
                     animate={{ opacity: [1, 0.15, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
                   />
@@ -112,7 +111,7 @@ export function CodeInput({
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint="go"
-        className="absolute inset-0 h-full w-full cursor-text rounded-2xl border-0 bg-transparent text-transparent caret-transparent opacity-[0.01] outline-none selection:bg-transparent"
+        className="absolute inset-0 h-full w-full cursor-text rounded-[4px] border-0 bg-transparent text-transparent caret-transparent opacity-[0.01] outline-none selection:bg-transparent"
       />
     </div>
   );

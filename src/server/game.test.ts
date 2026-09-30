@@ -12,6 +12,7 @@ import {
   REVEAL_OWNER_AT_MS,
   ROUND_GAP_MS,
   THEMES,
+  THEME_DEFAULT_BLUR,
   THEME_DEFAULT_PHOTOS,
   type Award,
   type AwardId,
@@ -152,7 +153,7 @@ describe('voting', () => {
     const owner = currentOwner(room);
     const decoyTarget = game(room).ownerIds.find((id) => id !== owner)!;
     expect(errorOf(g.castVote(room, owner, 0, decoyTarget, t))).toBeNull();
-    expect(game(room).votes[0].get(owner)).toEqual({ candidateId: decoyTarget, decoy: true });
+    expect(game(room).votes[0].get(owner)).toEqual({ candidateId: decoyTarget, decoy: true, step: 0 });
     const result = g.roundResult(room, 0);
     expect(result.totalVotes).toBe(0);
     expect(result.votersByCandidate.size).toBe(0);
@@ -467,7 +468,7 @@ describe('lobby rules', () => {
     expect(errorOf(g.updateSettings(room, B, { voteSeconds: 15 }))).toBe('NOT_HOST');
     expect(errorOf(g.updateSettings(room, A, { voteSeconds: 25 }))).toBe('BAD_REQUEST');
     unwrap(g.updateSettings(room, A, { voteSeconds: 0, anonymousVotes: false }));
-    expect(room.settings).toEqual({ voteSeconds: 0, anonymousVotes: false, theme: 'parents', photosPerPlayer: 2 });
+    expect(room.settings).toEqual({ voteSeconds: 0, anonymousVotes: false, theme: 'parents', photosPerPlayer: 2, blur: false });
     unwrap(g.setPhotoKind(room, A, 0, 'daronne'));
     expect(errorOf(g.setPhotoKind(room, A, 1, 'daron'))).toBe('BAD_REQUEST');
 
@@ -588,7 +589,7 @@ describe('themes and photos per player', () => {
     expect(room.settings).toMatchObject({ theme: 'childhood', photosPerPlayer: 2 });
     // The whole settings object sent back (e.g. to change the timer) changes nothing else.
     unwrap(g.updateSettings(room, A, { ...room.settings, voteSeconds: 15 }));
-    expect(room.settings).toEqual({ voteSeconds: 15, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 2 });
+    expect(room.settings).toEqual({ voteSeconds: 15, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 2, blur: false });
     unwrap(g.updateSettings(room, A, { theme: 'childhood' }));
     expect(room.settings.photosPerPlayer).toBe(2);
   });
@@ -614,14 +615,21 @@ describe('themes and photos per player', () => {
 
     it("starts with the picked theme and that theme's default photo count", () => {
       for (const theme of THEMES) {
-        expect(unwrap(create({ theme })).settings).toEqual({ ...DEFAULT_SETTINGS, theme, photosPerPlayer: THEME_DEFAULT_PHOTOS[theme] });
+        expect(unwrap(create({ theme })).settings).toEqual({
+          ...DEFAULT_SETTINGS,
+          theme,
+          photosPerPlayer: THEME_DEFAULT_PHOTOS[theme],
+          blur: THEME_DEFAULT_BLUR[theme],
+        });
       }
       expect(unwrap(create({ theme: 'childhood' })).settings).toEqual({
         voteSeconds: 30,
         anonymousVotes: true,
         theme: 'childhood',
         photosPerPlayer: 1,
+        blur: false,
       });
+      expect(unwrap(create({ theme: 'whois' })).settings).toMatchObject({ theme: 'whois', photosPerPlayer: 1, blur: true });
     });
 
     it('keeps an explicit photo count', () => {
@@ -732,7 +740,7 @@ describe('themes and photos per player', () => {
 
   it('keeps the settings on playAgain, and clears the photos', () => {
     const room = makeRoom(FOUR);
-    const settings = { voteSeconds: 15, anonymousVotes: false, theme: 'family', photosPerPlayer: 3 } as const;
+    const settings = { voteSeconds: 15, anonymousVotes: false, theme: 'family', photosPerPlayer: 3, blur: true } as const;
     unwrap(g.updateSettings(room, A, settings));
     addPhotos(room, [3, 2, 1, 0]);
     unwrap(g.startGame(room, A, 0, seededRng(2)));

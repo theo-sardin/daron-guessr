@@ -103,6 +103,18 @@ function webpSize(b: Uint8Array): Size | null {
   return null;
 }
 
+/** Slack on a blur variant's longest edge (rounding in the uploader's resize). */
+export const VARIANT_SIDE_TOLERANCE = 2;
+
+/**
+ * A blur variant (see BLUR_VARIANT_WIDTHS): any accepted image whose longest edge is at most
+ * `width` (+ VARIANT_SIDE_TOLERANCE). There is no declared mime: the header decides.
+ */
+export function inspectVariant(bytes: Uint8Array, width: number): ImageInfo | null {
+  const info = inspectImage(bytes);
+  return info && Math.max(info.width, info.height) <= width + VARIANT_SIDE_TOLERANCE ? info : null;
+}
+
 /** Declared mime, with the common non-standard alias folded in. */
 export function normalizeMime(mime: string): string {
   const m = mime.trim().toLowerCase();

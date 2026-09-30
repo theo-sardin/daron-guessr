@@ -1,157 +1,64 @@
-import { AnimatePresence, motion } from 'motion/react';
-import type { PublicPlayer, VotingView } from '../../../shared/protocol';
-import { Avatar } from '../../components/Avatar';
-import { Icon } from '../../components/Icon';
-import { pad, Stamp } from '../../components/Stamp';
+import { motion } from 'motion/react';
+import type { VotingView } from '../../../shared/protocol';
+import { Stamp } from '../../components/Stamp';
 import { TimerRing } from '../../components/TimerRing';
 import { useT } from '../../i18n';
 import { cn } from '../../lib/util';
 
+/** Colors of the little prints already shown (one per photo, cycling). */
+const PRINT_COLORS = ['#E7B04C', '#4FA9D6', '#8C9DD0', '#F6A6C1', '#9ED9C0', '#E3321F', '#C9B8F0', '#F7A866'];
+
 /**
- * Top strip, like the status LCD of a camera: the "03/08" frame counter as a date stamp, the
- * film-frame progress, the round timer and the "who voted" avatars. Only *whether* someone
- * voted is shown, never for whom.
+ * Top of the page: "photo" in typewriter over a big bold "3/8", one tiny print per photo
+ * (shot ones filled in, the current one outlined in red marker, the rest dashed), and the red
+ * marker timer on the right.
  */
-export function VoteHeader({
-  v,
-  players,
-  meId,
-  started,
-}: {
-  v: VotingView;
-  players: PublicPlayer[];
-  meId: string;
-  started: boolean;
-}) {
+export function VoteHeader({ v, className }: { v: VotingView; className?: string }) {
   const t = useT();
   const n = v.round + 1;
   return (
-    <div className="flex items-center gap-3 rounded-3xl border-2 border-white/15 bg-grape-950/70 px-3 py-2.5 sm:gap-4 sm:px-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex items-center gap-2.5">
-          {/* Micro-label + frame counter on one line, like a camera's LCD. */}
-          <span className="flex shrink-0 items-baseline gap-1.5">
-            <span className="label-mono text-[10px] text-grape-200" aria-hidden>
-              {t('voting.photoLabel')}
-            </span>
-            <motion.span
-              key={v.round}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0.35, 1] }}
-              transition={{ duration: 0.45, times: [0, 0.3, 0.55, 1] }}
-            >
-              <Stamp size="md" ariaLabel={t('voting.photoCount', { n, total: v.totalRounds })}>
-                {pad(n)}/{pad(v.totalRounds)}
-              </Stamp>
-            </motion.span>
-          </span>
-          <FilmProgress round={v.round} total={v.totalRounds} label={t('voting.progressLabel', { n, total: v.totalRounds })} />
-        </div>
-        <VotedStrip players={players} votedIds={v.votedIds} meId={meId} active={started} />
+    <div className={cn('flex items-end justify-between gap-3', className)}>
+      <div className="min-w-0">
+        <motion.div key={v.round} initial={{ scale: 1.3, rotate: -6, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 520, damping: 20 }} className="origin-bottom-left">
+          <Stamp label={t('voting.photoLabel')} size="xl" ariaLabel={t('voting.photoCount', { n, total: v.totalRounds })} valueClassName="text-[3.1rem]! lg:text-[3.6rem]!">
+            {n}/{v.totalRounds}
+          </Stamp>
+        </motion.div>
+        <RoundTicks round={v.round} total={v.totalRounds} label={t('voting.progressLabel', { n, total: v.totalRounds })} />
       </div>
-      <TimerRing startsAt={v.startsAt} endsAt={v.endsAt} size={60} className="shrink-0" />
+      <TimerRing startsAt={v.startsAt} endsAt={v.endsAt} size={84} className="-mr-1" />
     </div>
   );
 }
 
-/** One frame per photo, like a strip of negatives: shot frames dim, the current one lit orange. */
-function FilmProgress({ round, total, label }: { round: number; total: number; label: string }) {
+function RoundTicks({ round, total, label }: { round: number; total: number; label: string }) {
+  // Smaller prints when there are many photos, so the row stays on the page (it may wrap).
+  const w = total <= 10 ? 13 : total <= 16 ? 10 : 8;
   return (
     <div
-      className="flex h-3 min-w-0 flex-1 gap-[3px]"
+      className="mt-2 flex max-w-[15rem] flex-wrap gap-1"
       role="progressbar"
       aria-valuemin={1}
       aria-valuemax={total}
       aria-valuenow={round + 1}
       aria-label={label}
     >
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={cn(
-            // Capped so a wide screen shows a strip of little frames, not a stretched progress bar.
-            'relative h-full max-w-7 min-w-0 flex-1 rounded-[3px]',
-            i < round && 'bg-cream/45',
-            i === round && 'bg-grape-800',
-            i > round && 'border-[1.5px] border-white/15',
-          )}
-        >
-          {i === round && (
-            <motion.span
-              className="absolute inset-0 rounded-[3px] bg-stamp shadow-[0_0_10px_rgb(255_122_26_/_0.7)]"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              style={{ originX: 0 }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-            />
-          )}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/** Everybody still around, in join order: a check pops on each avatar as they vote. */
-function VotedStrip({ players, votedIds, meId, active }: { players: PublicPlayer[]; votedIds: string[]; meId: string; active: boolean }) {
-  const t = useT();
-  const voted = new Set(votedIds);
-  // Connected players, plus anyone who voted before dropping (their vote still counts).
-  const shown = players.filter((p) => p.connected || voted.has(p.id));
-  const count = shown.filter((p) => voted.has(p.id)).length;
-  const all = active && shown.length > 0 && count === shown.length;
-
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5" aria-label={t('voting.whoVoted')}>
-      <ul className={cn('flex min-w-0 items-center', shown.length > 9 ? '-space-x-2.5' : shown.length > 6 ? '-space-x-2' : '-space-x-1.5')}>
-        {shown.map((p) => {
-          const has = voted.has(p.id);
-          return (
-            <li key={p.id} className="relative">
-              <motion.div
-                initial={false}
-                animate={has ? { y: [0, -9, 0], scale: [1, 1.25, 1] } : { y: 0, scale: 1 }}
-                transition={{ duration: 0.45, ease: 'easeOut' }}
-                className={cn('transition-[opacity,filter] duration-300', has ? 'opacity-100' : 'opacity-40 grayscale-[0.6]')}
-              >
-                <Avatar player={p} size="xs" crown={false} className={cn(p.id === meId && 'rounded-full ring-2 ring-cream')} />
-              </motion.div>
-              <AnimatePresence initial={false}>
-                {has && (
-                  <motion.span
-                    initial={{ scale: 0, rotate: -40 }}
-                    animate={{ scale: 1, rotate: 0 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 600, damping: 16 }}
-                    className="absolute -right-1 -bottom-1 z-10 flex size-4 items-center justify-center rounded-full border-[1.5px] border-ink bg-mint text-ink"
-                    aria-hidden
-                  >
-                    <Icon name="check" className="size-2.5" weight="bold" />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </li>
-          );
-        })}
-      </ul>
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.span
-          key={all ? 'all' : 'count'}
-          initial={{ y: 6, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -6, opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1 whitespace-nowrap',
-            all
-              ? 'rounded-full border-2 border-ink bg-mint py-0.5 pr-2 pl-1 text-xs leading-none font-extrabold text-ink'
-              : 'label-mono text-grape-200 tabular-nums',
-          )}
-          aria-live="polite"
-        >
-          {all && <Icon name="check" className="size-3.5" weight="bold" />}
-          {all ? t('voting.allVoted') : t('voting.votedCount', { count, total: shown.length })}
-        </motion.span>
-      </AnimatePresence>
+      {Array.from({ length: total }, (_, i) => {
+        const r = ((i * 37) % 9) - 4;
+        if (i > round) return <i key={i} className="block border-[1.5px] border-dashed border-ink/35" style={{ width: w, height: w + 2 }} />;
+        return (
+          <motion.i
+            key={i}
+            className={cn('block bg-white px-[1.5px] pt-[1.5px] pb-1 shadow-[0_1px_2px_rgb(40_25_10/0.3)]', i === round && 'outline-2 outline-offset-1 outline-red')}
+            style={{ width: w, height: w + 2, rotate: `${r}deg` }}
+            initial={i === round ? { scale: 0, rotate: -40 } : false}
+            animate={{ scale: 1, rotate: r }}
+            transition={{ type: 'spring', stiffness: 500, damping: 16, delay: 0.2 }}
+          >
+            <span className="block size-full" style={{ background: PRINT_COLORS[i % PRINT_COLORS.length] }} />
+          </motion.i>
+        );
+      })}
     </div>
   );
 }

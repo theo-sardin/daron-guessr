@@ -2,6 +2,7 @@ import type { AddressInfo } from 'node:net';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  BLUR_VARIANT_WIDTHS,
   MAX_PHOTO_BYTES,
   POINTS_PER_CORRECT,
   type AwardId,
@@ -362,7 +363,7 @@ describe('socket server: themes and photos per player', () => {
     const { code } = await alice.create('Alice');
     await bob.join(code, 'Bob');
 
-    for (const patch of [{ theme: 'cousins' }, { photosPerPlayer: 4 }, { photosPerPlayer: '2' }, { theme: 'mix', photosPerPlayer: 0 }]) {
+    for (const patch of [{ theme: 'cousins' }, { photosPerPlayer: 4 }, { photosPerPlayer: '2' }, { theme: 'mix', photosPerPlayer: 0 }, { blur: 'yes' }]) {
       expect(await settings(alice, patch)).toEqual(BAD);
     }
     expect(await settings(bob, { theme: 'mix' })).toEqual({ ok: false, error: 'NOT_HOST' });
@@ -371,6 +372,7 @@ describe('socket server: themes and photos per player', () => {
       anonymousVotes: true,
       theme: 'parents',
       photosPerPlayer: 2,
+      blur: false,
     });
 
     expect(await put(bob, 0, 'daron')).toMatchObject({ ok: true });
@@ -463,7 +465,7 @@ describe('socket server: themes and photos per player', () => {
     expect(await alice.socket.emitWithAck('host:playAgain')).toEqual({ ok: true });
     for (const p of players) {
       const v = await p.until('back to lobby', (view) => view.phase === 'lobby');
-      expect(v.settings).toEqual({ voteSeconds: 0, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1 });
+      expect(v.settings).toEqual({ voteSeconds: 0, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1, blur: false });
       expect(v.myPhotos).toEqual([]);
     }
   }, 15_000);
@@ -481,11 +483,11 @@ describe('socket server: game mode picked when creating a room', () => {
     await c.create('C', '🐸', { theme: 'family', photosPerPlayer: 3 });
     await d.create('D');
     const settingsOf = async (x: Client) => (await x.until('lobby', (v) => v.phase === 'lobby')).settings;
-    expect(await settingsOf(a)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1 });
-    expect(await settingsOf(b)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'pick', photosPerPlayer: 1 });
-    expect(await settingsOf(c)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'family', photosPerPlayer: 3 });
+    expect(await settingsOf(a)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'childhood', photosPerPlayer: 1, blur: false });
+    expect(await settingsOf(b)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'pick', photosPerPlayer: 1, blur: false });
+    expect(await settingsOf(c)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'family', photosPerPlayer: 3, blur: false });
     // No settings at all (older clients, bots): the defaults.
-    expect(await settingsOf(d)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2 });
+    expect(await settingsOf(d)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'parents', photosPerPlayer: 2, blur: false });
 
     // The mode applies right away, and the host can still change it in the lobby.
     const put = (slot: PhotoSlot, kind: PhotoKind) => a.socket.emitWithAck('photo:upload', { slot, kind, mime: 'image/png', data: PNG });
@@ -737,12 +739,24 @@ describe('socket server: abuse limits', () => {
     expect(await upload(b, 1, PNG)).toEqual({ ok: false, error: 'RATE_LIMITED' });
   });
 
-  it('refuses packets with more than one binary attachment', async () => {
+  it('refuses packets with more attachments than a photo and its blur variants', async () => {
     const { url } = await startServer();
     const c = await client(url);
     await c.create('Attach');
     const gone = new Promise<string>((resolve) => c.socket.once('disconnect', (reason) => resolve(reason)));
-    c.raw.emit('photo:upload', { slot: 0, kind: 'daron', mime: 'image/png', data: PNG, more: PNG });
+    const variants = BLUR_VARIANT_WIDTHS.map(() => PNG);
+    c.raw.emit('photo:upload', { slot: 0, kind: 'daron', mime: 'image/png', data: PNG, variants, more: PNG });
+    expect(await gone).toBe('transport close');
+  });
+
+  it('refuses packets whose attachments add up to more than a photo and its variants', async () => {
+    const { url } = await startServer();
+    const c = await client(url);
+    await c.create('Attach');
+    const gone = new Promise<string>((resolve) => c.socket.once('disconnect', (reason) => resolve(reason)));
+    // Each piece fits the per-message limit, together they are far past a legit upload.
+    const big = Buffer.alloc(MAX_PHOTO_BYTES);
+    c.raw.emit('photo:upload', { slot: 0, kind: 'daron', mime: 'image/png', data: big, variants: [big, big, big, big] });
     expect(await gone).toBe('transport close');
   });
 

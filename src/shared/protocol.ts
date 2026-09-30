@@ -230,6 +230,11 @@ export const DEFAULT_SETTINGS: Settings = {
  * full photo. Photos uploaded without variants fall back to the full URL (the client blurs it).
  */
 export const BLUR_VARIANT_WIDTHS = [12, 24, 48, 96] as const;
+/**
+ * Largest accepted blur variant, in bytes (a 96 px JPEG weighs a few KB). Each variant must be a
+ * JPEG / PNG / WebP whose longest edge is at most its BLUR_VARIANT_WIDTHS entry (+ 2 px).
+ */
+export const MAX_BLUR_VARIANT_BYTES = 64 * 1024;
 export const BLUR_NO_TIMER_ROUND_MS = 20_000;
 /** Speed bonus of a correct vote, by the blur step at which the voter last changed their vote. */
 export const BLUR_BONUS_BY_STEP = [100, 75, 50, 25, 0] as const;
