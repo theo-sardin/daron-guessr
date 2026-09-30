@@ -9,59 +9,55 @@ import { PaperTexture } from './Background';
 import { DymoLabel } from './DymoLabel';
 import { Icon } from './Icon';
 import { Logo, useHeroLogoVisible } from './Logo';
+import { MarkerCircle } from './Marker';
 import { ConfirmDialog } from './Modal';
 import { RoundButton } from './RoundButton';
+import { Tape } from './Tape';
 import { toast } from './Toast';
+import { TornPaper } from './TornPaper';
 
 /** Typewriter label over the room code (kept here: the top bar is the only place it is used). */
 const ROOM_NO: Record<Lang, string> = { fr: 'salon n°', en: 'room no.' };
 
 /**
- * "FR | EN": a round outlined pill with two real buttons; a highlighter swipe marks the
- * current language (tapping the lit one does nothing). 46px tall, each half 42px wide.
+ * "FR EN" typed on a post-it tab stuck to the bar: two real buttons (44px each), the current
+ * language circled in red marker (tapping it does nothing, the loop moves to the new one).
  */
-function LangSwitch({ lang, setLang, label }: { lang: Lang; setLang: (l: Lang) => void; label: string }) {
+function LangSwitch({ lang, setLang, label, className }: { lang: Lang; setLang: (l: Lang) => void; label: string; className?: string }) {
   return (
-    <div
-      role="group"
-      aria-label={label}
-      className="flex h-[46px] items-center rounded-full bg-sheet px-1"
-      style={{ rotate: '2deg', boxShadow: '0 1px 1px rgb(40 25 10 / 0.2), 0 4px 10px -3px rgb(40 25 10 / 0.35), inset 0 0 0 2px var(--color-ink)' }}
-    >
-      {(['fr', 'en'] as const).map((l) => (
-        <motion.button
-          key={l}
-          type="button"
-          lang={l}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => {
-            if (l === lang) return;
-            sfx.play('click');
-            setLang(l);
-          }}
-          aria-pressed={l === lang}
-          aria-label={l === 'fr' ? 'Français' : 'English'}
-          className={cn(
-            'relative flex h-full w-[42px] items-center justify-center text-[13px] font-extrabold tracking-[0.04em] transition-colors',
-            l === lang ? 'text-ink' : 'text-ink-faint hover:text-ink',
-          )}
-        >
-          {l === lang && (
-            <motion.span
-              layoutId="lang-hl"
-              className="absolute inset-x-1 top-[11px] bottom-[10px] bg-yellow"
-              style={{ borderRadius: '3px 8px 4px 9px', rotate: '-4deg' }}
-              transition={{ type: 'spring', stiffness: 600, damping: 36 }}
-            />
-          )}
-          <span className="relative">{l.toUpperCase()}</span>
-        </motion.button>
-      ))}
+    <div role="group" aria-label={label} className={cn('relative shrink-0', className)} style={{ rotate: '2.5deg' }}>
+      <TornPaper surface="postit" edges="b" amp={2} step={5} seed="lang-tab" lift="sm" className="flex h-11 items-center">
+        {(['fr', 'en'] as const).map((l) => (
+          <motion.button
+            key={l}
+            type="button"
+            lang={l}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              if (l === lang) return;
+              sfx.play('marker');
+              setLang(l);
+            }}
+            aria-pressed={l === lang}
+            aria-label={l === 'fr' ? 'Français' : 'English'}
+            className={cn('flex h-11 w-11 items-center justify-center text-[13px] font-black tracking-[0.06em] transition-colors', l === lang ? 'text-ink' : 'text-ink-soft hover:text-ink')}
+          >
+            <MarkerCircle show={l === lang} pad={4} strokeWidth={2.4} seed={`lang-${l}`} className="px-0.5">
+              {l.toUpperCase()}
+            </MarkerCircle>
+          </motion.button>
+        ))}
+      </TornPaper>
+      <Tape width={26} height={11} rotate={-8} className="-top-1.5 left-1/2 -translate-x-1/2" />
     </div>
   );
 }
 
-/** Fixed header: "salon n°" + the room code on a Dymo label (tap to copy the link), sound, language, leave. */
+/**
+ * Fixed header: "salon n°" + the room code on a Dymo label (tap to copy the link), sound,
+ * language, leave. The language tab only shows before the game (home, and the lobby from
+ * 360px): during play the bar keeps to the code, sound and leave.
+ */
 export function TopBar() {
   const { t, lang, setLang } = useI18n();
   const muted = useMuted();
@@ -120,7 +116,9 @@ export function TopBar() {
           >
             <Icon name={muted ? 'sound-off' : 'sound-on'} fill="currentColor" className="size-6" />
           </RoundButton>
-          <LangSwitch lang={lang} setLang={setLang} label={t('common.language')} />
+          {(!view || view.phase === 'lobby') && (
+            <LangSwitch lang={lang} setLang={setLang} label={t('common.language')} className={view ? 'max-[359px]:hidden' : undefined} />
+          )}
           {view && (
             <RoundButton label={t('common.leaveRoom')} tone="red" tilt={5} onClick={() => setConfirmLeave(true)}>
               <Icon name="leave" className="size-6" />

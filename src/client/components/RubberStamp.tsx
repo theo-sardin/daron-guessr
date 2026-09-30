@@ -30,7 +30,7 @@ export interface RubberStampProps {
 }
 
 /**
- * A rubber stamp in grungy ink: double border, wide caps ("GRILLÉE !", "INCOGNITO").
+ * A rubber stamp in grungy ink: a double border (thick line, gap, thin line), wide caps ("GRILLÉE !", "INCOGNITO").
  * `animate` thumps it down (and plays the stamp sound).
  */
 export function RubberStamp({ children, tone = 'red', size = 'lg', tilt = -12, top, backing = false, animate = false, sound, className, style }: RubberStampProps) {
@@ -45,16 +45,21 @@ export function RubberStamp({ children, tone = 'red', size = 'lg', tilt = -12, t
     return () => window.clearTimeout(id);
   }, [animate, playSound, delay]);
 
+  // Small stamps are small text: the deeper red keeps them at 4.5:1 or better.
+  const ink = tone === 'red' && px < 18 ? 'var(--color-red-ink)' : color;
+  // A thick outer line, a gap, a thin inner line: two real borders, so the grunge mask bites both.
   const border = Math.max(2, Math.round(px * 0.13));
+  const inner = Math.max(1, Math.round(border * 0.45));
+  const gap = Math.max(1.5, +(border * 0.8).toFixed(1));
+  const radius = Math.max(4, px * 0.2);
   const stamp = (
     <span
       className="relative block text-center uppercase"
       style={{
-        color,
-        border: `${border}px solid ${color}`,
-        boxShadow: `inset 0 0 0 ${border * 0.6}px transparent, inset 0 0 0 ${border * 1.25}px ${color}`,
-        borderRadius: Math.max(4, px * 0.2),
-        padding: `${(px * 0.29).toFixed(1)}px ${(px * 0.45).toFixed(1)}px ${(px * 0.23).toFixed(1)}px`,
+        color: ink,
+        border: `${border}px solid ${ink}`,
+        borderRadius: radius,
+        padding: gap,
         fontFamily: 'var(--font-sans)',
         fontWeight: 900,
         fontStretch: '115%',
@@ -66,12 +71,22 @@ export function RubberStamp({ children, tone = 'red', size = 'lg', tilt = -12, t
         maskImage: 'var(--grunge)',
       }}
     >
-      {top && (
-        <span className="block" style={{ fontSize: Math.max(8, px * 0.32), letterSpacing: '0.3em', fontStretch: '110%', marginBottom: px * 0.13 }} aria-hidden>
-          {top === true ? '★ ★ ★' : top}
-        </span>
-      )}
-      {children}
+      <span
+        className="block"
+        style={{
+          border: `${inner}px solid ${ink}`,
+          borderRadius: Math.max(2, radius - gap - border * 0.5),
+          // Room above for accented capitals (HÔTE, GRILLÉE) so they never touch the frame.
+          padding: `0.36em ${(px * 0.4).toFixed(1)}px ${(px * 0.2).toFixed(1)}px`,
+        }}
+      >
+        {top && (
+          <span className="block" style={{ fontSize: Math.max(8, px * 0.32), letterSpacing: '0.3em', fontStretch: '110%', marginBottom: px * 0.13 }} aria-hidden>
+            {top === true ? '★ ★ ★' : top}
+          </span>
+        )}
+        {children}
+      </span>
     </span>
   );
 

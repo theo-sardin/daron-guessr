@@ -65,21 +65,28 @@ export interface AvatarProps {
   tilt?: number;
   /**
    * Show the player's selfie (`selfieUrl`) in the disc when they have one, with their emoji as a
-   * small sticker on the rim (default false: the emoji). Best from md up; tiny faces read badly.
+   * small sticker on the rim from md up (default false: the emoji). Tiny faces read badly.
    */
   selfie?: boolean;
+  /**
+   * Accessible name when the avatar stands alone (a voter stack, a podium): it becomes an image
+   * named `label` (e.g. the player's name). Without it the avatar is decorative (next to a name).
+   */
+  label?: string;
 }
 
 /**
  * The player's emoji on a disc of colored paper with a white rim (a round sticker), or their
  * selfie with `selfie` (the emoji then rides on the rim).
  */
-export function Avatar({ player, size = 'md', crown = true, dimOffline = true, className, highlight, tilt, selfie = false }: AvatarProps) {
+export function Avatar({ player, size = 'md', crown = true, dimOffline = true, className, highlight, tilt, selfie = false, label }: AvatarProps) {
   const t = useT();
   const s = SIZES[size];
   const offline = dimOffline && player.connected === false;
   const rim = Math.max(2, Math.round(s.d * 0.07));
   const face = selfie && player.selfieUrl ? player.selfieUrl : null;
+  // The emoji sticker on a selfie's rim only from md (48px) up: below it would be ~12px mush.
+  const rimEmoji = s.d >= 48;
   const disc = (
     <span
       className={cn('emoji relative inline-flex items-center justify-center rounded-full leading-none select-none', offline && 'opacity-45 grayscale')}
@@ -97,12 +104,14 @@ export function Avatar({ player, size = 'md', crown = true, dimOffline = true, c
       {face ? (
         <>
           <img src={face} alt="" draggable={false} className="size-full rounded-full object-cover" />
-          <span
-            className="absolute flex items-center justify-center rounded-full border-2 border-white"
-            style={{ width: s.d * 0.42, height: s.d * 0.42, right: -s.d * 0.1, bottom: -s.d * 0.08, fontSize: s.d * 0.24, backgroundColor: paperColor(player.color), boxShadow: '0 1px 2px rgb(40 25 10 / 0.3)' }}
-          >
-            {player.avatar}
-          </span>
+          {rimEmoji && (
+            <span
+              className="absolute flex items-center justify-center rounded-full border-2 border-white"
+              style={{ width: s.d * 0.42, height: s.d * 0.42, right: -s.d * 0.1, bottom: -s.d * 0.08, fontSize: s.d * 0.24, backgroundColor: paperColor(player.color), boxShadow: '0 1px 2px rgb(40 25 10 / 0.3)' }}
+            >
+              {player.avatar}
+            </span>
+          )}
         </>
       ) : (
         player.avatar
@@ -110,7 +119,7 @@ export function Avatar({ player, size = 'md', crown = true, dimOffline = true, c
     </span>
   );
   return (
-    <span className={cn(rel(className), 'inline-flex shrink-0', className)} title={player.name}>
+    <span className={cn(rel(className), 'inline-flex shrink-0', className)} title={player.name} role={label ? 'img' : undefined} aria-label={label}>
       {highlight ? (
         <MarkerCircle pad={Math.max(5, s.d * 0.12)} strokeWidth={s.d > 60 ? 3.6 : 3} className="flex">
           {disc}

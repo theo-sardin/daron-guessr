@@ -97,7 +97,7 @@ function TypeSpecimen() {
 }
 
 function Cutouts() {
-  const names = ['Julie!', 'Daronne', 'Théo', 'Maximilien', 'Chloé & Inès', 'Karim 🔥'];
+  const names = ['Julie!', 'Daronne', 'Théo', 'Maximilien', 'Chloé & Inès', 'Karim 🔥', 'Jean-Christophe!', 'MAXIMILIENNE', 'Anne-Charlotte M.'];
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-6">
@@ -119,6 +119,22 @@ function Cutouts() {
           {[0, 1, 2, 3].map((s) => (
             <CutoutText key={s} text="Grillé" seed={s} size="sm" />
           ))}
+        </div>
+      </div>
+      <div>
+        <Label>never overflows: size is a maximum, the longest word sets the scale (16-letter names, xl / 60px)</Label>
+        <div className="mt-2 space-y-3">
+          <CutoutText text="Jean-Christophe!" size="xl" as="h3" />
+          <CutoutText text="MAXIMILIENNE" size="lg" seed={3} />
+          {/* The reveal headline: the name next to its avatar in a flex row. */}
+          <div className="flex items-center justify-center gap-2">
+            <CutoutText text="Jean-Christophe!" size={60} seed={1} animate as="h3" />
+            <Avatar player={MOCK_PLAYERS.julie} size="lg" crown={false} tilt={10} className="ml-2" />
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <CutoutText text="Julie!" size={60} seed={1} as="h3" />
+            <Avatar player={MOCK_PLAYERS.julie} size="lg" crown={false} tilt={10} className="ml-2" />
+          </div>
         </div>
       </div>
       <div className="max-w-[340px]">

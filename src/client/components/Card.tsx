@@ -36,7 +36,18 @@ const TONES: Record<CardTone, string> = {
  */
 export function Card({ children, tone = 'cream', padded = true, className, ...rest }: CardProps) {
   return (
-    <motion.div className={cn('rounded-[3px] shadow-paper', TONES[tone], tone === 'notebook' && 'pl-8', padded && 'p-5', className)} {...rest}>
+    <motion.div
+      className={cn(
+        'rounded-[3px] shadow-paper',
+        TONES[tone],
+        padded && 'p-5',
+        // Notebook: text 13px clear of the red margin, 24px lines with the baselines on the rules.
+        tone === 'notebook' && 'pl-[calc(var(--margin,22px)+13px)] leading-6',
+        tone === 'notebook' && padded && '[--line-y:14px]',
+        className,
+      )}
+      {...rest}
+    >
       {children}
     </motion.div>
   );

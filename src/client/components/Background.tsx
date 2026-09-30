@@ -4,14 +4,16 @@ import { cn } from '../lib/util';
 
 /**
  * The paper itself: cream stock, big soft blotches and a fine grain (both multiplied, so the
- * paper only ever gets darker, like real pulp). Tiles start at the viewport's top left, so a
- * fixed bar that paints its own <PaperTexture> lines up seamlessly with the page behind it.
+ * paper only ever gets darker, like real pulp). Every use is viewport-anchored (the fixed
+ * background, the fixed top and bottom bars), so the tiles line up without
+ * background-attachment: fixed (which iOS ignores and which can cost Chrome its composited
+ * scrolling).
  */
 export function PaperTexture({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
     <div className={cn('pointer-events-none overflow-hidden bg-paper', !/\b(absolute|fixed)\b/.test(className ?? '') && 'relative', className)} style={style} aria-hidden>
-      <div className="absolute inset-0 opacity-[0.16] mix-blend-multiply" style={{ backgroundImage: 'var(--blotch)', backgroundSize: '600px 600px', backgroundAttachment: 'fixed' }} />
-      <div className="absolute inset-0 opacity-[0.17] mix-blend-multiply" style={{ backgroundImage: 'var(--noise)', backgroundSize: '240px 240px', backgroundAttachment: 'fixed' }} />
+      <div className="absolute inset-0 opacity-[0.16] mix-blend-multiply" style={{ backgroundImage: 'var(--blotch)', backgroundSize: '600px 600px' }} />
+      <div className="absolute inset-0 opacity-[0.17] mix-blend-multiply" style={{ backgroundImage: 'var(--noise)', backgroundSize: '240px 240px' }} />
     </div>
   );
 }

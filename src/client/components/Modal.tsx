@@ -1,14 +1,17 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import { cn } from '../lib/util';
 import { Button } from './Button';
+import { useDialogFocus } from './paper/dialog';
 import { Tape } from './Tape';
 
 /**
  * A sheet of paper taped over the page (bottom sheet on phones, centered on desktop).
- * Escape or a tap outside closes it.
+ * Escape or a tap outside closes it. Focus moves into it (first control, or an element with
+ * `data-autofocus`), Tab stays inside, and focus returns to the trigger when it closes; the
+ * title names the dialog (aria-labelledby), or pass `ariaLabel` when there is no title.
  */
 export function Modal({
   open,
@@ -16,19 +19,19 @@ export function Modal({
   title,
   children,
   className,
+  ariaLabel,
 }: {
   open: boolean;
   onClose: () => void;
   title?: ReactNode;
   children?: ReactNode;
   className?: string;
+  /** Accessible name when there is no `title`. */
+  ariaLabel?: string;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  const titleId = useId();
+  const dialog = useRef<HTMLDivElement>(null);
+  useDialogFocus(open, dialog, onClose);
 
   return createPortal(
     <AnimatePresence>
@@ -41,9 +44,13 @@ export function Modal({
           onClick={onClose}
         >
           <motion.div
+            ref={dialog}
             role="dialog"
             aria-modal="true"
-            className="relative w-full max-w-md"
+            aria-labelledby={title ? titleId : undefined}
+            aria-label={title ? undefined : ariaLabel}
+            tabIndex={-1}
+            className="relative w-full max-w-md outline-none"
             initial={{ y: 70, rotate: -4, opacity: 0 }}
             animate={{ y: 0, rotate: -0.8, opacity: 1 }}
             exit={{ y: 50, rotate: 2, opacity: 0 }}
@@ -51,7 +58,11 @@ export function Modal({
             onClick={(e) => e.stopPropagation()}
           >
             <div className={cn('paper-sheet-grain max-h-[85dvh] overflow-y-auto rounded-[3px] p-6 pt-7 text-ink shadow-paper-lg', className)}>
-              {title && <h2 className="mb-3 font-display text-[1.6rem] leading-[1.05]">{title}</h2>}
+              {title && (
+                <h2 id={titleId} className="mb-3 font-display text-[1.6rem] leading-[1.05]">
+                  {title}
+                </h2>
+              )}
               {children}
             </div>
             <Tape width={92} height={26} rotate={-3} animate delay={0.1} className="-top-3 left-1/2 -translate-x-1/2" />

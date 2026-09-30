@@ -47,34 +47,61 @@ export interface TornOptions {
 /**
  * Clip paths of a torn sheet of w x h px: `outer` is the paper, `inner` sits 1-3px further in
  * along the torn edges (the paper layer shows its white fibrous core between the two).
+ *
+ * The tear only depends on `seed`, never on the size: each edge has its own random stream and
+ * its points sit every `step` px from a fixed corner (top and bottom edges from the left, left
+ * and right edges from the top). When the sheet grows or shrinks by a few px, the existing
+ * points stay where they are and only the far end of an edge gains or loses a point, so the
+ * paper never visibly re-tears.
  */
 export function tornClip(w: number, h: number, { edges = 'tb', amp = 3, step = 6, seed = 1 }: TornOptions = {}): { outer: string; inner: string } {
-  const r = rng(seed + Math.round(w) * 7 + Math.round(h) * 13);
+  const base = Math.imul((seed >>> 0) + 1, 2654435761);
+  const on = { t: edges.includes('t'), r: edges.includes('r'), b: edges.includes('b'), l: edges.includes('l') };
+  /** Inner points of one edge of length `len`: [distance from the anchor corner, outer offset, inner offset]. */
+  const tear = (len: number, torn: boolean, stream: number): Array<[number, number, number]> => {
+    if (!torn) return [];
+    const r = rng(base ^ Math.imul(stream + 1, 40503));
+    const pts: Array<[number, number, number]> = [];
+    let drift = 0;
+    for (let k = 1; k * step < len - step * 0.35; k++) {
+      drift = drift * 0.55 + (r() - 0.5) * amp * 0.9;
+      const o = Math.max(0, amp * 0.5 + drift + (r() - 0.5) * amp * 0.8);
+      pts.push([k * step, o, o + 0.8 + r() * 2.6]);
+    }
+    return pts;
+  };
+  // Corners: pulled in along each torn side (always 8 draws, so they never depend on `edges`' order).
+  const rc = rng(base ^ 0x5bd1e995);
+  const corner = (xTorn: boolean, yTorn: boolean): [number, number] => {
+    const dx = amp * (0.3 + rc() * 0.5);
+    const dy = amp * (0.3 + rc() * 0.5);
+    return [xTorn ? dx : 0, yTorn ? dy : 0];
+  };
+  const tl = corner(on.l, on.t);
+  const tr = corner(on.r, on.t);
+  const br = corner(on.r, on.b);
+  const bl = corner(on.l, on.b);
+
   const outer: Pt[] = [];
   const inner: Pt[] = [];
-  const edge = (x0: number, y0: number, x1: number, y1: number, on: boolean, nx: number, ny: number) => {
-    const len = Math.hypot(x1 - x0, y1 - y0);
-    const n = Math.max(1, Math.round(len / step));
-    let drift = 0;
-    for (let k = 0; k < n; k++) {
-      const t = k / n;
-      let o = 0;
-      let o2 = 0;
-      if (on) {
-        drift = drift * 0.55 + (r() - 0.5) * amp * 0.9;
-        o = Math.max(0, amp * 0.5 + drift + (r() - 0.5) * amp * 0.8);
-        o2 = o + 0.8 + r() * 2.6;
-      }
-      const x = x0 + (x1 - x0) * t;
-      const y = y0 + (y1 - y0) * t;
-      outer.push([x + nx * o, y + ny * o]);
-      inner.push([x + nx * o2, y + ny * o2]);
-    }
+  const push = (x: number, y: number, nx: number, ny: number, o: number, o2: number) => {
+    outer.push([x + nx * o, y + ny * o]);
+    inner.push([x + nx * o2, y + ny * o2]);
   };
-  edge(0, 0, w, 0, edges.includes('t'), 0, 1);
-  edge(w, 0, w, h, edges.includes('r'), -1, 0);
-  edge(w, h, 0, h, edges.includes('b'), 0, -1);
-  edge(0, h, 0, 0, edges.includes('l'), 1, 0);
+  const pushCorner = (x: number, y: number, sx: number, sy: number, [dx, dy]: [number, number]) => {
+    outer.push([x + sx * dx, y + sy * dy]);
+    inner.push([x + sx * (dx ? dx + 1.6 : 0), y + sy * (dy ? dy + 1.6 : 0)]);
+  };
+  // Clockwise from the top left corner; the bottom and left edges are generated from their fixed
+  // corner (left, top) and walked backwards.
+  pushCorner(0, 0, 1, 1, tl);
+  for (const [d, o, o2] of tear(w, on.t, 0)) push(d, 0, 0, 1, o, o2);
+  pushCorner(w, 0, -1, 1, tr);
+  for (const [d, o, o2] of tear(h, on.r, 1)) push(w, d, -1, 0, o, o2);
+  pushCorner(w, h, -1, -1, br);
+  for (const [d, o, o2] of tear(w, on.b, 2).reverse()) push(d, h, 0, -1, o, o2);
+  pushCorner(0, h, 1, -1, bl);
+  for (const [d, o, o2] of tear(h, on.l, 3).reverse()) push(0, d, 1, 0, o, o2);
   return { outer: polyPx(outer), inner: polyPx(inner) };
 }
 

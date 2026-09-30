@@ -1,8 +1,9 @@
 import { motion } from 'motion/react';
-import type { CSSProperties, ReactNode } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '../lib/util';
 import { burstPoints } from './paper/geometry';
 import { rel } from './paper/cls';
+import { textOf } from './paper/text';
 
 export type StarBurstTone = 'yellow' | 'red' | 'pink' | 'mint' | 'sheet' | 'blue';
 
@@ -18,7 +19,7 @@ const FILL: Record<StarBurstTone, { bg: string; fg: string }> = {
 export interface StarBurstProps {
   children?: ReactNode;
   tone?: StarBurstTone;
-  /** Diameter in px (default 86). */
+  /** Diameter in px (default 104). */
   size?: number;
   /** Rotation in degrees (default 12). */
   tilt?: number;
@@ -31,13 +32,35 @@ export interface StarBurstProps {
   style?: CSSProperties;
 }
 
+/** The text stays inside the star's inner circle: at most this share of the diameter. */
+const TEXT_BOX = 0.64;
+
 /**
  * A cut-out star burst badge ("100% GÊNANT", "+300", "NEW"): ink outline, bold centered text.
- * Children are laid out in a column; size the text with the usual classes.
+ * Children are laid out in a column; size the text with the usual classes. Text that would
+ * cross the spikes is scaled down to fit the inner circle (measured, so any label fits).
  */
-export function StarBurst({ children, tone = 'yellow', size = 86, tilt = 12, spikes = 14, seed = 5, animate = false, className, style }: StarBurstProps) {
+export function StarBurst({ children, tone = 'yellow', size = 104, tilt = 12, spikes = 14, seed = 5, animate = false, className, style }: StarBurstProps) {
   const c = FILL[tone];
   const delay = typeof animate === 'number' ? animate : 0;
+  const textRef = useRef<HTMLSpanElement>(null);
+  const label = textOf(children);
+  useLayoutEffect(() => {
+    const el = textRef.current;
+    if (!el) return;
+    const fit = () => {
+      // Layout sizes ignore transforms: scaling does not feed back into the measure.
+      const box = size * TEXT_BOX;
+      const k = Math.min(1, box / Math.max(1, el.scrollWidth), box / Math.max(1, el.scrollHeight));
+      el.style.transform = k < 1 ? `scale(${k.toFixed(3)})` : '';
+    };
+    fit();
+    let alive = true;
+    void document.fonts?.ready.then(() => alive && fit());
+    return () => {
+      alive = false;
+    };
+  }, [size, label]);
   return (
     <motion.span
       className={cn(rel(className), 'inline-flex shrink-0 items-center justify-center', className)}
@@ -50,8 +73,9 @@ export function StarBurst({ children, tone = 'yellow', size = 86, tilt = 12, spi
         <polygon points={burstPoints(spikes, seed)} fill={c.bg} stroke="#17130f" strokeWidth="2.2" strokeLinejoin="round" />
       </svg>
       <span
-        className="relative flex flex-col items-center justify-center text-center leading-[0.9]"
-        style={{ color: c.fg, fontWeight: 900, fontStretch: '105%', fontSize: size * 0.2, maxWidth: size * 0.78 }}
+        ref={textRef}
+        className="relative flex flex-col items-center justify-center text-center leading-[0.9] whitespace-nowrap"
+        style={{ color: c.fg, fontWeight: 900, fontStretch: '105%', fontSize: size * 0.2 }}
       >
         {children}
       </span>

@@ -3,10 +3,13 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties }
 import { cn } from '../lib/util';
 import { PATTERN } from './CutoutText';
 import { DymoLabel } from './DymoLabel';
+import { useLetteringReady } from './paper/fonts';
 import { scissorClip } from './paper/geometry';
 
 /** Base letter size (px) of each logo size: the whole wordmark is laid out in em of it. */
-const UNIT = { sm: 21, md: 44, lg: 68 } as const;
+const UNIT = { sm: 24, md: 44, lg: 68 } as const;
+/** "GUESSR" never under 11px (the top bar's small logo must stay readable at 1x). */
+const dymoSize = (u: number) => Math.max(11, Math.round(u * 0.4 * 10) / 10);
 
 /*
  * Is a big (lg) logo on screen? The TopBar hides its small logo while one is, so Home never
@@ -65,6 +68,18 @@ export function Logo({ size = 'lg', animate, className }: { size?: 'sm' | 'md' |
   const [take, setTake] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
   const play = (animate ?? size !== 'sm') && !reduce;
+  // The letters wait for their faces (no slap in Georgia followed by a swap).
+  const fontsReady = useLetteringReady();
+  const holding = play && !fontsReady;
+  // The shadow filter goes on once the letters have landed (not re-rasterized while they fly).
+  const [settled, setSettled] = useState(!play);
+  useEffect(() => {
+    if (!play) return setSettled(true);
+    if (!fontsReady) return;
+    setSettled(false);
+    const id = window.setTimeout(() => setSettled(true), 900);
+    return () => window.clearTimeout(id);
+  }, [play, fontsReady, take]);
 
   useEffect(() => {
     const el = ref.current;
@@ -82,17 +97,17 @@ export function Logo({ size = 'lg', animate, className }: { size?: 'sm' | 'md' |
   return (
     <div
       ref={ref}
-      key={take}
+      key={`${take}${holding ? '-hold' : ''}`}
       role="img"
       aria-label="Daron Guessr"
       className={cn('relative inline-flex flex-col items-center select-none', play && 'cursor-pointer', className)}
-      style={{ fontSize: u, lineHeight: 1 }}
+      style={{ fontSize: u, lineHeight: 1, visibility: holding ? 'hidden' : undefined }}
       onClick={play ? () => setTake((n) => n + 1) : undefined}
     >
       <div
         aria-hidden
         className="relative flex items-end"
-        style={{ gap: '0.03em', marginLeft: small ? '-0.5em' : '-0.65em', filter: 'drop-shadow(0 1px 0 rgb(40 25 10 / 0.22)) drop-shadow(0 0.06em 0.07em rgb(40 25 10 / 0.2))' }}
+        style={{ gap: '0.03em', marginLeft: small ? '-0.5em' : '-0.65em', filter: settled ? 'drop-shadow(0 0.05em 0.06em rgb(40 25 10 / 0.3))' : 'none', transition: 'filter 0.25s' }}
       >
         {LETTERS.map((l, i) => {
           const style: CSSProperties = {
@@ -146,12 +161,12 @@ export function Logo({ size = 'lg', animate, className }: { size?: 'sm' | 'md' |
       <DymoLabel
         text="GUESSR"
         tone="red"
-        size={u * 0.4}
+        size={dymoSize(u)}
         tilt={-3}
-        spacing={0.22}
+        spacing={small ? 0.16 : 0.22}
         animate={play ? 0.5 : false}
         className="relative z-[1]"
-        style={{ marginTop: -u * 0.15, marginLeft: u * (small ? 1.2 : 1.62) }}
+        style={{ marginTop: -u * 0.15, marginLeft: u * (small ? 1.05 : 1.62) }}
       />
     </div>
   );

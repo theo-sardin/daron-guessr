@@ -115,6 +115,7 @@ export function TornPaper({
     >
       <Tag
         ref={ref as never}
+        data-surface={surface}
         className={cn('relative isolate block', fiberColor ? (SURFACE_TEXT[surface] ?? 'text-ink') : SURFACE[surface], className)}
         style={{ clipPath: clip?.outer, backgroundColor: fiberColor ?? undefined, ...style }}
       >
@@ -133,6 +134,14 @@ export interface PaperStripProps {
   /** Rotation in degrees. */
   tilt?: number;
   seed?: number | string;
+  /**
+   * Stretch the strip across the whole window (centered on its container, 10px short of each
+   * window edge so its torn ends show, max 1400px), whatever the column width: on desktop the
+   * strip runs behind a narrow column instead of stopping at its edges. true: always; 'md':
+   * from the md breakpoint (keep the phone placement from `className` below it). No ancestor
+   * may clip it (overflow-hidden) where it bleeds.
+   */
+  bleed?: boolean | 'md';
   /** Position and size of the strip (e.g. `absolute -inset-x-8 top-24 h-32`). */
   className?: string;
   style?: CSSProperties;
@@ -142,10 +151,19 @@ export interface PaperStripProps {
  * A torn halftone strip glued behind photos (blue, yellow…): a decoration, positioned by
  * `className`. Put it first in a `relative` container so the photo lands on top.
  */
-export function PaperStrip({ tone = 'blue', tilt = -4, seed, className, style }: PaperStripProps) {
+const BLEED = {
+  all: 'left-1/2 right-auto w-[min(calc(100vw-20px),1400px)] -translate-x-1/2',
+  md: 'md:left-1/2 md:right-auto md:w-[min(calc(100vw-20px),1400px)] md:-translate-x-1/2',
+} as const;
+
+export function PaperStrip({ tone = 'blue', tilt = -4, seed, bleed = false, className, style }: PaperStripProps) {
   const surface: PaperSurface = tone === 'kraft' ? 'kraft' : `halftone-${tone}`;
   return (
-    <div aria-hidden className={cn('pointer-events-none', !/\b(absolute|fixed|relative)\b/.test(className ?? '') && 'absolute', className)} style={{ rotate: `${tilt}deg`, ...style }}>
+    <div
+      aria-hidden
+      className={cn('pointer-events-none', !/\b(absolute|fixed|relative)\b/.test(className ?? '') && 'absolute', className, bleed === true && BLEED.all, bleed === 'md' && BLEED.md)}
+      style={{ rotate: `${tilt}deg`, ...style }}
+    >
       <TornPaper surface={surface} edges="tblr" amp={5} step={7} seed={seed} className="size-full" wrapperClassName="size-full" />
     </div>
   );

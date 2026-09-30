@@ -77,13 +77,45 @@ export function Paper({
 
 type SurfaceCardProps = Omit<PaperProps, 'surface'>;
 
+export interface NotebookCardProps extends SurfaceCardProps {
+  /**
+   * Line height of the text AND pitch of the blue rules, in px: text baselines then sit on the
+   * rules like handwriting. The card sets its line-height and its top padding (half a line);
+   * don't give the text inside another leading. Without it the rules are 24px apart
+   * (body text's line height) and start at the top.
+   */
+  leading?: number;
+  /**
+   * Where the baseline sits in a line box, px from its top (default: leading / 2 + a third of
+   * the text size, right for Archivo and Caveat when the text is about leading / 1.1).
+   */
+  baseline?: number;
+  /** Red margin position in px (default 22). The text always starts 13px right of it. */
+  margin?: number;
+}
+
 /**
- * Lined notebook paper (blue lines, red margin at 22px), torn at the bottom by default. Without
- * padding classes the text starts right of the margin; with your own, keep `pl-8` or more.
+ * Lined notebook paper (blue rules, red margin), torn at the bottom by default. The left
+ * padding always keeps the text 13px clear of the red margin, even with custom padding classes
+ * (set `margin` or `--margin` to move the line). `leading` puts the baselines on the rules.
+ *   <NotebookCard leading={26} className="pr-4 pb-3"><p className="text-pen text-[24px]">…</p></NotebookCard>
  */
-export function NotebookCard({ torn = 'b', className, ...rest }: SurfaceCardProps) {
-  const padded = /(^|\s)!?p[xl]?-/.test(className ?? '');
-  return <Paper surface="notebook" torn={torn} className={cn(!padded && 'py-4 pr-4 pl-9', className)} {...rest} />;
+export function NotebookCard({ torn = 'b', leading, baseline, margin, className, style, ...rest }: NotebookCardProps) {
+  const padded = /(^|\s)!?p[xy]?-|(^|\s)!?p[tbr]-/.test(className ?? '');
+  const pt = leading ? Math.round(leading / 2) : undefined;
+  const base = leading ? (baseline ?? leading / 2 + (leading / 1.1) * 0.33) : 0;
+  const ruled: CSSProperties = leading
+    ? ({ '--line': `${leading}px`, '--line-y': `${(pt! + base - leading + 0.5).toFixed(1)}px`, lineHeight: `${leading}px`, paddingTop: pt } as CSSProperties)
+    : {};
+  return (
+    <Paper
+      surface="notebook"
+      torn={torn}
+      className={cn(!padded && 'py-4 pr-4', className)}
+      style={{ ...(margin !== undefined ? ({ '--margin': `${margin}px` } as CSSProperties) : null), ...ruled, paddingLeft: 'calc(var(--margin, 22px) + 13px)', ...style }}
+      {...rest}
+    />
+  );
 }
 
 /** Kraft paper (brown, fibrous), torn at the bottom by default. */

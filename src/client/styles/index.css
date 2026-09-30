@@ -53,11 +53,18 @@
   /* Ink and pens. */
   --color-ink: #17130f;
   --color-ink-soft: #4a4238;
-  --color-ink-faint: #8a7f70;
+  /* Faint labels, inactive options: still 4.9:1 on paper, 5.7:1 on a sheet. */
+  --color-ink-faint: #6e6354;
   --color-blue: #2344c8;
   --color-blue-dark: #1d2f8a;
   --color-red: #e3321f;
   --color-red-dark: #b8200f;
+  /*
+   * Marker red for TEXT and for white-on-red fills: #E3321F is only 3.4:1 on yellow and 4.4:1
+   * under white text. This one is 4.6:1 on yellow, 5.2:1 on paper, 6.1:1 under white.
+   * Strokes, circles, stamps and big cut-out letters keep --color-red.
+   */
+  --color-red-ink: #bf2112;
   --color-yellow: #ffdf3d;
   /* Small touches. */
   --color-pink: #f6a6c1;
@@ -69,7 +76,19 @@
 
   /*
    * Legacy names from the dark "Photo lab" theme, repointed to the paper world so screens that
-   * still use them stay readable. Prefer the names above in new code.
+   * still use them compile. Prefer the names above in new code. MIGRATION (screens):
+   *   text-cream / text-cream/NN on paper  → text-ink (or text-ink-soft / text-ink-faint)
+   *   text-cream on a dark panel (bg-ink)  → drop it: dark panels now default to cream text
+   *   text-sun (text, spinners)            → text-red-ink / text-blue / text-ink (yellow is a paper, never text on paper)
+   *   text-grape-200 / -300 (subtitles)    → text-ink-soft
+   *   bg-grape-* panels                    → a paper: paper-sheet-grain / paper-kraft / <Paper> / <NotebookCard>
+   *   text-outline(-sm) + text-cream titles → <CutoutText> or plain font-display ink (they print as plain ink meanwhile)
+   *   label-mono on a dark panel           → label-type (inherits the panel's text color now)
+   *   <Stamp variant="mono">{code}</Stamp>   → <DymoLabel text={code} />
+   *   <Viewfinder>, fakeDateStamp, Stamp pad, font-stamp7, DSEG nudges → remove
+   *   arrow-right <Icon> in a Button        → <Button arrow> (the hand-drawn arrow)
+   *   text-red for small text on light / yellow → text-red-ink (or .text-marker)
+   * In /__preview these legacy classes get a dashed magenta outline (dev only, ?lint=0 hides it).
    */
   --color-cream: #fffdf6;
   --color-sun: #ffdf3d;
@@ -132,11 +151,11 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.75; transform: scale(0.97); }
   }
-  /* The spinner: a pen loop drawn, then erased from its start (pathLength = 1, dasharray 1). */
+  /* The spinner: a pen stroke chasing round its loop, growing and shrinking (pathLength = 1): never under 35% of the loop. */
   @keyframes scribble {
-    0% { stroke-dashoffset: 1; }
-    55% { stroke-dashoffset: 0; }
-    100% { stroke-dashoffset: -1; }
+    0% { stroke-dasharray: 0.35 0.65; stroke-dashoffset: 0; }
+    50% { stroke-dasharray: 0.8 0.2; stroke-dashoffset: -0.45; }
+    100% { stroke-dasharray: 0.35 0.65; stroke-dashoffset: -1; }
   }
   @keyframes turn {
     to { transform: rotate(360deg); }
@@ -226,7 +245,7 @@
   .text-marker {
     font-family: var(--font-marker);
     font-weight: 400;
-    color: var(--color-red);
+    color: var(--color-red-ink);
     letter-spacing: 0;
     line-height: 1.02;
   }
@@ -237,6 +256,18 @@
     color: var(--color-blue);
     letter-spacing: 0;
     line-height: 1;
+  }
+  /* Blue ballpoint on kraft: the darker pen (4.3:1 → 6.8:1). TornPaper marks its content with data-surface. */
+  :is(.paper-kraft, [data-surface='kraft']) .text-pen,
+  .paper-kraft.text-pen {
+    color: var(--color-blue-dark);
+  }
+  /*
+   * Dark panels print in cream by default (legacy screens put stamps and labels on bg-ink
+   * without a text color). Any text-* utility still wins (utilities layer).
+   */
+  :where(.bg-ink, .bg-grape-950, .bg-grape-900, .bg-grape-800, .bg-grape-700) {
+    color: #fff6e0;
   }
   /* Handwriting in the current color. */
   .text-hand {
@@ -253,7 +284,8 @@
     font-size: 0.75rem;
     line-height: 1;
     letter-spacing: 0.01em;
-    color: var(--color-ink-soft);
+    /* The surrounding ink, a bit faded: ink-ish on paper, cream-ish on a dark panel. */
+    color: color-mix(in srgb, currentColor 74%, transparent);
   }
   /*
    * Legacy camera date stamp classes. `.text-stamp` was only ever used on dark surfaces (ink
@@ -281,15 +313,11 @@
     flex-shrink: 0;
     stroke-width: 2.25;
   }
-  /* Text with an ink outline (sticker type): legacy, prefer <CutoutText>. */
-  .text-outline {
-    -webkit-text-stroke: 6px var(--color-ink);
-    paint-order: stroke fill;
-  }
-  .text-outline-sm {
-    -webkit-text-stroke: 4px var(--color-ink);
-    paint-order: stroke fill;
-  }
+  /*
+   * Legacy "sticker type" (cream text with a thick ink outline, the v1 look): it now prints as
+   * plain ink display type (see the utilities override at the end). Use <CutoutText> or
+   * font-display instead.
+   */
   .emoji {
     font-family: var(--font-emoji);
     font-weight: 400;
@@ -309,14 +337,19 @@
     background-size: auto, 240px 240px;
     color: var(--color-ink);
   }
-  /* Notebook paper: blue lines + red margin. `--line` sets the line pitch, `--margin` the margin. */
+  /*
+   * Notebook paper: blue rules + red margin. Set on the paper or any ancestor (they inherit):
+   * `--line` the rule pitch (default 24px = the body text's line height), `--margin` the red
+   * margin (default 22px), `--line-y` shifts the rules down (to put text baselines on them;
+   * <NotebookCard leading> does it for you).
+   */
   .paper-notebook {
-    --line: 22px;
-    --margin: 22px;
     background-color: var(--color-sheet);
     background-image:
-      linear-gradient(90deg, transparent var(--margin), rgb(227 50 31 / 0.45) var(--margin) calc(var(--margin) + 1.5px), transparent calc(var(--margin) + 1.5px)),
-      repeating-linear-gradient(180deg, transparent 0 calc(var(--line) - 1px), rgb(35 68 200 / 0.22) calc(var(--line) - 1px) var(--line));
+      linear-gradient(90deg, transparent var(--margin, 22px), rgb(227 50 31 / 0.45) var(--margin, 22px) calc(var(--margin, 22px) + 1.5px), transparent calc(var(--margin, 22px) + 1.5px)),
+      linear-gradient(180deg, transparent calc(var(--line, 24px) - 1px), rgb(35 68 200 / 0.22) calc(var(--line, 24px) - 1px));
+    background-size: auto, auto var(--line, 24px);
+    background-position: 0 0, 0 var(--line-y, 0px);
     color: var(--color-ink);
   }
   .paper-grid {
@@ -359,8 +392,9 @@
     background-blend-mode: soft-light;
     color: #fff6e0;
   }
+  /* Red paper under white text: the deeper red (6.1:1). */
   .paper-red {
-    background-color: var(--color-red);
+    background-color: var(--color-red-ink);
     color: #fff;
   }
   /* Halftone printing: dots on a flat color (strips behind photos, newsprint letters). */
@@ -394,15 +428,20 @@
     background-image: radial-gradient(rgb(255 255 255 / 0.14) 1.3px, transparent 1.6px);
     background-size: 6px 6px;
   }
-  /* Lifted paper for clipped shapes (clip-path eats box-shadows: use a filter on a wrapper). */
+  /*
+   * Lifted paper for clipped shapes (clip-path eats box-shadows: a filter on a static wrapper).
+   * One drop-shadow each (cheaper to re-rasterize). Put it on a wrapper whose content does not
+   * animate, and prefer box-shadow (shadow-paper*) where nothing is clipped, especially on list
+   * items repeated more than ~8 times.
+   */
   .lift {
-    filter: drop-shadow(0 1px 0 rgb(40 25 10 / 0.18)) drop-shadow(0 6px 8px rgb(40 25 10 / 0.22));
+    filter: drop-shadow(0 4px 5px rgb(40 25 10 / 0.3));
   }
   .lift-sm {
-    filter: drop-shadow(0 1px 0 rgb(40 25 10 / 0.2)) drop-shadow(0 3px 4px rgb(40 25 10 / 0.2));
+    filter: drop-shadow(0 2px 2.5px rgb(40 25 10 / 0.3));
   }
   .lift-lg {
-    filter: drop-shadow(0 2px 1px rgb(40 25 10 / 0.16)) drop-shadow(0 12px 14px rgb(40 25 10 / 0.26));
+    filter: drop-shadow(0 9px 10px rgb(40 25 10 / 0.32));
   }
   /* A white card (legacy name, used by modals and older screens). */
   .sticker {
@@ -440,6 +479,18 @@
       transform: scaleX(1);
       opacity: 1;
     }
+  }
+}
+
+/*
+ * Legacy outlined titles (`text-outline text-cream`): plain ink display type on paper, no
+ * stroke. In the utilities layer, after Tailwind's, so it beats the text-cream next to it.
+ */
+@layer utilities {
+  .text-outline,
+  .text-outline-sm {
+    -webkit-text-stroke: 0;
+    color: var(--color-ink);
   }
 }
 
