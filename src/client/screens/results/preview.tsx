@@ -1,4 +1,4 @@
-import { PHOTO_KINDS, type PhotoKind } from '../../../shared/protocol';
+import { BODY_PARTS, PHOTO_KINDS, type PhotoKind } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
 import { rankOf, resultsView, topCount } from './previewData';
 import { ResultsScreen } from './ResultsScreen';
@@ -118,6 +118,57 @@ const previews: PreviewRegistry = {
         (s) => topCount(s) === 1 && s.results.awards.length === 7,
         () => 2,
       ),
+    render,
+  },
+  /** "Body parts" theme: 2 close-ups each (every part), selfies on the stickers. */
+  body: {
+    view: () =>
+      resultsView(
+        { players: 6, theme: 'body', photos: () => 2, kinds: (i, slot) => BODY_PARTS[(i * 2 + slot * 3) % BODY_PARTS.length], selfies: (i) => i % 2 === 0 },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'biggestMixup', 'mostConfusing') && rankOf(s, 'p0') > 1,
+      ),
+    render,
+  },
+  /** "Who's that?" with blur: speed bonus in the scores, the eagle-eye award, everyone with a selfie. */
+  'whois-blur': {
+    view: () =>
+      resultsView(
+        { players: 5, theme: 'whois', blur: true, selfies: () => true },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'eagleEye', 'biggestMixup') && rankOf(s, 'p0') > 1,
+      ),
+    render,
+  },
+  /** "Who's that?" with blur, the viewer won (eagle eye on their report card). */
+  'whois-blur-me-wins': {
+    view: () =>
+      resultsView(
+        { players: 4, theme: 'whois', blur: true, selfies: () => true, skill: (i) => (i === 0 ? 0.95 : 0.35) },
+        (s) => topCount(s) === 1 && rankOf(s, 'p0') === 1 && s.results.awards.some((a) => a.id === 'eagleEye' && a.playerIds.includes('p0')),
+      ),
+    render,
+  },
+  /** "Teen crush" theme, some selfies. */
+  crush: {
+    view: () =>
+      resultsView(
+        { players: 6, theme: 'crush', selfies: (i) => i < 3 },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'doppelganger', 'carbonCopy', 'masterOfDisguise') && rankOf(s, 'p0') > 1,
+      ),
+    render,
+  },
+  /** "Camera-roll roulette" theme, guest viewer. */
+  roll: {
+    view: () =>
+      resultsView(
+        { players: 5, theme: 'roll', selfies: (i) => i !== 1 },
+        (s) => topCount(s) === 1 && has(s.results.awards, 'sherlock', 'needsGlasses') && rankOf(s, 'p2') > 1,
+        () => 2,
+      ),
+    render,
+  },
+  /** Default game where every player has a selfie. */
+  selfies: {
+    view: () => resultsView({ players: 5, selfies: () => true }, (s) => topCount(s) === 1 && s.results.awards.length >= 5 && rankOf(s, 'p0') === 2),
     render,
   },
   /** Nobody scored: 12 players all tied first with 0 points. */

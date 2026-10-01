@@ -18,6 +18,8 @@ export function CodeInput({
   invalid,
   inputRef,
   describedBy,
+  size = 'lg',
+  className,
 }: {
   value: string;
   onChange: (code: string) => void;
@@ -26,13 +28,17 @@ export function CodeInput({
   invalid?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   describedBy?: string;
+  /** lg: four big tiles; sm: the little letter boxes drawn on the "I've got a code" kraft strip. */
+  size?: 'sm' | 'lg';
+  className?: string;
 }) {
+  const sm = size === 'sm';
   const [focused, setFocused] = useState(false);
   const active = Math.min(value.length, ROOM_CODE_LENGTH - 1);
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-4 gap-2 sm:gap-3" aria-hidden>
+    <div className={cn('relative', sm && 'shrink-0', className)}>
+      <div className={cn('grid grid-cols-4', sm ? 'gap-1.5' : 'gap-2 sm:gap-3')} aria-hidden>
         {Array.from({ length: ROOM_CODE_LENGTH }, (_, i) => {
           const ch = value[i] ?? '';
           const bad = ch !== '' && !ROOM_CODE_ALPHABET.includes(ch);
@@ -43,7 +49,8 @@ export function CodeInput({
               style={{ rotate: `${ch ? TILTS[i] : 0}deg` }}
               className={cn(
                 // Letter boxes drawn on the kraft: a typed letter is a white paper tile in bold ink.
-                'relative flex h-14 items-center justify-center rounded-[4px] font-num text-[2.1rem] leading-none transition-[background-color,border-color,rotate,box-shadow] duration-200 sm:h-16',
+                'relative flex items-center justify-center rounded-[4px] font-num leading-none transition-[background-color,border-color,rotate,box-shadow] duration-200',
+                sm ? 'h-11 w-[2.15rem] text-[1.45rem] max-[374px]:w-[1.9rem]' : 'h-14 text-[2.1rem] sm:h-16',
                 bad
                   ? 'border-2 border-red-ink bg-red text-white shadow-paper-sm'
                   : ch
@@ -69,7 +76,7 @@ export function CodeInput({
                 ) : isActive ? (
                   <motion.span
                     key="caret"
-                    className="h-8 w-[3px] rounded-full bg-blue"
+                    className={cn('w-[3px] rounded-full bg-blue', sm ? 'h-6' : 'h-8')}
                     animate={{ opacity: [1, 0.15, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
                   />

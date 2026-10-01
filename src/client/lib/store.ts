@@ -14,6 +14,7 @@ import type {
   Session,
   Settings,
 } from '../../shared/protocol';
+import { makeBlurVariants } from './image';
 import { forgetSession, loadSession, saveSession } from './session';
 import { socket } from './socket';
 import { recordServerTime } from './time';
@@ -214,9 +215,22 @@ export const api = {
 
   updatePlayer: (patch: { name?: string; avatar?: string }) => call('player:update', patch),
 
+  /**
+   * Uploads a photo (a blob prepared by `compressImage`) with its blur variants
+   * (`makeBlurVariants`), used when the host turns blur on. When the variants cannot be made, or
+   * the server refuses them, the photo goes alone (blurred rounds then blur it client side).
+   */
   async uploadPhoto(slot: PhotoSlot, kind: PhotoKind, blob: Blob): Promise<Result<{ photo: MyPhoto }>> {
     const data = await blob.arrayBuffer();
-    return call<{ photo: MyPhoto }>('photo:upload', { slot, kind, mime: blob.type || 'image/jpeg', data });
+    const mime = blob.type || 'image/jpeg';
+    const variants = await makeBlurVariants(blob)
+      .then((blobs) => Promise.all(blobs.map((b) => b.arrayBuffer())))
+      .catch(() => null);
+    if (variants) {
+      const res = await call<{ photo: MyPhoto }>('photo:upload', { slot, kind, mime, data, variants });
+      if (res.ok || res.error !== 'INVALID_PHOTO') return res;
+    }
+    return call<{ photo: MyPhoto }>('photo:upload', { slot, kind, mime, data });
   },
 
   removePhoto: (slot: PhotoSlot) => call('photo:remove', { slot }),

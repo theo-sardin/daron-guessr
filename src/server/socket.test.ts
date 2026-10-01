@@ -2,7 +2,9 @@ import type { AddressInfo } from 'node:net';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  BLUR_BONUS_BY_STEP,
   BLUR_VARIANT_WIDTHS,
+  MAX_BLUR_VARIANT_BYTES,
   MAX_PHOTO_BYTES,
   POINTS_PER_CORRECT,
   type AwardId,
@@ -35,8 +37,17 @@ const JPEG = Buffer.from(
 );
 /** RIFF header + VP8L chunk of a 1x1 image (signature 0x2f, then zero-based width / height bits). */
 const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.from([22, 0, 0, 0]), Buffer.from('WEBPVP8L'), Buffer.from([10, 0, 0, 0, 0x2f]), Buffer.alloc(9)]);
+/** The 1x1 PNG with its IHDR rewritten to declare `width` x `height` (the server only reads headers). */
+function pngOfSize(width: number, height: number): Buffer {
+  const size = Buffer.alloc(8);
+  size.writeUInt32BE(width, 0);
+  size.writeUInt32BE(height, 4);
+  return Buffer.concat([PNG.subarray(0, 16), size, PNG.subarray(24)]);
+}
 /** Valid PNG signature and IHDR, declaring 50000 x 50000 pixels. */
-const PNG_BOMB = Buffer.concat([PNG.subarray(0, 16), Buffer.from([0, 0, 0xc3, 0x50, 0, 0, 0xc3, 0x50]), PNG.subarray(24)]);
+const PNG_BOMB = pngOfSize(50_000, 50_000);
+/** Blur variants as a client sends them: one per BLUR_VARIANT_WIDTHS entry, in that order. */
+const VARIANTS = BLUR_VARIANT_WIDTHS.map((width) => pngOfSize(width, Math.ceil(width * 0.75)));
 
 // Timings keep a comfortable margin (hundreds of ms) wherever a test checks something
 // "too early": a loaded CI runner must not turn them into races.
@@ -532,6 +543,183 @@ describe('socket server: game mode picked when creating a room', () => {
     // Invalid setups did not use up the room creation budget of the IP (10 / minute).
     expect(await rawCreate(stranger, { name: 'Stranger', avatar: '🐸', settings: { theme: 'pick' } })).toMatchObject({ ok: true });
   });
+});
+
+describe('socket server: blur', () => {
+  const BAD = { ok: false, error: 'BAD_REQUEST' };
+  const STEPS = BLUR_VARIANT_WIDTHS.length + 1;
+  const LAST = STEPS - 1;
+  const STEP_MS = 500;
+  const BLURRY: Partial<Timing> = { ...FAST, blurNoTimerRoundMs: STEP_MS * STEPS };
+  const upload = (c: Client, payload: Record<string, unknown>) =>
+    c.raw.emitWithAck('photo:upload', { slot: 0, kind: 'me', mime: 'image/png', data: PNG, ...payload });
+
+  it('defaults blur from the theme (create and switch), and keeps an explicit value', async () => {
+    const { url } = await startServer();
+    const [a, b, c, d] = await Promise.all([client(url), client(url), client(url), client(url)]);
+    await a.create('A', '🐸', { theme: 'whois' });
+    await b.create('B', '🐸', { theme: 'whois', blur: false });
+    await c.create('C', '🐸', { theme: 'parents', blur: true });
+    expect(await d.raw.emitWithAck('room:create', { name: 'D', avatar: '🐸', settings: { theme: 'mix', blur: 'yes' } })).toEqual(BAD);
+    const settingsOf = async (x: Client) => (await x.until('lobby', (v) => v.phase === 'lobby')).settings;
+    expect(await settingsOf(a)).toEqual({ voteSeconds: 30, anonymousVotes: true, theme: 'whois', photosPerPlayer: 1, blur: true });
+    expect((await settingsOf(b)).blur).toBe(false);
+    expect((await settingsOf(c)).blur).toBe(true);
+
+    const set = async (patch: object) => {
+      expect(await a.raw.emitWithAck('host:settings', patch)).toEqual({ ok: true });
+      return (await a.until('settings', (v) => Object.entries(patch).every(([k, val]) => v.settings[k as keyof typeof v.settings] === val))).settings;
+    };
+    expect((await set({ theme: 'parents' })).blur).toBe(false);
+    expect((await set({ theme: 'whois' })).blur).toBe(true);
+    expect((await set({ blur: false })).blur).toBe(false);
+    expect((await set({ theme: 'body', blur: true })).blur).toBe(true);
+    expect((await set({ voteSeconds: 15 })).blur).toBe(true);
+  });
+
+  it('validates blur variants (count, header, dimensions, size) and counts them in the byte quotas', async () => {
+    const { url } = await startServer({ rateLimits: { uploadBurst: 50 } });
+    const a = await client(url);
+    await a.create('A', '🐸', { theme: 'whois' });
+
+    for (const variants of [VARIANTS.slice(1), [], [...VARIANTS, 'one too many'], VARIANTS.map(() => 'png'), PNG]) {
+      expect(await upload(a, { variants })).toEqual(BAD);
+    }
+    const replaced = (i: number, by: Buffer) => VARIANTS.map((v, j) => (j === i ? by : v));
+    // A sharp image passed off as a variant, variants in the wrong order, garbage.
+    expect(await upload(a, { variants: replaced(3, pngOfSize(400, 300)) })).toEqual({ ok: false, error: 'INVALID_PHOTO' });
+    expect(await upload(a, { variants: [...VARIANTS].reverse() })).toEqual({ ok: false, error: 'INVALID_PHOTO' });
+    expect(await upload(a, { variants: replaced(0, Buffer.from('not an image')) })).toEqual({ ok: false, error: 'INVALID_PHOTO' });
+    expect(await upload(a, { variants: replaced(1, PNG_BOMB) })).toEqual({ ok: false, error: 'INVALID_PHOTO' });
+    const big = Buffer.concat([pngOfSize(24, 24), Buffer.alloc(MAX_BLUR_VARIANT_BYTES)]);
+    expect(await upload(a, { variants: replaced(1, big) })).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    // A variant may be a JPEG or a WebP too, and a bit wider than its step (rounding).
+    expect(await upload(a, { variants: replaced(0, JPEG) })).toMatchObject({ ok: true });
+    expect(await upload(a, { variants: replaced(2, WEBP) })).toMatchObject({ ok: true });
+    expect(await upload(a, { variants: replaced(3, pngOfSize(BLUR_VARIANT_WIDTHS[3] + 2, 10)) })).toMatchObject({ ok: true });
+
+    // The room quota is exactly one photo and its variants: they count, and replacing frees them.
+    const tight = await startServer({ maxRoomPhotoBytes: PNG.length * (1 + VARIANTS.length) });
+    const [c, b] = await Promise.all([client(tight.url), client(tight.url)]);
+    const { code } = await c.create('C', '🐸', { theme: 'whois' });
+    await b.join(code, 'B');
+    expect(await upload(c, { variants: VARIANTS })).toMatchObject({ ok: true, photo: { slot: 0, kind: 'me' } });
+    expect(await upload(b, {})).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    expect(await upload(c, {})).toMatchObject({ ok: true });
+    expect(await upload(b, {})).toMatchObject({ ok: true });
+    expect(await upload(b, { variants: VARIANTS })).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+    expect(await c.socket.emitWithAck('photo:remove', { slot: 0 })).toEqual({ ok: true });
+    expect(await upload(b, { variants: VARIANTS })).toMatchObject({ ok: true });
+    expect(await upload(c, {})).toEqual({ ok: false, error: 'PHOTO_TOO_LARGE' });
+  });
+
+  it('sharpens step by step (a view per step, variant URLs only), then scores the speed bonus', async () => {
+    const { url } = await startServer({ timing: BLURRY });
+    const { players } = await fourPlayers(url);
+    const [alice, , , dave] = players;
+    expect(await alice.socket.emitWithAck('host:settings', { voteSeconds: 0, blur: true })).toEqual({ ok: true });
+    // Dave's client could not make variants: his photo goes alone.
+    const fullUrls = new Map<Client, string>();
+    for (const p of players) {
+      const res = await p.socket.emitWithAck('photo:upload', {
+        slot: 0,
+        kind: 'daron',
+        mime: 'image/png',
+        data: PNG,
+        ...(p === dave ? {} : { variants: VARIANTS }),
+      });
+      if (!res.ok) throw new Error(res.error);
+      fullUrls.set(p, res.photo.url);
+    }
+    expect(await alice.socket.emitWithAck('host:start')).toEqual({ ok: true });
+
+    const ownerOf = async (round: number) => {
+      for (const p of players) {
+        if ((await p.until(`round ${round}`, (v) => v.voting?.round === round)).voting!.isMine) return p;
+      }
+      throw new Error('no owner');
+    };
+    /** What a viewer may see of the round: everything but its own photos. */
+    const shown = (v: RoomView) => JSON.stringify({ ...v, myPhotos: [] });
+
+    // --- Round 0: watch it sharpen ------------------------------------------
+    const owner = await ownerOf(0);
+    const [fast, slow, wrong] = players.filter((p) => p !== owner);
+    const first = (await fast.until('round 0', (v) => v.voting?.round === 0)).voting!;
+    // Votes are accepted a little before the start (clock skew): still the blurriest step.
+    await waitFor('almost started', () => Date.now() >= first.startsAt - 100);
+    expect(await fast.socket.emitWithAck('vote:cast', { round: 0, candidateId: owner.id })).toEqual({ ok: true });
+    await Promise.all(players.map((p) => p.until('sharp', (v) => v.voting?.round === 0 && v.voting.blur?.step === LAST)));
+    expect(await slow.socket.emitWithAck('vote:cast', { round: 0, candidateId: owner.id })).toEqual({ ok: true });
+    const decoy = first.candidates.find((id) => id !== owner.id && id !== wrong.id)!;
+    expect(await wrong.socket.emitWithAck('vote:cast', { round: 0, candidateId: decoy })).toEqual({ ok: true });
+    expect(await owner.socket.emitWithAck('vote:cast', { round: 0, candidateId: fast.id })).toEqual({ ok: true });
+
+    const full = fullUrls.get(owner)!;
+    for (const p of players) {
+      const views = p.views.filter((v) => v.phase === 'voting' && v.voting!.round === 0);
+      const steps = views.map((v) => v.voting!.blur!.step);
+      // A view at every step, in order.
+      expect(new Set(steps)).toEqual(new Set(Array.from({ length: STEPS }, (_, i) => i)));
+      expect(steps).toEqual([...steps].sort((x, y) => x - y));
+      for (const v of views) {
+        const voting = v.voting!;
+        const step = Math.max(0, Math.min(LAST, Math.floor((v.serverNow - voting.startsAt) / STEP_MS)));
+        expect(voting.blur).toEqual({
+          step,
+          steps: STEPS,
+          nextStepAt: step === LAST ? null : voting.startsAt + (step + 1) * STEP_MS,
+          fromVariant: owner !== dave && step < LAST,
+        });
+        // Anti-cheat: the full photo only at the last step (unless it has no variants).
+        expect(shown(v).includes(full)).toBe(owner === dave || step === LAST);
+        expect(voting.photo.url === full).toBe(owner === dave || step === LAST);
+        for (const other of players) if (other !== owner) expect(shown(v)).not.toContain(fullUrls.get(other)!);
+      }
+    }
+    // The variants are served like photos.
+    const blurry = alice.views.find((v) => v.voting?.round === 0 && v.voting.blur?.step === 1)!.voting!.photo.url;
+    const res = await fetch(`${url}${blurry}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    expect(Buffer.from(await res.arrayBuffer()).equals(owner === dave ? PNG : VARIANTS[1])).toBe(true);
+
+    // --- Other rounds: blurry from the start, then skipped --------------------
+    for (let round = 1; round < players.length; round++) {
+      const roundOwner = await ownerOf(round);
+      for (const p of players) {
+        const voting = (await p.until(`round ${round}`, (v) => v.voting?.round === round)).voting!;
+        expect(voting.blur).toMatchObject({ step: 0, fromVariant: roundOwner !== dave });
+        expect(voting.photo.url === fullUrls.get(roundOwner)).toBe(roundOwner === dave);
+      }
+      expect(await alice.socket.emitWithAck('host:skipRound', { round })).toEqual({ ok: true });
+    }
+
+    // --- Reveal and results ------------------------------------------------------
+    await Promise.all(players.map((p) => p.until('reveal', (v) => v.phase === 'reveal')));
+    for (let index = 0; index < players.length; index++) {
+      const reveal = (await alice.until(`reveal ${index}`, (v) => v.reveal?.index === index)).reveal!;
+      if (index === 0) expect(reveal.current.photo.url).toBe(full);
+      await waitFor('owner revealed', () => Date.now() >= reveal.startedAt + FAST.revealOwnerAtMs! + 5);
+      expect(await alice.socket.emitWithAck('host:nextReveal', { index })).toEqual({ ok: true });
+    }
+    const points = new Map([
+      [fast, POINTS_PER_CORRECT + BLUR_BONUS_BY_STEP[0]],
+      [slow, POINTS_PER_CORRECT + BLUR_BONUS_BY_STEP[LAST]],
+      [wrong, 0],
+    ]);
+    for (const p of players) {
+      const results = (await p.until('results', (v) => v.phase === 'results')).results!;
+      const photo = results.photos[0];
+      expect(photo.photo.url).toBe(full);
+      if (p === owner) expect(photo).not.toHaveProperty('myPoints');
+      else expect(photo.myPoints).toBe(points.get(p));
+      const entry = (c: Client) => results.ranking.find((r) => r.playerId === c.id)!;
+      expect(entry(fast)).toMatchObject({ score: POINTS_PER_CORRECT + BLUR_BONUS_BY_STEP[0], bonus: BLUR_BONUS_BY_STEP[0], correct: 1, rank: 1 });
+      expect(entry(slow)).toMatchObject({ score: POINTS_PER_CORRECT, bonus: 0, correct: 1, rank: 2 });
+      expect(results.awards.find((a) => a.id === 'eagleEye')).toEqual({ id: 'eagleEye', playerIds: [fast.id], value: BLUR_BONUS_BY_STEP[0] });
+    }
+  }, 20_000);
 });
 
 describe('socket server: sessions', () => {

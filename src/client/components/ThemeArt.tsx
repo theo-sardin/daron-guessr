@@ -26,7 +26,7 @@ const SKIN = { dad: '#f2c190', mom: '#d99a6c', kid: '#ffd8b4', girl: '#e8b184' }
 /** Below this rendered width (px) the compact drawing is used: one print, one big subject. */
 const COMPACT_BELOW = 48;
 
-type Subject = 'dad' | 'mom' | 'kid' | 'girl' | 'cat' | 'landscape' | 'shuffle';
+type Subject = 'dad' | 'mom' | 'kid' | 'girl' | 'cat' | 'landscape' | 'shuffle' | 'idol' | 'me' | 'hand' | 'eye';
 
 /** Stroke widths in viewBox units: frame, photo edge, features. */
 interface Strokes {
@@ -186,6 +186,123 @@ function subjectShape(subject: Subject, w: number, h: number, sw: number, accent
         </>
       );
     }
+    // The teen crush, 1998: curtains (center part), a smouldering look, a leather jacket.
+    case 'idol': {
+      const r = w * 0.24;
+      const cy = h * 0.47;
+      const bodyTop = cy + r * 1.05;
+      return (
+        <>
+          <ellipse cx={cx} cy={cy - r * 0.12} rx={r * 1.16} ry={r * 1.12} fill={INK} />
+          <rect x={cx - r * 0.36} y={cy + r * 0.5} width={r * 0.72} height={r} fill={SKIN.girl} {...line} />
+          <path d={`M${cx - w * 0.52} ${h + 2}C${cx - w * 0.5} ${bodyTop} ${cx - r * 0.9} ${bodyTop} ${cx} ${bodyTop}S${cx + w * 0.5} ${bodyTop} ${cx + w * 0.52} ${h + 2}z`} fill={PAPER} {...line} />
+          {/* Jacket panels over the white tee. */}
+          <path d={`M${cx - w * 0.52} ${h + 2}C${cx - w * 0.5} ${bodyTop + r * 0.1} ${cx - r * 0.9} ${bodyTop} ${cx - r * 0.5} ${bodyTop}L${cx - r * 0.3} ${h + 2}z`} fill={INK} />
+          <path d={`M${cx + w * 0.52} ${h + 2}C${cx + w * 0.5} ${bodyTop + r * 0.1} ${cx + r * 0.9} ${bodyTop} ${cx + r * 0.5} ${bodyTop}L${cx + r * 0.3} ${h + 2}z`} fill={INK} />
+          <circle cx={cx} cy={cy} r={r} fill={SKIN.girl} {...line} />
+          {/* Curtains: two swoops from a center part. */}
+          <path
+            d={`M${cx} ${cy - r * 1.04}C${cx - r * 0.55} ${cy - r * 1.08} ${cx - r * 1.1} ${cy - r * 0.78} ${cx - r * 1.06} ${cy + r * 0.2}C${cx - r * 0.86} ${cy - r * 0.18} ${cx - r * 0.6} ${cy - r * 0.32} ${cx - r * 0.3} ${cy - r * 0.5}C${cx - r * 0.14} ${cy - r * 0.64} ${cx - r * 0.05} ${cy - r * 0.84} ${cx} ${cy - r * 1.04}z`}
+            fill={INK}
+            {...line}
+          />
+          <path
+            d={`M${cx} ${cy - r * 1.04}C${cx + r * 0.55} ${cy - r * 1.08} ${cx + r * 1.1} ${cy - r * 0.78} ${cx + r * 1.06} ${cy + r * 0.2}C${cx + r * 0.86} ${cy - r * 0.18} ${cx + r * 0.6} ${cy - r * 0.32} ${cx + r * 0.3} ${cy - r * 0.5}C${cx + r * 0.14} ${cy - r * 0.64} ${cx + r * 0.05} ${cy - r * 0.84} ${cx} ${cy - r * 1.04}z`}
+            fill={INK}
+            {...line}
+          />
+          {/* Heavy lids: the smoulder. */}
+          <circle cx={cx - r * 0.38} cy={cy + r * 0.2} r={r * 0.1} fill={INK} />
+          <circle cx={cx + r * 0.38} cy={cy + r * 0.2} r={r * 0.1} fill={INK} />
+          <path d={`M${cx - r * 0.6} ${cy + r * 0.1}L${cx - r * 0.18} ${cy + r * 0.12}M${cx + r * 0.18} ${cy + r * 0.12}L${cx + r * 0.6} ${cy + r * 0.1}`} fill="none" {...line} />
+          <circle cx={cx - r * 0.62} cy={cy + r * 0.48} r={r * 0.15} fill={BLUSH} />
+          <circle cx={cx + r * 0.62} cy={cy + r * 0.48} r={r * 0.15} fill={BLUSH} />
+          <path d={`M${cx - r * 0.26} ${cy + r * 0.6}Q${cx + r * 0.05} ${cy + r * 0.76} ${cx + r * 0.34} ${cy + r * 0.52}`} fill="none" {...line} />
+        </>
+      );
+    }
+    // "Who's that?": a selfie of somebody, messy bun, big grin (drawn blurred by the scene).
+    case 'me': {
+      const r = w * 0.26;
+      const cy = h * 0.5;
+      return (
+        <>
+          <circle cx={cx + r * 0.2} cy={cy - r * 1.2} r={r * 0.5} fill={INK} {...line} />
+          <path d={`M${cx - w * 0.46} ${h + 2}C${cx - w * 0.44} ${cy + r * 1.05} ${cx + w * 0.44} ${cy + r * 1.05} ${cx + w * 0.46} ${h + 2}z`} fill="var(--color-red)" {...line} />
+          <circle cx={cx} cy={cy} r={r} fill={SKIN.mom} {...line} />
+          <path
+            d={`M${cx - r * 1.04} ${cy + r * 0.1}C${cx - r * 1.14} ${cy - r * 1.24} ${cx + r * 1.14} ${cy - r * 1.24} ${cx + r * 1.04} ${cy + r * 0.1}C${cx + r * 0.7} ${cy - r * 0.46} ${cx - r * 0.2} ${cy - r * 0.6} ${cx - r * 1.04} ${cy + r * 0.1}z`}
+            fill={INK}
+            {...line}
+          />
+          <circle cx={cx - r * 0.36} cy={cy + r * 0.12} r={r * 0.11} fill={INK} />
+          <circle cx={cx + r * 0.36} cy={cy + r * 0.12} r={r * 0.11} fill={INK} />
+          <path d={`M${cx - r * 0.42} ${cy + r * 0.42}Q${cx} ${cy + r * 0.95} ${cx + r * 0.42} ${cy + r * 0.42}z`} fill={PAPER} {...line} />
+        </>
+      );
+    }
+    // Body parts: an open hand, one outline around palm + fingers (stroke pass, then fill pass).
+    case 'hand': {
+      const p = w * 0.46;
+      const top = h * 0.47;
+      const fw = p * 0.2;
+      // Splayed, so the fingers stay apart even as a tiny silhouette.
+      const fingers: Array<[number, number, number]> = [
+        [-0.36, 0.5, -17],
+        [-0.12, 0.64, -6],
+        [0.12, 0.68, 5],
+        [0.36, 0.56, 16],
+      ];
+      const bx = cx - p * 0.4;
+      const by = top + p * 0.66;
+      const shapes = (
+        <>
+          <rect x={cx - p / 2} y={top} width={p} height={p} rx={p * 0.3} />
+          <rect x={cx - p * 0.34} y={top + p * 0.6} width={p * 0.68} height={h} />
+          {fingers.map(([dx, len, rot], i) => (
+            <rect
+              key={i}
+              x={cx + dx * p - fw / 2}
+              y={top + p * 0.25 - len * p}
+              width={fw}
+              height={len * p + p * 0.2}
+              rx={fw / 2}
+              transform={`rotate(${rot} ${cx + dx * p} ${top + p * 0.3})`}
+            />
+          ))}
+          <rect x={bx - fw * 0.55} y={by - p * 0.62} width={fw * 1.1} height={p * 0.62 + fw * 0.5} rx={fw * 0.55} transform={`rotate(-42 ${bx} ${by})`} />
+        </>
+      );
+      return (
+        <>
+          <g fill={SKIN.dad} stroke={INK} strokeWidth={Math.min(sw * 2, w * 0.05)} strokeLinejoin="round">
+            {shapes}
+          </g>
+          <g fill={SKIN.dad}>{shapes}</g>
+          <path d={`M${cx - p * 0.18} ${top + p * 0.72}Q${cx + p * 0.08} ${top + p * 0.5} ${cx + p * 0.3} ${top + p * 0.46}`} fill="none" {...line} strokeWidth={sw * 0.7} />
+        </>
+      );
+    }
+    // Body parts: an eye in extreme close-up (skin background).
+    case 'eye': {
+      const ew = w * 0.86;
+      const cy = h * 0.52;
+      const iris = ew * 0.21;
+      return (
+        <>
+          <path d={`M${cx - ew * 0.42} ${cy - ew * 0.34}Q${cx} ${cy - ew * 0.56} ${cx + ew * 0.42} ${cy - ew * 0.3}`} fill="none" {...line} strokeWidth={sw * 2.2} />
+          <path d={`M${cx - ew / 2} ${cy}Q${cx} ${cy - ew * 0.46} ${cx + ew / 2} ${cy}Q${cx} ${cy + ew * 0.4} ${cx - ew / 2} ${cy}z`} fill={PAPER} {...line} />
+          <circle cx={cx} cy={cy} r={iris} fill="#6b8fd6" {...line} />
+          <circle cx={cx} cy={cy} r={iris * 0.45} fill={INK} />
+          <circle cx={cx + iris * 0.35} cy={cy - iris * 0.38} r={iris * 0.2} fill={PAPER} />
+          <path
+            d={[-0.34, -0.12, 0.12, 0.34].map((k) => `M${cx + ew * k} ${cy - ew * 0.2 + Math.abs(k) * ew * 0.18}l${k * ew * 0.12} ${-ew * 0.11}`).join('')}
+            fill="none"
+            {...line}
+          />
+        </>
+      );
+    }
     case 'landscape':
       return (
         <>
@@ -225,6 +342,8 @@ interface PrintSpec {
   subject: Subject;
   /** Photo background (defaults to the theme accent). */
   bg?: string;
+  /** Out of focus (the "Who's that?" mode starts blurry). */
+  blur?: boolean;
 }
 
 /** Masking tape across a print's top edge (translucent, jagged ends). */
@@ -250,7 +369,7 @@ function tapePoints(x: number, y: number, w: number, h: number): string {
  * clipped to the photo. `silhouette` draws the subject as one flat ink shape (tiny sizes);
  * `tape` sticks it down with masking tape.
  */
-function Print({ spec, accent, id, sw, tape, silhouette }: { spec: PrintSpec; accent: string; id: string; sw: Strokes; tape?: boolean; silhouette?: string }) {
+function Print({ spec, accent, id, sw, tape, silhouette, blur }: { spec: PrintSpec; accent: string; id: string; sw: Strokes; tape?: boolean; silhouette?: string; blur?: string }) {
   const { x, y, w, h, rotate = 0 } = spec;
   const m = Math.max(2.5, w * 0.1);
   const pw = w - m * 2;
@@ -267,8 +386,10 @@ function Print({ spec, accent, id, sw, tape, silhouette }: { spec: PrintSpec; ac
       </clipPath>
       <g clipPath={`url(#${clip})`}>
         <rect x={x + m} y={y + m} width={pw} height={ph} fill={spec.bg ?? accent} />
-        <g transform={`translate(${x + m} ${y + m})`} filter={silhouette ? `url(#${silhouette})` : undefined}>
-          {subjectShape(spec.subject, pw, ph, sw.line, spec.bg ?? accent)}
+        <g filter={spec.blur && blur ? `url(#${blur})` : undefined}>
+          <g transform={`translate(${x + m} ${y + m})`} filter={silhouette ? `url(#${silhouette})` : undefined}>
+            {subjectShape(spec.subject, pw, ph, sw.line, spec.bg ?? accent)}
+          </g>
         </g>
         {/* An old print's vignette. */}
         <rect x={x + m} y={y + m} width={pw} height={ph} fill={`url(#${id}-vig)`} />
@@ -317,6 +438,64 @@ function Sticker({ d, fill, rotate, cx, cy }: { d: string; fill: string; rotate:
   );
 }
 
+/**
+ * The phone of "Camera-roll roulette": the gallery grid on screen, the last shot (bottom right)
+ * circled in red marker.
+ */
+function Phone({ x, y, w, h, rotate, sw, compact }: { x: number; y: number; w: number; h: number; rotate: number; sw: Strokes; compact?: boolean }) {
+  const pad = w * 0.09;
+  const top = h * 0.12;
+  const sx = x + pad;
+  const sy = y + top;
+  const swd = w - pad * 2;
+  const sh = h - top - h * 0.1;
+  const cols = 3;
+  const rows = compact ? 3 : 4;
+  const gap = swd * 0.05;
+  const tw = (swd - gap * (cols + 1)) / cols;
+  const th = Math.min(tw, (sh - gap * (rows + 1)) / rows);
+  const tones = ['sky', 'pink', 'yellow', 'mint', 'tangerine', 'lilac', 'pink', 'yellow', 'sky', 'mint', 'lilac', 'tangerine'];
+  const cells = Array.from({ length: rows * cols }, (_, i) => ({ c: i % cols, r: Math.floor(i / cols), tone: tones[i % tones.length] }));
+  const last = cells[cells.length - 1];
+  const lx = sx + gap + last.c * (tw + gap) + tw / 2;
+  const ly = sy + gap + last.r * (th + gap) + th / 2;
+  return (
+    <g transform={`rotate(${rotate} ${x + w / 2} ${y + h / 2})`}>
+      <rect x={x + 0.6} y={y + 1.4} width={w} height={h} rx={w * 0.16} fill="rgb(40 25 10 / 0.25)" />
+      <rect x={x} y={y} width={w} height={h} rx={w * 0.16} fill={INK} />
+      <rect x={sx} y={sy} width={swd} height={sh} rx={w * 0.04} fill="#f7f1e4" />
+      <rect x={x + w / 2 - w * 0.14} y={y + top * 0.36} width={w * 0.28} height={top * 0.26} rx={top * 0.13} fill="#3b3228" />
+      {cells.map(({ c, r, tone }, i) => (
+        <rect key={i} x={sx + gap + c * (tw + gap)} y={sy + gap + r * (th + gap)} width={tw} height={th} rx={0.5} fill={`var(--color-${tone})`} />
+      ))}
+      <ellipse cx={lx} cy={ly} rx={tw * 0.82} ry={th * 0.8} fill="none" stroke="var(--color-red)" strokeWidth={sw.line * 1.15} strokeLinecap="round" transform={`rotate(-12 ${lx} ${ly})`} strokeDasharray={`${tw * 4.3} ${tw * 0.5}`} />
+    </g>
+  );
+}
+
+/** A red marker question mark scribbled on top of the art. */
+function MarkerQuestion({ x, y, s, width }: { x: number; y: number; s: number; width: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${s}) rotate(10)`} fill="none" stroke="var(--color-red)" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M-5 -6C-5 -11 5 -12 5 -6C5 -2 0 -1.5 0 3" strokeWidth={width / s} />
+      <circle cx="0" cy="8.4" r="0.6" fill="var(--color-red)" strokeWidth={(width * 1.1) / s} />
+    </g>
+  );
+}
+
+/** A magnifying glass sticker (the "Body parts" mode zooms in). */
+function Magnifier({ cx, cy, r, rotate }: { cx: number; cy: number; r: number; rotate: number }) {
+  return (
+    <g transform={`rotate(${rotate} ${cx} ${cy})`}>
+      <rect x={cx - r * 0.22} y={cy + r * 0.95} width={r * 0.44} height={r * 1.25} rx={r * 0.18} fill="rgb(40 25 10 / 0.22)" transform="translate(0.5 1.2)" />
+      <circle cx={cx} cy={cy} r={r} fill="rgb(40 25 10 / 0.18)" transform="translate(0.5 1.2)" />
+      <rect x={cx - r * 0.22} y={cy + r * 0.95} width={r * 0.44} height={r * 1.25} rx={r * 0.18} fill="var(--color-red)" stroke={INK} strokeWidth={1} />
+      <circle cx={cx} cy={cy} r={r} fill="rgb(222 240 255 / 0.4)" stroke={INK} strokeWidth={r * 0.26} />
+      <path d={`M${cx - r * 0.5} ${cy - r * 0.2}Q${cx - r * 0.45} ${cy - r * 0.5} ${cx - r * 0.15} ${cy - r * 0.55}`} fill="none" stroke="#fff" strokeWidth={r * 0.14} strokeLinecap="round" />
+    </g>
+  );
+}
+
 interface Scene {
   prints: PrintSpec[];
   extra?: ReactNode;
@@ -358,14 +537,34 @@ const SCENES: Record<Theme, Scene> = {
     prints: [{ x: 4, y: 12, w: 48, h: 42, rotate: -5, subject: 'landscape' }],
     extra: <Sticker d={heartPath(49, 14, 1.12)} fill="var(--color-pink)" rotate={14} cx={49} cy={14} />,
   },
-  // Provisional scenes for the newer modes (reuse existing subjects); the home agent redraws them.
-  roll: { prints: [{ x: 4, y: 12, w: 48, h: 42, rotate: 4, subject: 'landscape' }] },
-  crush: {
-    prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: 5, subject: 'mom' }],
-    extra: <Sticker d={heartPath(49, 14, 1.12)} fill="var(--color-pink)" rotate={-10} cx={49} cy={14} />,
+  // The phone's gallery, the last shot popping out of it as a print.
+  roll: {
+    prints: [{ x: 31, y: 7, w: 28, h: 34, rotate: 11, subject: 'cat', bg: 'var(--color-tangerine)' }],
+    extra: <Phone x={6} y={9} w={27} h={47} rotate={-9} sw={FULL} />,
   },
-  whois: { prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: -4, subject: 'dad' }] },
-  body: { prints: [{ x: 12, y: 11, w: 36, h: 44, rotate: 6, subject: 'girl' }] },
+  // A teen-magazine poster of the heartthrob, hearts slapped all over it.
+  crush: {
+    prints: [{ x: 13, y: 9, w: 37, h: 46, rotate: -4, subject: 'idol', bg: 'var(--color-pink)' }],
+    extra: (
+      <>
+        <Sticker d={heartPath(52, 14, 1.05)} fill="var(--color-red)" rotate={16} cx={52} cy={14} />
+        <Sticker d={heartPath(11, 47, 0.72)} fill="var(--color-pink)" rotate={-18} cx={11} cy={47} />
+      </>
+    ),
+  },
+  // An out-of-focus selfie with a big red "?" on it.
+  whois: {
+    prints: [{ x: 12, y: 10, w: 37, h: 45, rotate: -5, subject: 'me', blur: true }],
+    extra: <MarkerQuestion x={46} y={18} s={1} width={3} />,
+  },
+  // Close-ups: an eye behind, a hand in front, a magnifying glass.
+  body: {
+    prints: [
+      { x: 30, y: 6, w: 28, h: 32, rotate: 12, subject: 'eye', bg: SKIN.girl },
+      { x: 5, y: 15, w: 31, h: 39, rotate: -8, subject: 'hand' },
+    ],
+    extra: <Magnifier cx={47} cy={44} r={7.5} rotate={-38} />,
+  },
   mix: {
     prints: [
       { x: 5, y: 13, w: 25, h: 31, rotate: -20, subject: 'kid' },
@@ -393,10 +592,16 @@ const COMPACT_SUBJECT: Record<Theme, Subject> = {
   childhood: 'kid',
   pick: 'landscape',
   roll: 'landscape',
-  crush: 'mom',
-  whois: 'dad',
-  body: 'girl',
+  crush: 'idol',
+  whois: 'me',
+  body: 'hand',
   mix: 'shuffle',
+};
+/** Compact drawings that are not a single print (they replace it), or a mark on top of it. */
+const COMPACT_EXTRA: Partial<Record<Theme, { replace?: boolean; node: ReactNode }>> = {
+  roll: { replace: true, node: <Phone x={14} y={3} w={34} h={58} rotate={-7} sw={COMPACT} compact /> },
+  whois: { node: <MarkerQuestion x={45} y={17} s={1.25} width={4.2} /> },
+  crush: { node: <Sticker d={heartPath(51, 13, 1)} fill="var(--color-red)" rotate={14} cx={51} cy={13} /> },
 };
 const COMPACT_PRINT = { x: 8, y: 4, w: 48, h: 56, rotate: -4 };
 
@@ -420,7 +625,8 @@ function guessWidth(className?: string): number | null {
 
 /**
  * A mini collage per game theme: white prints taped on a torn halftone scrap, ink-drawn
- * subjects on the theme accent, a sticker (star, heart, shuffle) slapped on top:
+ * subjects on the theme accent (or a phone, for the camera roll), a sticker (star, heart, magnifying
+ * glass, a marker "?") slapped on top:
  * <ThemeArt theme="childhood" className="size-16" />. Under 48px it switches to a compact
  * drawing automatically (or force it with `compact`): one print, the subject as a flat ink
  * silhouette, a corner of the scrap.
@@ -447,7 +653,13 @@ export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
 
   const isCompact = compact ?? small;
   const accent = themeColor(theme);
-  const scene: Scene = isCompact ? { prints: [{ ...COMPACT_PRINT, subject: COMPACT_SUBJECT[theme] }] } : SCENES[theme];
+  const compactExtra = COMPACT_EXTRA[theme];
+  const scene: Scene = isCompact
+    ? {
+        prints: compactExtra?.replace ? [] : [{ ...COMPACT_PRINT, subject: COMPACT_SUBJECT[theme] }],
+        extra: compactExtra?.node,
+      }
+    : SCENES[theme];
   const sw = isCompact ? COMPACT : FULL;
   const tone = SCRAP_TONE[theme];
   const dots = tone === 'blue' ? 'rgb(255 255 255 / 0.22)' : 'rgb(23 19 15 / 0.14)';
@@ -468,6 +680,9 @@ export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
           <circle cx="1.5" cy="1.5" r="0.62" fill={dots} />
         </pattern>
         {/* Tiny sizes: the subject as one flat ink silhouette (details would be mush). */}
+        <filter id={`${uid}-blur`} x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation={isCompact ? 0 : 1.5} />
+        </filter>
         <filter id={`${uid}-sil`} x="0" y="0" width="100%" height="100%">
           <feFlood floodColor="#17130f" floodOpacity="0.88" />
           <feComposite in2="SourceAlpha" operator="in" />
@@ -487,6 +702,7 @@ export function ThemeArt({ theme, className, label, compact }: ThemeArtProps) {
           sw={sw}
           tape={!isCompact && i === scene.prints.length - 1}
           silhouette={isCompact && p.subject !== 'shuffle' ? `${uid}-sil` : undefined}
+          blur={`${uid}-blur`}
         />
       ))}
       {scene.extra}

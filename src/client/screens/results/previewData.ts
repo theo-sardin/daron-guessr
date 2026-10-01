@@ -1,4 +1,5 @@
 import {
+  BLUR_BONUS_BY_STEP,
   DEFAULT_SETTINGS,
   POINTS_PER_CORRECT,
   THEME_DEFAULT_PHOTOS,
@@ -12,7 +13,7 @@ import {
   type RoomView,
   type Theme,
 } from '../../../shared/protocol';
-import { fakePhoto, fakePlayers, fakeView } from '../../dev/fixtures';
+import { fakePhoto, fakePlayers, fakePortrait, fakeView } from '../../dev/fixtures';
 import { seeded } from '../../lib/util';
 
 /**
@@ -34,6 +35,10 @@ export interface SimOptions {
   skip?: number;
   names?: Record<number, string>;
   offline?: number[];
+  /** Blur game: correct votes earn a speed bonus (random blur step), eagleEye award. */
+  blur?: boolean;
+  /** Players with a selfie (default none). */
+  selfies?: (i: number) => boolean;
 }
 
 interface Sim {
@@ -41,11 +46,17 @@ interface Sim {
   results: ResultsView;
   /** photo id -> voter id -> candidate id (owner decoys included). */
   votes: Record<string, Record<string, string>>;
+  /** photo id -> voter id -> speed bonus of their (correct) vote. */
+  bonuses: Record<string, Record<string, number>>;
 }
 
 export function simulate(o: SimOptions): Sim {
   const rand = seeded(o.seed);
-  const players = fakePlayers(o.players, { offline: o.offline }).map((p, i) => ({ ...p, name: o.names?.[i] ?? p.name }));
+  const players = fakePlayers(o.players, { offline: o.offline }).map((p, i) => ({
+    ...p,
+    name: o.names?.[i] ?? p.name,
+    ...(o.selfies?.(i) ? { selfieUrl: fakePortrait(900 + i * 13, 'me') } : {}),
+  }));
   const theme = o.theme ?? 'parents';
   const photosOf = o.photos ?? (() => THEME_DEFAULT_PHOTOS[theme]);
   const kindOf = o.kinds ?? ((_i: number, slot: number) => defaultKindForSlot(theme, slot));
@@ -63,11 +74,13 @@ export function simulate(o: SimOptions): Sim {
   }
 
   const votes: Sim['votes'] = {};
+  const bonuses: Sim['bonuses'] = {};
   const photos: PhotoResult[] = list.map((item, index) => {
     const photo = fakePhoto(item.seed, item.kind);
     const lookalike = owners.filter((id) => id !== item.ownerId)[Math.floor(rand() * (owners.length - 1))];
     const voters: Record<string, string[]> = {};
     const byVoter: Record<string, string> = (votes[photo.id] = {});
+    const bonusOf: Record<string, number> = (bonuses[photo.id] = {});
     players.forEach((v, vi) => {
       const candidates = owners.filter((id) => id !== v.id);
       if (v.id === item.ownerId) {
@@ -85,6 +98,7 @@ export function simulate(o: SimOptions): Sim {
       }
       (voters[pick] ??= []).push(v.id);
       byVoter[v.id] = pick;
+      if (o.blur && pick === item.ownerId) bonusOf[v.id] = BLUR_BONUS_BY_STEP[Math.min(BLUR_BONUS_BY_STEP.length - 1, Math.floor(rand() * rand() * BLUR_BONUS_BY_STEP.length))];
     });
     const tally = Object.fromEntries(Object.entries(voters).map(([id, vs]) => [id, vs.length]));
     const totalVotes = Object.values(tally).reduce((a, b) => a + b, 0);
@@ -106,14 +120,16 @@ export function simulate(o: SimOptions): Sim {
   const stats = players.map((p) => {
     let correct = 0;
     let guesses = 0;
+    let bonus = 0;
     for (const ph of photos as Array<PhotoResult & { _voters: Record<string, string[]> }>) {
       for (const [cand, vs] of Object.entries(ph._voters)) {
         if (!vs.includes(p.id)) continue;
         guesses += 1;
         if (cand === ph.ownerId) correct += 1;
       }
+      bonus += bonuses[ph.photo.id]?.[p.id] ?? 0;
     }
-    return { playerId: p.id, correct, guesses, score: correct * POINTS_PER_CORRECT };
+    return { playerId: p.id, correct, guesses, bonus, score: correct * POINTS_PER_CORRECT + bonus };
   });
   const sorted = [...stats].sort((a, b) => b.score - a.score);
   const ranking: RankingEntry[] = [];
@@ -123,13 +139,18 @@ export function simulate(o: SimOptions): Sim {
   });
 
   const awards = computeAwards(stats, owners, photos as Array<PhotoResult & { _voters: Record<string, string[]> }>);
+  const eagle = allBest(
+    stats.filter((st) => st.bonus > 0),
+    (a, b) => a.bonus - b.bonus,
+  );
+  if (o.blur && eagle.length) awards.splice(2, 0, { id: 'eagleEye', playerIds: eagle.map((e) => e.playerId), value: eagle[0].bonus });
   const cleanPhotos = photos.map((p) => {
     const { _voters, ...rest } = p as PhotoResult & { _voters: Record<string, string[]> };
     void _voters;
     return rest;
   });
   const scored = players.map((p) => ({ ...p, score: stats.find((s) => s.playerId === p.id)?.score ?? 0 }));
-  return { players: scored, results: { photos: cleanPhotos, ranking, awards }, votes };
+  return { players: scored, results: { photos: cleanPhotos, ranking, awards }, votes, bonuses };
 }
 
 function allBest<T>(items: readonly T[], cmp: (a: T, b: T) => number): T[] {
@@ -230,10 +251,18 @@ export function resultsView(
   const meIndex = me(sim);
   const meId = sim.players[meIndex].id;
   const votes = sim.votes;
-  const results: ResultsView = { ...sim.results, photos: sim.results.photos.map((p) => ({ ...p, myVote: votes[p.photo.id]?.[meId] ?? null })) };
+  const results: ResultsView = {
+    ...sim.results,
+    photos: sim.results.photos.map((p) => {
+      const myVote = votes[p.photo.id]?.[meId] ?? null;
+      if (p.ownerId === meId) return { ...p, myVote };
+      const myPoints = myVote === p.ownerId ? POINTS_PER_CORRECT + (sim.bonuses[p.photo.id]?.[meId] ?? 0) : 0;
+      return { ...p, myVote, myPoints };
+    }),
+  };
   const theme = opts.theme ?? 'parents';
   const photosPerPlayer = Math.max(1, ...sim.players.map((_, i) => opts.photos?.(i) ?? THEME_DEFAULT_PHOTOS[theme]));
-  return fakeView(sim.players, meIndex, { phase: 'results', results, settings: { ...DEFAULT_SETTINGS, theme, photosPerPlayer } });
+  return fakeView(sim.players, meIndex, { phase: 'results', results, settings: { ...DEFAULT_SETTINGS, theme, photosPerPlayer, blur: !!opts.blur } });
 }
 
 export const rankOf = (sim: Sim, id: string) => sim.results.ranking.find((r) => r.playerId === id)?.rank ?? 0;

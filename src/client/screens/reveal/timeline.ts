@@ -2,6 +2,7 @@ import {
   REVEAL_BARS_AT_MS,
   REVEAL_DRUMROLL_AT_MS,
   REVEAL_OWNER_AT_MS,
+  POINTS_PER_CORRECT,
   type PhotoResult,
   type PublicPlayer,
 } from '../../../shared/protocol';
@@ -91,13 +92,17 @@ export function computeOutcome(result: PhotoResult, joinOrder: Map<string, numbe
 }
 
 /**
- * Players whose score goes up with this photo, as far as this client can know: everyone who
- * voted for the owner when votes are public, otherwise only the viewer (if they got it).
+ * Points each player gains with this photo, as far as this client can know: everyone who voted
+ * for the owner when votes are public (their speed bonus is unknown here: the base points), and
+ * the viewer's exact points (`myPoints`, speed bonus included).
  */
-export function pendingGainers(result: PhotoResult, meId: string): Set<string> {
-  if (result.voters) return new Set(result.voters[result.ownerId] ?? []);
-  if (result.myVote && result.myVote === result.ownerId && meId !== result.ownerId) return new Set([meId]);
-  return new Set();
+export function pendingGains(result: PhotoResult, meId: string): Map<string, number> {
+  const gains = new Map<string, number>();
+  if (result.voters) for (const id of result.voters[result.ownerId] ?? []) gains.set(id, POINTS_PER_CORRECT);
+  if (meId !== result.ownerId && result.myVote && result.myVote === result.ownerId) {
+    gains.set(meId, result.myPoints ?? POINTS_PER_CORRECT);
+  }
+  return gains;
 }
 
 /** Fallback for an id that is not (or no longer) in the player list. */

@@ -130,6 +130,8 @@ const en = {
     playersInside: '{count}/{max} players inside',
     /** Micro-label next to the seat count stamp on the invitation ticket. */
     seats: 'Players',
+    /** Blue rubber stamp on the ticket once the room answered. */
+    openStamp: 'OPEN',
     checking: ['Knocking on the door…', 'Peeking through the keyhole…', 'Ringing the doorbell…'],
     button: 'Join the room',
     notYourRoom: 'Wrong room?',
@@ -229,7 +231,7 @@ const fr: typeof en = {
       body: 'Une main, une oreille, un genou… On reste SFW !',
       mix: 'Tous les types de photos, en vrac.',
     },
-    quote: '« {q} »',
+    quote: '«\u00a0{q}\u00a0»',
     photosOne: '1 photo chacun',
     photosMany: '{n} photos chacun',
     settingsTitle: 'Règles de la maison',
@@ -262,6 +264,7 @@ const fr: typeof en = {
     hostedBy: 'Chez {name}',
     playersInside: '{count}/{max} joueurs déjà là',
     seats: 'Joueurs',
+    openStamp: 'OUVERT',
     checking: ['Toc toc toc…', 'On mate par le trou de la serrure…', 'On sonne à la porte…'],
     button: 'Rejoindre le salon',
     notYourRoom: 'Pas le bon salon ?',

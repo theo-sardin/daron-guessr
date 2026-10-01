@@ -1,16 +1,18 @@
 import type { PhotoResult, PublicPlayer } from '../../../shared/protocol';
-import { Icon } from '../../components/Icon';
+import { Annotation, MarkerCheck } from '../../components/Marker';
 import { Polaroid } from '../../components/Polaroid';
-import { Stamp } from '../../components/Stamp';
+import type { TapeTone } from '../../components/Tape';
+import { TornPaper } from '../../components/TornPaper';
+import { Icon } from '../../components/Icon';
 import { useI18n } from '../../i18n';
-import { cn } from '../../lib/util';
-import { DateImprint } from './DateImprint';
 import { playerOr, tiltOf } from './helpers';
 
+const TAPES: TapeTone[] = ['cream', 'yellow', 'pink', 'cream', 'mint', 'blue'];
+
 /**
- * Every photo of the game as an album of prints: slight tilts, a handwritten caption on each
- * ("Paul's mom"), the camera's date imprint, how many people found it as a lit stamp, and a
- * check / cross sticker for the viewer's own guess.
+ * Every photo of the game as a scrapbook page: polaroids taped on kraft paper, a handwritten
+ * caption on each ("Paul's mom"), how many people found it scribbled in red marker ("3/4 ✓"),
+ * and the viewer's own guess checked (or crossed) in the corner.
  */
 export function PhotoWall({
   photos,
@@ -25,56 +27,64 @@ export function PhotoWall({
 }) {
   const { t } = useI18n();
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-5 px-1 pt-2 min-[360px]:grid-cols-3 min-[360px]:gap-x-3 sm:grid-cols-4 sm:gap-x-5 md:grid-cols-5">
-      {photos.map((p, i) => {
-        const owner = playerOr(players, p.ownerId);
-        const caption = t(`common.possessive.${p.photo.kind}`, { name: owner.name });
-        const mine = p.ownerId === meId;
-        const guessed = !mine && p.myVote !== null ? p.myVote === p.ownerId : null;
-        return (
-          <Polaroid
-            key={p.photo.id}
-            src={p.photo.url}
-            alt={caption}
-            tilt={tiltOf(p.photo.id, 4)}
-            className="w-full p-2! pb-1.5! shadow-pop-sm!"
-            initial={{ opacity: 0, scale: 0.6, y: 30 }}
-            whileInView={{ opacity: 1, scale: 1, y: 0 }}
-            whileHover={{ scale: 1.06, rotate: 0, zIndex: 2 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 18, delay: (i % 5) * 0.05 }}
-            caption={<span className="line-clamp-2 block text-xl leading-[0.95] sm:text-[1.375rem]">{caption}</span>}
-            overlay={
-              <>
-                {/* A real button over the photo, so the lightbox also opens from the keyboard. */}
-                <button
-                  type="button"
-                  onClick={() => onOpen(p)}
-                  className="absolute inset-0 cursor-zoom-in rounded-sm focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-sun"
-                  aria-label={caption}
-                />
-                <DateImprint id={p.photo.id} className="right-1.5 bottom-1.5" />
-                <span className="pointer-events-none absolute top-1.5 right-1.5 flex rounded-md bg-ink/85 px-1.5 py-1 ring-1 ring-white/15">
-                  <Stamp size="xs" ariaLabel={t('results.wall.badgeAria', { correct: p.correctVotes, total: p.totalVotes })}>
-                    {t('results.wall.badge', { correct: p.correctVotes, total: p.totalVotes })}
-                  </Stamp>
-                </span>
-                {guessed !== null && (
-                  <span
-                    className={cn(
-                      'pointer-events-none absolute top-1.5 left-1.5 flex size-6 items-center justify-center rounded-full border-2 border-ink',
-                      guessed ? 'bg-mint text-ink' : 'bg-danger text-white',
+    <TornPaper surface="kraft" edges="tblr" amp={4} seed="wall" tilt={0.5} className="px-3 pt-7 pb-8 sm:px-6">
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-9 min-[400px]:grid-cols-3 sm:gap-x-6 md:grid-cols-4">
+        {photos.map((p, i) => {
+          const owner = playerOr(players, p.ownerId);
+          const caption = t(`common.possessive.${p.photo.kind}`, { name: owner.name });
+          const mine = p.ownerId === meId;
+          const guessed = !mine && p.myVote !== null ? p.myVote === p.ownerId : null;
+          return (
+            <li key={p.photo.id} className="relative">
+              <Polaroid
+                src={p.photo.url}
+                alt={caption}
+                tilt={tiltOf(p.photo.id, 4)}
+                tape={TAPES[i % TAPES.length]}
+                className="w-full p-2! pb-1.5!"
+                initial={{ opacity: 0, scale: 0.6, y: 30 }}
+                whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                whileHover={{ scale: 1.05, rotate: 0, zIndex: 2 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ type: 'spring', stiffness: 380, damping: 18, delay: (i % 4) * 0.05 }}
+                caption={<span className="line-clamp-2 block text-[1.3rem] leading-[0.95] sm:text-[1.4rem]">{caption}</span>}
+                overlay={
+                  <>
+                    {/* A real button over the photo, so the lightbox also opens from the keyboard. */}
+                    <button
+                      type="button"
+                      onClick={() => onOpen(p)}
+                      className="absolute inset-0 cursor-zoom-in focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-yellow"
+                      aria-label={caption}
+                    />
+                    {guessed !== null && (
+                      <span
+                        className="pointer-events-none absolute top-1 left-1 flex size-8 items-center justify-center rounded-full bg-sheet/90 shadow-paper-sm"
+                        role="img"
+                        aria-label={guessed ? t('results.wall.youGotIt') : t('results.wall.youMissed')}
+                        title={guessed ? t('results.wall.youGotIt') : t('results.wall.youMissed')}
+                      >
+                        {guessed ? <MarkerCheck tone="blue" className="size-5" strokeWidth={4} /> : <Icon name="x" weight="bold" className="size-5 text-red-ink" />}
+                      </span>
                     )}
-                    title={guessed ? t('results.wall.youGotIt') : t('results.wall.youMissed')}
-                  >
-                    <Icon name={guessed ? 'check' : 'x'} weight="bold" className="size-3.5" label={guessed ? t('results.wall.youGotIt') : t('results.wall.youMissed')} />
-                  </span>
-                )}
-              </>
-            }
-          />
-        );
-      })}
-    </div>
+                  </>
+                }
+              />
+              {/* How many found it, scribbled on the page */}
+              <span
+                className="pointer-events-none absolute -right-2 -bottom-6 z-10 rounded-[3px] bg-sheet/85 px-1.5 shadow-paper-sm"
+                style={{ rotate: `${tiltOf(`${p.photo.id}-s`, 6)}deg` }}
+                role="img"
+                aria-label={t('results.wall.badgeAria', { correct: p.correctVotes, total: p.totalVotes })}
+              >
+                <Annotation size={18} animate={false}>
+                  {t('results.wall.badge', { correct: p.correctVotes, total: p.totalVotes })}
+                </Annotation>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </TornPaper>
   );
 }

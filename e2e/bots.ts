@@ -1,6 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import {
   AVATARS,
+  BLUR_VARIANT_WIDTHS,
   defaultKindForSlot,
   type AckResult,
   type ClientToServerEvents,
@@ -35,7 +36,8 @@ function emitAck<T extends object>(socket: BotSocket, event: string, ...args: un
 /**
  * A scripted player: joins a room over Socket.IO, fills every active photo slot of the room
  * (`settings.photosPerPlayer`, at most `opts.photos`) with a generated photo of the theme's
- * default kind for that slot, and votes randomly whenever a round opens.
+ * default kind for that slot (with its blur variants, like the web client), and votes randomly
+ * whenever a round opens.
  */
 export async function spawnBot(baseUrl: string, code: string, index: number, opts: { photos?: number } = {}): Promise<Bot> {
   const socket: BotSocket = io(baseUrl, { transports: ['websocket'], forceNew: true });
@@ -72,12 +74,14 @@ export async function spawnBot(baseUrl: string, code: string, index: number, opt
   const { settings } = await firstView;
   const photos = Math.min(opts.photos ?? settings.photosPerPlayer, settings.photosPerPlayer);
   for (let slot = 0; slot < photos; slot++) {
-    const png = makeFacePng(index * 10 + slot + 1);
+    const seed = index * 10 + slot + 1;
     const res = await emitAck(socket, 'photo:upload', {
       slot,
       kind: defaultKindForSlot(settings.theme, slot),
       mime: 'image/png',
-      data: png,
+      data: makeFacePng(seed),
+      // Same face at every blur step's width (the server checks each one's dimensions).
+      variants: BLUR_VARIANT_WIDTHS.map((width) => makeFacePng(seed, width)),
     });
     if (!res.ok) throw new Error(`bot ${name} upload failed: ${res.error}`);
   }

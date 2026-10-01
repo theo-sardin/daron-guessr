@@ -66,6 +66,8 @@ export interface Timing {
   lobbyDropMs: number;
   /** Votes are accepted this long before `startsAt` to absorb client clock skew. */
   earlyVoteToleranceMs: number;
+  /** Blur games without a timer: the round length the blur steps are spread over. */
+  blurNoTimerRoundMs: number;
 }
 
 export const DEFAULT_TIMING: Timing = {
@@ -77,6 +79,7 @@ export const DEFAULT_TIMING: Timing = {
   hostGraceMs: HOST_GRACE_MS,
   lobbyDropMs: 5 * 60_000,
   earlyVoteToleranceMs: 300,
+  blurNoTimerRoundMs: BLUR_NO_TIMER_ROUND_MS,
 };
 
 export interface Player {
@@ -793,9 +796,13 @@ function closeDueRounds(room: Room, now: number): boolean {
 export const BLUR_STEPS = BLUR_VARIANT_WIDTHS.length + 1;
 export const LAST_BLUR_STEP = BLUR_STEPS - 1;
 
-/** Length of one blur step: the round (or BLUR_NO_TIMER_ROUND_MS without a timer) split evenly. */
-export function blurStepMs(settings: Settings): number {
-  const roundMs = settings.voteSeconds > 0 ? settings.voteSeconds * 1000 : BLUR_NO_TIMER_ROUND_MS;
+/**
+ * Length of one blur step: the round split evenly into BLUR_STEPS, the round being
+ * `voteSeconds`, or `timing.blurNoTimerRoundMs` (BLUR_NO_TIMER_ROUND_MS) without a timer.
+ */
+export function blurStepMs(room: Room): number {
+  const { voteSeconds } = room.settings;
+  const roundMs = voteSeconds > 0 ? voteSeconds * 1000 : room.timing.blurNoTimerRoundMs;
   return roundMs / BLUR_STEPS;
 }
 
@@ -808,12 +815,12 @@ export function blurStepAt(room: Room, now: number): number | null {
   if (!room.settings.blur || room.phase !== 'voting' || !room.game) return null;
   const elapsed = now - room.game.roundStartsAt;
   if (elapsed < 0) return 0;
-  return Math.min(LAST_BLUR_STEP, Math.floor(elapsed / blurStepMs(room.settings)));
+  return Math.min(LAST_BLUR_STEP, Math.floor(elapsed / blurStepMs(room)));
 }
 
 /** When `step` of the current round starts (`step` 0 starts with the round). */
 export function blurStepStartsAt(room: Room, step: number): number {
-  return requireGame(room).roundStartsAt + step * blurStepMs(room.settings);
+  return requireGame(room).roundStartsAt + step * blurStepMs(room);
 }
 
 /** Records the current blur step; true when it moved on since the last tick (views must be re-sent). */

@@ -1,25 +1,25 @@
 import { motion, useInView } from 'motion/react';
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type { Award, PhotoResult, PublicPlayer } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
-import { Card } from '../../components/Card';
-import { Icon } from '../../components/Icon';
-import { IconBadge } from '../../components/IconBadge';
-import { Stamp } from '../../components/Stamp';
+import { Annotation } from '../../components/Marker';
+import { NotebookCard, Paper } from '../../components/Paper';
+import { Polaroid } from '../../components/Polaroid';
+import { RubberStamp } from '../../components/RubberStamp';
+import { Tape } from '../../components/Tape';
+import type { PaperSurface } from '../../components/TornPaper';
 import { useI18n, type I18n } from '../../i18n';
-import { sfx } from '../../lib/sfx';
 import { cn } from '../../lib/util';
-import { DateImprint } from './DateImprint';
-import { AWARD_TONE, awardFlavor, awardIcon, joinNames, playerOr, seedOf, tiltOf, type Flavor } from './helpers';
+import { AWARD_PAPER, awardFlavor, capitalize, joinNames, playerOr, seedOf, tiltOf, type Flavor } from './helpers';
 
 type PlayerAwardId = 'sherlock' | 'needsGlasses' | 'carbonCopy' | 'masterOfDisguise' | 'doppelganger';
 
 interface AwardCopy {
   title: string;
   text: string;
-  /** Headline number (digits, "/" and "%"), printed as a date stamp. */
+  /** Headline number (digits, "/", "%", "+"). */
   stat: string;
-  /** Micro-label above it. */
+  /** Typewriter micro-label under it. */
   statLabel: string;
 }
 
@@ -50,16 +50,20 @@ export function awardCopy(
     case 'mostConfusing': {
       const photo = award.photoId ? photos.get(award.photoId) : undefined;
       const kind = photo?.photo.kind ?? 'daron';
-      const possessive = t(`common.possessive.${kind}`, { name: winners[0]?.name ?? '' });
-      return { title, stat, statLabel, text: tpick('results.awards.mostConfusing.text', s, { ...vars, possessive }) };
+      const possessive = t(`results.awards.possessiveMid.${kind}`, { name: winners[0]?.name ?? '' });
+      return { title, stat, statLabel, text: tpick('results.awards.mostConfusing.text', s, { ...vars, possessive, Possessive: capitalize(possessive) }) };
     }
     case 'biggestMixup': {
       const photo = award.photoId ? photos.get(award.photoId) : undefined;
       const kind = photo?.photo.kind ?? 'daron';
-      // {possessive} for relatives ("Paul's mom"), {names} (the owner) for kid / pick photos.
+      // {possessive} for relatives ("Paul's mom"), {names} (the owner) for kid / pick / me photos.
       const possessive = t(`results.awards.possessiveMid.${kind}`, { name: winners[0]?.name ?? '' });
       const other = award.otherPlayerId ? playerOr(players, award.otherPlayerId).name : '???';
       return { title, stat, statLabel, text: tpick(`results.awards.biggestMixup.${kind}`, s, { ...vars, possessive, other }) };
+    }
+    case 'eagleEye': {
+      const plural = winners.length > 1 ? 'many' : 'one';
+      return { title, stat, statLabel, text: tpick(`results.awards.eagleEye.${plural}`, s, vars) };
     }
     default: {
       const id: PlayerAwardId = award.id;
@@ -69,58 +73,12 @@ export function awardCopy(
   }
 }
 
-/**
- * The award's headline number printed on the card like a date imprint. The segment fonts have
- * no good "%", so a percentage gets a Space Mono sign in the same ink.
- */
-function StatStamp({ stat, label }: { stat: string; label: string }) {
-  const percent = stat.endsWith('%');
-  return (
-    <Stamp glow={false} size="lg" label={label} className="mt-2">
-      {percent ? (
-        <>
-          {stat.slice(0, -1)}
-          <span className="ml-0.5 font-mono text-[0.85em] font-bold tracking-normal">%</span>
-        </>
-      ) : (
-        stat
-      )}
-    </Stamp>
-  );
-}
-
-function WinnerChip({ player, isMe }: { player: PublicPlayer; isMe: boolean }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border-2 border-ink py-0.5 pr-2.5 pl-0.5 text-sm font-extrabold text-ink',
-        isMe ? 'bg-sun' : 'bg-white/85',
-      )}
-    >
-      <Avatar player={player} size="xs" crown={false} dimOffline={false} />
-      <span className="truncate">{player.name}</span>
-    </span>
-  );
-}
-
-function PhotoThumb({ photo, caption, onOpen }: { photo: PhotoResult; caption: string; onOpen: () => void }) {
-  const { t } = useI18n();
-  return (
-    <motion.button
-      type="button"
-      onClick={onOpen}
-      whileTap={{ scale: 0.94 }}
-      whileHover={{ rotate: 0, scale: 1.04 }}
-      className="relative block shrink-0 rounded-md border-3 border-ink bg-white p-1.5 pb-3 shadow-pop-sm"
-      style={{ rotate: tiltOf(photo.photo.id, 5) }}
-      aria-label={caption}
-    >
-      <span className="relative block overflow-hidden rounded-sm">
-        <img src={photo.photo.url} alt={t('results.awards.photoOf')} className="block size-20 object-cover sm:size-24" draggable={false} />
-        <DateImprint id={photo.photo.id} className="right-1 bottom-1" />
-      </span>
-    </motion.button>
-  );
+/** Stamp size that keeps long titles ("Maître du déguisement") on the clipping. */
+function stampSize(title: string): number {
+  if (title.length > 20) return 16;
+  if (title.length > 14) return 19;
+  if (title.length > 9) return 23;
+  return 27;
 }
 
 function AwardCard({
@@ -151,89 +109,110 @@ function AwardCard({
   const i18n = useI18n();
   const { t } = i18n;
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.35 });
+  const inView = useInView(ref, { once: true, amount: 0.3 });
   const show = ready && inView;
   const copy = awardCopy(award, i18n, players, photos, seed, flavor);
-  const tone = AWARD_TONE[award.id];
+  const look = AWARD_PAPER[award.id];
   const photo = award.photoId ? photos.get(award.photoId) : undefined;
   const winners = award.playerIds.map((id) => playerOr(players, id));
   const other = award.otherPlayerId ? playerOr(players, award.otherPlayerId) : null;
   const delay = (index % 2) * 0.12;
+  const tilt = tiltOf(`${award.id}-${index}`, 1.6);
+  const stampTilt = -4 - (index % 3) * 2;
 
-  const played = useRef(false);
-  useEffect(() => {
-    if (!show || played.current) return;
-    played.current = true;
-    const id = window.setTimeout(() => sfx.play('pop'), (delay + 0.15) * 1000);
-    return () => window.clearTimeout(id);
-  }, [show, delay]);
-
-  return (
-    <div ref={ref} style={{ perspective: 900 }} className={cn(wide && 'sm:col-span-2')}>
-      <Card
-        tone="cream"
-        padded={false}
-        className="relative h-full p-4"
-        initial={{ opacity: 0, rotateY: -85, scale: 0.85, y: 30 }}
-        animate={show ? { opacity: 1, rotateY: 0, scale: 1, y: 0 } : undefined}
-        transition={{ type: 'spring', stiffness: 260, damping: 20, delay }}
-      >
-        <div className="flex items-start gap-3.5">
-          <motion.div
-            className="shrink-0"
-            initial={{ rotate: -8, scale: 0.4 }}
-            animate={show ? { rotate: [-8, -22, 16, -10, 4, -6], scale: [0.4, 1.25, 1, 1, 1, 1] } : undefined}
-            transition={{ type: 'tween', duration: 0.9, delay: delay + 0.3, ease: 'easeOut' }}
-          >
-            <IconBadge name={awardIcon(award.id, flavor)} tone={tone} size="lg" />
-          </motion.div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-display text-2xl leading-[1.05] tracking-tight">{copy.title}</h3>
-            <StatStamp stat={copy.stat} label={copy.statLabel} />
-          </div>
-        </div>
-
-        {photo && (
-          <div className="mt-3 flex items-center gap-3">
-            <PhotoThumb
-              photo={photo}
-              caption={t(`common.possessive.${photo.photo.kind}`, { name: playerOr(players, photo.ownerId).name })}
-              onOpen={() => onOpenPhoto(photo)}
-            />
-            {award.id === 'biggestMixup' && other && (
-              <div className="flex min-w-0 items-center gap-2">
-                <motion.span
-                  className="text-ink"
-                  aria-hidden
-                  animate={show ? { x: [0, 6, 0] } : undefined}
-                  transition={{ type: 'tween', duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: delay + 0.8 }}
-                >
-                  <Icon name="arrow-right" weight="bold" className="size-8" />
-                </motion.span>
-                <span className="relative flex min-w-0 flex-col items-center gap-1">
-                  <Avatar player={other} size="lg" crown={false} dimOffline={false} />
-                  <span className="absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full border-2 border-ink bg-white font-display text-base text-ink">
-                    ?
-                  </span>
-                  <span className="max-w-24 truncate text-sm font-extrabold">{other.name}</span>
-                </span>
-              </div>
-            )}
-          </div>
+  const body = (
+    <>
+      {/* The title, rubber-stamped across the clipping */}
+      <div className="min-h-12 pt-1">
+        <h3 className="sr-only">{copy.title}</h3>
+        {show && (
+          <span aria-hidden>
+            <RubberStamp tone={look.stamp} size={stampSize(copy.title)} tilt={stampTilt} animate={delay + 0.25} sound={index < 4}>
+              {copy.title}
+            </RubberStamp>
+          </span>
         )}
+      </div>
 
-        <p className="mt-3 leading-snug font-semibold text-ink-soft">{copy.text}</p>
-
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {winners.map((p) => (
-            <WinnerChip key={p.id} player={p} isMe={p.id === meId} />
+      {/* Winners as stickers, names in bold; the headline number on the right */}
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+          {winners.map((p, i) => (
+            <span key={p.id} className="inline-flex max-w-full min-w-0 items-center gap-1.5">
+              <Avatar player={p} size="md" crown={false} dimOffline={false} selfie tilt={i % 2 ? 5 : -5} />
+              <span className={cn('truncate font-display text-lg leading-tight', p.id === meId && 'rounded-[2px] bg-yellow/90 px-1')}>{p.name}</span>
+            </span>
           ))}
         </div>
-      </Card>
-    </div>
+        <div className="flex shrink-0 flex-col items-end text-right">
+          <span className="font-num text-[40px] leading-[0.85] sm:text-[44px]">{copy.stat}</span>
+          <span className="label-type mt-1">{copy.statLabel}</span>
+        </div>
+      </div>
+
+      <div className={cn('mt-3 flex items-start gap-3', photo ? 'flex-row' : 'flex-col')}>
+        {photo && (
+          <div className="relative flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onOpenPhoto(photo)}
+              className="block cursor-zoom-in rounded-sm focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue"
+              aria-label={t(`common.possessive.${photo.photo.kind}`, { name: playerOr(players, photo.ownerId).name })}
+            >
+              <Polaroid src={photo.photo.url} alt={t('results.awards.photoOf')} tilt={tiltOf(photo.photo.id, 5)} tape="cream" className="w-24 p-1.5! pb-3! sm:w-28" />
+            </button>
+          </div>
+        )}
+        <p className="text-pen min-w-0 flex-1 text-[21px] leading-[1.08]">{copy.text}</p>
+      </div>
+
+      {award.id === 'biggestMixup' && other && (
+        <div className="mt-2 flex items-center justify-end gap-2 pr-1">
+          <Annotation font="marker" size={17} rotate={-4} animate={show} delay={delay + 0.7}>
+            {t('results.notes.suspect')} →
+          </Annotation>
+          <span className="relative">
+            <Avatar player={other} size="md" crown={false} dimOffline={false} selfie tilt={6} label={other.name} />
+            <span className="absolute -top-2 -right-2 font-marker text-2xl leading-none text-red-ink" aria-hidden>
+              ?
+            </span>
+          </span>
+          <span className="max-w-24 truncate font-display text-base">{other.name}</span>
+        </div>
+      )}
+    </>
+  );
+
+  const motionProps = {
+    initial: { opacity: 0, y: 30, scale: 0.92 },
+    animate: show ? { opacity: 1, y: 0, scale: 1 } : undefined,
+    transition: { type: 'spring' as const, stiffness: 300, damping: 22, delay },
+  };
+
+  return (
+    <motion.div ref={ref} className={cn('relative pt-2', wide && 'sm:col-span-2')} {...motionProps}>
+      {look.paper === 'notebook' ? (
+        <NotebookCard tilt={tilt} margin={18} className="h-full pt-4 pr-4 pb-6" wrapperClassName="h-full">
+          {body}
+        </NotebookCard>
+      ) : (
+        <Paper
+          surface={look.paper as PaperSurface}
+          torn="b"
+          seed={award.id}
+          tilt={tilt}
+          className="h-full px-4 pt-4 pb-6"
+          wrapperClassName="h-full"
+        >
+          {body}
+        </Paper>
+      )}
+      <Tape tone={look.tape} width={70} height={22} rotate={index % 2 ? 4 : -5} className="top-0 left-1/2 z-10 -translate-x-1/2" />
+    </motion.div>
   );
 }
 
+/** The awards: clippings, post-its and notebook scraps, each with a rubber-stamped title. */
 export function Awards({
   awards,
   players,
@@ -257,13 +236,13 @@ export function Awards({
   const { t } = useI18n();
   if (awards.length === 0) {
     return (
-      <Card tone="glass" className="text-center font-semibold">
-        {t('results.awards.none')}
-      </Card>
+      <Paper surface="kraft" torn="tb" tilt={-1} className="px-5 py-4 text-center">
+        <p className="text-pen text-[22px]">{t('results.awards.none')}</p>
+      </Paper>
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2">
       {awards.map((award, i) => (
         <AwardCard
           key={`${award.id}-${i}`}

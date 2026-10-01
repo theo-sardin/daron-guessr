@@ -91,7 +91,8 @@ export function Logo({ size = 'lg', animate, className }: { size?: 'sm' | 'md' |
       io.disconnect();
       setHeroVisible(id, false);
     };
-  }, [size]);
+    // The element remounts when its key changes (replay, fonts loaded): observe the new one.
+  }, [size, take, holding]);
 
   const small = size === 'sm';
   return (

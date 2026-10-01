@@ -35,7 +35,7 @@ async function createRoom(page: Page, name: string, mode: string, photos: number
   await expect(page.getByRole('heading', { name: 'Pick a game mode', exact: true })).toBeVisible();
   const modes = page.getByRole('radiogroup', { name: 'Game mode', exact: true });
   const confirm = page.getByRole('button', { name: 'Create the room', exact: true });
-  await expect(modes.getByRole('radio')).toHaveCount(5);
+  await expect(modes.getByRole('radio')).toHaveCount(9);
   await expect(modes.getByRole('radio', { checked: true })).toHaveCount(0);
   await expect(confirm).toBeDisabled();
   await expect(confirm).toHaveAccessibleDescription('Pick a mode first');
@@ -167,7 +167,7 @@ test('the game mode step is mandatory, and Back returns to the form', async ({ p
   // With a name: the step opens with nothing picked and a locked confirm button.
   await nickname.fill('Julie');
   await create.click();
-  await expect(modes.getByRole('radio')).toHaveCount(5);
+  await expect(modes.getByRole('radio')).toHaveCount(9);
   await expect(modes.getByRole('radio', { checked: true })).toHaveCount(0);
   await expect(confirm).toBeDisabled();
   await expect(confirm).toHaveAccessibleDescription('Choisis d’abord un mode');

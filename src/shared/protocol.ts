@@ -299,7 +299,11 @@ export interface VotingView {
   votedIds: string[];
   /**
    * Blur state when `settings.blur` is on (null otherwise). `photo.url` then points to the
-   * current step's variant. `nextStepAt` is when the next (sharper) step starts, null at the last.
+   * current step's variant (`fromVariant`: true), or to the full photo at the last step and for
+   * photos uploaded without variants (`fromVariant`: false: the client blurs it itself).
+   * `photo.id` is then the first variant's id, the same for the whole round (never the photo's
+   * own id before the round is over). `nextStepAt` is when the next (sharper) step starts, null
+   * at the last; the server sends a fresh view at every step.
    */
   blur: { step: number; steps: number; nextStepAt: number | null; fromVariant: boolean } | null;
 }
@@ -489,6 +493,9 @@ export interface ClientToServerEvents {
   /**
    * Lobby only: upload (or replace) the photo in a slot. `data` is the raw image bytes.
    * `slot` must be < settings.photosPerPlayer and `kind` allowed by settings.theme (else BAD_REQUEST).
+   * `variants`: the photo's blur variants (see BLUR_VARIANT_WIDTHS), exactly that many when
+   * present (else BAD_REQUEST), each checked by its header and dimensions (INVALID_PHOTO) and
+   * size (PHOTO_TOO_LARGE). They count in the byte quotas and are deleted with the photo.
    */
   'photo:upload': (
     p: { slot: PhotoSlot; kind: PhotoKind; mime: string; data: ArrayBuffer | Uint8Array; variants?: Array<ArrayBuffer | Uint8Array> },

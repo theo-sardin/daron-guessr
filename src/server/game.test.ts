@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALL_VOTED_GRACE_MS,
+  BLUR_BONUS_BY_STEP,
+  BLUR_NO_TIMER_ROUND_MS,
+  BLUR_VARIANT_WIDTHS,
   DEFAULT_SETTINGS,
   GAME_INTRO_MS,
   HOST_GRACE_MS,
+  MAX_BLUR_VARIANT_BYTES,
   MAX_PHOTO_BYTES,
   MAX_PLAYERS,
   PLAYER_COLORS,
@@ -31,6 +35,7 @@ import {
   newPhoto,
   newPlayer,
   newSelfie,
+  newVariants,
   playAllRounds,
   revealAll,
   seededRng,
@@ -1237,5 +1242,261 @@ describe('selfies', () => {
     expect(g.findImage(room, 'big')).toBe(selfie);
     expect(g.findImage(room, 'nope')).toBeUndefined();
     expect(g.roomImageBytes(room)).toBe(2 * PNG_BYTES.byteLength + 100);
+  });
+});
+
+describe('blur', () => {
+  /** Four players with one photo each (with blur variants unless told otherwise), blur on, started at 0. */
+  function blurRoom(settings: Partial<g.Room['settings']> = {}, withVariants = true): g.Room {
+    const room = makeRoom(FOUR);
+    addPhotos(room, [1, 1, 1, 1], withVariants);
+    unwrap(g.updateSettings(room, A, { blur: true, ...settings }));
+    unwrap(g.startGame(room, A, 0, seededRng(3)));
+    return room;
+  }
+
+  /**
+   * Plays every round: the owner casts a decoy at the start, every other player votes for the
+   * owner at the start of the blur step `stepOf(voter)` (null = abstain), then the host skips.
+   */
+  function playBlurRounds(room: g.Room, stepOf: (voterId: string) => number | null): void {
+    while (room.phase === 'voting') {
+      const round = game(room).round;
+      const owner = currentOwner(room);
+      const start = game(room).roundStartsAt;
+      unwrap(g.castVote(room, owner, round, game(room).ownerIds.find((id) => id !== owner)!, start));
+      const votes = room.players
+        .filter((p) => p.id !== owner && stepOf(p.id) !== null)
+        .map((p) => ({ voter: p.id, at: g.blurStepStartsAt(room, stepOf(p.id)!) }))
+        .sort((a, b) => a.at - b.at);
+      for (const { voter, at } of votes) unwrap(g.castVote(room, voter, round, owner, at));
+      unwrap(g.skipRound(room, A, round, Math.max(start, ...votes.map((v) => v.at))));
+    }
+    revealAll(room, 1_000_000);
+  }
+
+  it('is a host setting, reset to the theme default by a theme switch unless the same update sets it', () => {
+    const room = makeRoom(FOUR);
+    expect(room.settings.blur).toBe(false);
+    expect(errorOf(g.updateSettings(room, B, { blur: true }))).toBe('NOT_HOST');
+    expect(errorOf(g.updateSettings(room, A, { voteSeconds: 15, blur: 'yes' as unknown as boolean }))).toBe('BAD_REQUEST');
+    expect(room.settings).toEqual(DEFAULT_SETTINGS);
+    unwrap(g.updateSettings(room, A, { blur: true }));
+    expect(room.settings.blur).toBe(true);
+    unwrap(g.updateSettings(room, A, { theme: 'family' }));
+    expect(room.settings.blur).toBe(THEME_DEFAULT_BLUR.family);
+    unwrap(g.updateSettings(room, A, { theme: 'whois' }));
+    expect(room.settings).toMatchObject({ theme: 'whois', blur: true, photosPerPlayer: THEME_DEFAULT_PHOTOS.whois });
+    unwrap(g.updateSettings(room, A, { blur: false }));
+    // The same theme again changes nothing.
+    unwrap(g.updateSettings(room, A, { theme: 'whois' }));
+    expect(room.settings.blur).toBe(false);
+    unwrap(g.updateSettings(room, A, { theme: 'pick', blur: true }));
+    expect(room.settings).toMatchObject({ theme: 'pick', blur: true });
+    unwrap(g.updateSettings(room, A, { theme: 'whois', blur: false }));
+    expect(room.settings).toMatchObject({ theme: 'whois', blur: false });
+    for (const theme of THEMES) {
+      unwrap(g.updateSettings(room, A, { theme: theme === 'mix' ? 'parents' : 'mix' }));
+      unwrap(g.updateSettings(room, A, { theme }));
+      expect(room.settings.blur).toBe(THEME_DEFAULT_BLUR[theme]);
+    }
+  });
+
+  it('starts a room with the theme default, or the blur picked on the home screen', () => {
+    const create = (setup: RoomSetup) => g.createRoom('WXYZ', newPlayer('Alice'), 0, g.DEFAULT_TIMING, setup);
+    for (const theme of THEMES) expect(unwrap(create({ theme })).settings.blur).toBe(THEME_DEFAULT_BLUR[theme]);
+    expect(unwrap(create({ theme: 'whois' })).settings.blur).toBe(true);
+    expect(unwrap(create({ theme: 'whois', blur: false })).settings.blur).toBe(false);
+    expect(unwrap(create({ theme: 'parents', blur: true })).settings).toMatchObject({ theme: 'parents', blur: true, photosPerPlayer: 2 });
+    expect(errorOf(create({ theme: 'parents', blur: 1 as unknown as boolean }))).toBe('BAD_REQUEST');
+  });
+
+  it('stores the variants with the photo, validated, counted in the bytes and freed with it', () => {
+    const room = makeRoom(FOUR);
+    const upload = (variants: g.PhotoVariant[]) => g.uploadPhoto(room, A, { ...newPhoto(room, 0), variants }, 0);
+    expect(errorOf(upload(newVariants().slice(1)))).toBe('BAD_REQUEST');
+    expect(errorOf(upload([...newVariants(), ...newVariants()]))).toBe('BAD_REQUEST');
+    const gif = newVariants().map((v, i) => (i === 2 ? { ...v, mime: 'image/gif' as g.PhotoMime } : v));
+    expect(errorOf(upload(gif))).toBe('INVALID_PHOTO');
+    expect(errorOf(upload(newVariants(Buffer.alloc(0))))).toBe('INVALID_PHOTO');
+    expect(errorOf(upload(newVariants(Buffer.alloc(MAX_BLUR_VARIANT_BYTES + 1, 1))))).toBe('PHOTO_TOO_LARGE');
+    expect(room.photos).toEqual([]);
+
+    const variants = newVariants(Buffer.alloc(10, 1));
+    const photo = unwrap(upload(variants));
+    expect(photo.variants).toHaveLength(BLUR_VARIANT_WIDTHS.length);
+    for (const v of variants) expect(g.findImage(room, v.id)).toBe(v);
+    expect(g.findImage(room, photo.id)).toBe(photo);
+    expect(g.photoBytes(photo)).toBe(PNG_BYTES.byteLength + 10 * BLUR_VARIANT_WIDTHS.length);
+    // Without variants (omitted or empty) is fine too.
+    expect(unwrap(g.uploadPhoto(room, B, { ...newPhoto(room, 0), variants: [] }, 0)).variants).toEqual([]);
+    expect(addPhoto(room, C, 0).variants).toEqual([]);
+    expect(g.roomImageBytes(room)).toBe(3 * PNG_BYTES.byteLength + 40);
+
+    // Replacing the photo frees its variants, and so does removing it.
+    const replacement = newVariants();
+    unwrap(upload(replacement));
+    for (const v of variants) expect(g.findImage(room, v.id)).toBeUndefined();
+    unwrap(g.removePhoto(room, A, 0));
+    for (const v of replacement) expect(g.findImage(room, v.id)).toBeUndefined();
+    expect(g.roomImageBytes(room)).toBe(2 * PNG_BYTES.byteLength);
+  });
+
+  it('splits the round into BLUR_STEPS steps: the timer, or BLUR_NO_TIMER_ROUND_MS without one', () => {
+    expect(g.BLUR_STEPS).toBe(BLUR_VARIANT_WIDTHS.length + 1);
+    expect(g.LAST_BLUR_STEP).toBe(BLUR_VARIANT_WIDTHS.length);
+    const room = blurRoom({ voteSeconds: 30 });
+    const start = game(room).roundStartsAt;
+    const stepMs = 30_000 / g.BLUR_STEPS;
+    expect(g.blurStepMs(room)).toBe(stepMs);
+    // The intro already shows step 0.
+    expect(g.blurStepAt(room, 0)).toBe(0);
+    expect(g.blurStepAt(room, start)).toBe(0);
+    expect(g.blurStepAt(room, start + stepMs - 1)).toBe(0);
+    expect(g.blurStepAt(room, start + stepMs)).toBe(1);
+    expect(g.blurStepAt(room, start + 4 * stepMs - 1)).toBe(3);
+    expect(g.blurStepAt(room, start + 4 * stepMs)).toBe(4);
+    expect(g.blurStepAt(room, start + 1_000_000)).toBe(g.LAST_BLUR_STEP);
+    for (let step = 0; step <= g.LAST_BLUR_STEP; step++) expect(g.blurStepStartsAt(room, step)).toBe(start + step * stepMs);
+
+    const untimed = blurRoom({ voteSeconds: 0 });
+    const untimedStart = game(untimed).roundStartsAt;
+    expect(g.blurStepMs(untimed)).toBe(BLUR_NO_TIMER_ROUND_MS / g.BLUR_STEPS);
+    expect(g.blurStepAt(untimed, g.blurStepStartsAt(untimed, g.LAST_BLUR_STEP) - 1)).toBe(3);
+    expect(g.blurStepAt(untimed, untimedStart + BLUR_NO_TIMER_ROUND_MS)).toBe(g.LAST_BLUR_STEP);
+    const custom = makeRoom(FOUR, 0, { ...g.DEFAULT_TIMING, blurNoTimerRoundMs: 1000 });
+    unwrap(g.updateSettings(custom, A, { blur: true, voteSeconds: 0 }));
+    expect(g.blurStepMs(custom)).toBe(1000 / g.BLUR_STEPS);
+
+    // No blur, or nothing being voted on: no step.
+    expect(g.blurStepAt(startedRoom([1, 1, 1, 1], 0), 10_000)).toBeNull();
+    expect(g.blurStepAt(custom, 0)).toBeNull();
+  });
+
+  it('wakes up and reports a change at every step boundary, round after round', () => {
+    const room = blurRoom({ voteSeconds: 15 });
+    const stepMs = g.blurStepMs(room);
+    for (let round = 0; round < 2; round++) {
+      const start = game(room).roundStartsAt;
+      for (let step = 1; step <= g.LAST_BLUR_STEP; step++) {
+        expect(g.nextWakeAt(room)).toBe(start + step * stepMs);
+        expect(g.tick(room, start + step * stepMs - 1)).toBe(false);
+        expect(g.tick(room, start + step * stepMs)).toBe(true);
+        expect(game(room).blurStep).toBe(step);
+        expect(g.tick(room, start + step * stepMs)).toBe(false);
+      }
+      // Fully sharp: only the close is left.
+      expect(g.nextWakeAt(room)).toBe(game(room).roundCloseAt);
+      expect(g.tick(room, game(room).roundCloseAt!)).toBe(true);
+      expect(game(room).round).toBe(round + 1);
+      expect(game(room).blurStep).toBe(0);
+    }
+    // A late tick jumps straight to the current step.
+    const start = game(room).roundStartsAt;
+    expect(g.tick(room, start + 2.5 * stepMs)).toBe(true);
+    expect(game(room).blurStep).toBe(2);
+    expect(g.nextWakeAt(room)).toBe(start + 3 * stepMs);
+
+    // Without a timer the steps still come, then nothing until everybody voted.
+    const untimed = blurRoom({ voteSeconds: 0 });
+    const untimedStart = game(untimed).roundStartsAt;
+    g.tick(untimed, untimedStart + BLUR_NO_TIMER_ROUND_MS);
+    expect(game(untimed).blurStep).toBe(g.LAST_BLUR_STEP);
+    expect(g.nextWakeAt(untimed)).toBeNull();
+
+    // Blur off: only the close.
+    const plain = startedRoom([1, 1, 1, 1], 0, { voteSeconds: 15 });
+    expect(g.nextWakeAt(plain)).toBe(game(plain).roundCloseAt);
+  });
+
+  it('never asks to wake up in the past after a tick', () => {
+    for (const voteSeconds of [0, 15]) {
+      const room = blurRoom({ voteSeconds });
+      for (let t = 0; t < 120_000 && room.phase === 'voting'; t += 777) {
+        expectWakeAfterTick(room, t);
+        if (voteSeconds === 0 && g.blurStepAt(room, t) === g.LAST_BLUR_STEP) unwrap(g.skipRound(room, A, game(room).round, t));
+      }
+      expect(room.phase).toBe('reveal');
+    }
+  });
+
+  it('records the step at which each voter last changed their vote', () => {
+    const room = blurRoom({ voteSeconds: 30 });
+    const at = (step: number) => g.blurStepStartsAt(room, step);
+    const owner = currentOwner(room);
+    const [x, y, z] = FOUR.map(idOf).filter((id) => id !== owner);
+    const wrongFor = (voter: string) => game(room).ownerIds.find((id) => id !== voter && id !== owner)!;
+    const stepOf = (voter: string) => game(room).votes[0].get(voter)!.step;
+
+    unwrap(g.castVote(room, x, 0, owner, at(0) - 100)); // early vote (clock skew tolerance): step 0
+    unwrap(g.castVote(room, y, 0, wrongFor(y), at(0) + 10));
+    unwrap(g.castVote(room, z, 0, owner, at(1)));
+    expect([stepOf(x), stepOf(y), stepOf(z)]).toEqual([0, 0, 1]);
+    // Confirming the same pick is not a change; switching is, even back to an earlier pick.
+    unwrap(g.castVote(room, x, 0, owner, at(2)));
+    unwrap(g.castVote(room, y, 0, owner, at(2) + 1));
+    unwrap(g.castVote(room, z, 0, wrongFor(z), at(3)));
+    unwrap(g.castVote(room, z, 0, owner, at(3) + 1));
+    expect([stepOf(x), stepOf(y), stepOf(z)]).toEqual([0, 2, 3]);
+    unwrap(g.castVote(room, owner, 0, x, at(4)));
+    expect(stepOf(owner)).toBe(4);
+
+    const stats = new Map(g.playerStats(room, 1).map((s) => [s.playerId, s]));
+    const bonus = (step: number) => BLUR_BONUS_BY_STEP[step];
+    expect(stats.get(x)).toMatchObject({ correct: 1, bonus: bonus(0), score: POINTS_PER_CORRECT + bonus(0) });
+    expect(stats.get(y)).toMatchObject({ correct: 1, bonus: bonus(2), score: POINTS_PER_CORRECT + bonus(2) });
+    expect(stats.get(z)).toMatchObject({ correct: 1, bonus: bonus(3), score: POINTS_PER_CORRECT + bonus(3) });
+    // The decoy scores nothing.
+    expect(stats.get(owner)).toMatchObject({ correct: 0, guesses: 0, bonus: 0, score: 0 });
+    expect(bonus(0)).toBe(100);
+    expect(bonus(g.LAST_BLUR_STEP)).toBe(0);
+    expect(BLUR_BONUS_BY_STEP).toHaveLength(g.BLUR_STEPS);
+  });
+
+  it('scores 100 + the bonus with blur, a flat 100 without', () => {
+    const blurred = blurRoom({ voteSeconds: 30 });
+    playBlurRounds(blurred, (voter) => ({ [A]: 0, [B]: 1, [C]: 0, [D]: g.LAST_BLUR_STEP })[voter]);
+    const ranking = new Map(g.computeRanking(blurred).map((r) => [r.playerId, r]));
+    expect(ranking.get(A)).toMatchObject({ correct: 3, bonus: 300, score: 600, rank: 1 });
+    expect(ranking.get(C)).toMatchObject({ correct: 3, bonus: 300, score: 600, rank: 1 });
+    expect(ranking.get(B)).toMatchObject({ correct: 3, bonus: 225, score: 525, rank: 3 });
+    expect(ranking.get(D)).toMatchObject({ correct: 3, bonus: 0, score: 300, rank: 4 });
+    expect(g.votePoints(blurred, { candidateId: B, decoy: false, step: 1 }, B)).toEqual({ points: 175, bonus: 75 });
+    expect(g.votePoints(blurred, { candidateId: C, decoy: false, step: 0 }, B)).toEqual({ points: 0, bonus: 0 });
+    expect(g.votePoints(blurred, { candidateId: B, decoy: true, step: 0 }, B)).toEqual({ points: 0, bonus: 0 });
+
+    const plain = startedRoom([1, 1, 1, 1], 0, { voteSeconds: 30 });
+    playBlurRounds(plain, () => 0);
+    for (const r of g.computeRanking(plain)) expect(r).toMatchObject({ correct: 3, bonus: 0, score: 300, rank: 1 });
+    expect(g.votePoints(plain, { candidateId: B, decoy: false, step: 0 }, B)).toEqual({ points: POINTS_PER_CORRECT, bonus: 0 });
+  });
+
+  it('gives eagleEye to the most bonus points (ties allowed), in blur games only', () => {
+    const blurred = blurRoom({ voteSeconds: 30 });
+    playBlurRounds(blurred, (voter) => ({ [A]: 0, [B]: 1, [C]: 0, [D]: null })[voter]);
+    expect(awardOf(g.computeAwards(blurred), 'eagleEye')).toEqual({ id: 'eagleEye', playerIds: [A, C], value: 300 });
+
+    const single = blurRoom({ voteSeconds: 0 });
+    playBlurRounds(single, (voter) => (voter === B ? 3 : g.LAST_BLUR_STEP));
+    expect(awardOf(g.computeAwards(single), 'eagleEye')).toEqual({ id: 'eagleEye', playerIds: [B], value: 3 * BLUR_BONUS_BY_STEP[3] });
+
+    // Nobody earned a bonus: no award.
+    const late = blurRoom({ voteSeconds: 30 });
+    playBlurRounds(late, () => g.LAST_BLUR_STEP);
+    expect(awardOf(g.computeAwards(late), 'eagleEye')).toBeUndefined();
+
+    const plain = startedRoom([1, 1, 1, 1], 0, { voteSeconds: 30 });
+    playBlurRounds(plain, () => 0);
+    expect(awardOf(g.computeAwards(plain), 'eagleEye')).toBeUndefined();
+  });
+
+  it('plays without variants too (the bonus does not depend on them), and keeps blur on playAgain', () => {
+    const room = blurRoom({ voteSeconds: 15 }, false);
+    expect(room.photos.every((ph) => ph.variants.length === 0)).toBe(true);
+    playBlurRounds(room, (voter) => (voter === A ? 0 : 2));
+    expect(g.computeRanking(room).find((r) => r.playerId === A)).toMatchObject({ bonus: 300, score: 600 });
+    unwrap(g.playAgain(room, A, 2_000_000));
+    expect(room.settings).toMatchObject({ blur: true, voteSeconds: 15 });
+    expect(room.photos).toEqual([]);
   });
 });

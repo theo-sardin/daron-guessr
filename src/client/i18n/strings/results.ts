@@ -7,7 +7,7 @@
 // else (siblings, friends, pets, a mix of kinds…). Per-photo copy is keyed by photo kind instead.
 
 /** Same text whatever the flavor. */
-const same = (text: string) => ({ parents: text, family: text, childhood: text, pick: text, roll: text, crush: text, whois: text, body: text });
+const same = <T,>(text: T) => ({ parents: text, family: text, childhood: text, pick: text, roll: text, crush: text, whois: text, body: text });
 
 const en = {
   title: 'And the winner is…',
@@ -18,23 +18,42 @@ const en = {
       family: ['{name} takes the crown!', 'All hail {name}, family whisperer!', '{name} knows your people better than you do.'],
       childhood: ['{name} takes the crown!', 'All hail {name}, baby whisperer!', '{name} would recognise you all in diapers.'],
       pick: ['{name} takes the crown!', 'All hail {name}, mind reader!', '{name} knows your taste better than you do.'],
+      roll: ['{name} takes the crown!', 'All hail {name}, camera-roll whisperer!', '{name} knows your phones better than you do.'],
+      crush: ['{name} takes the crown!', 'All hail {name}, keeper of teen secrets!', '{name} knows exactly who was on your bedroom wall.'],
+      whois: ['{name} takes the crown!', 'All hail {name}, face detective!', '{name} would recognise you all through frosted glass.'],
+      body: ['{name} takes the crown!', 'All hail {name}, anatomy expert!', '{name} would recognise you all by your elbows.'],
     },
     me: {
       parents: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! Your friends’ parents have no secrets for you.'],
       family: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! Your friends’ families have no secrets for you.'],
       childhood: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! No baby face can fool you.'],
       pick: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! You read your friends like an open book.'],
+      roll: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! Your friends’ camera rolls have no secrets for you.'],
+      crush: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! You know everyone’s teen crushes by heart.'],
+      whois: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! No face can hide from you, blurry or not.'],
+      body: ['That’s YOU! Take a bow.', 'You won! Frame this moment.', 'Champion! You know your friends inside out. Well, outside.'],
     },
     tie: ['It’s a tie! {names} share the crown.', 'Can’t split them: {names} rule together!'],
-    nobody: ['Nobody scored a single point… Everybody loses! 🙈', 'Zero points for everyone. Do you even know each other?'],
+    nobody: ['Nobody scored a single point… Everybody loses! 🙈', 'Zero points for everyone. Do you even know each other?'],
   },
   and: '&',
   pts: 'pts',
   more: '+{count}',
+  /** Marker notes scribbled around the podium and the ranking. */
+  notes: {
+    boss: 'the boss!',
+    bosses: 'the bosses!',
+    shame: 'the shame',
+    nobody: 'seriously?',
+    /** Biggest mix-up: the player everybody picked instead. */
+    suspect: 'the suspect',
+  },
   ranking: {
     title: 'Final ranking',
     guessedRight: '{correct}/{guesses} guessed right',
     noGuesses: 'No guesses',
+    /** Blur games: part of the score that comes from the speed bonus. */
+    bonus: 'incl. +{bonus} speed bonus',
   },
   awards: {
     title: 'Awards',
@@ -54,40 +73,90 @@ const en = {
       pet: "{name}'s pet",
       kid: '{name} as a kid',
       pick: "{name}'s pick",
+      roll: "{name}'s camera roll",
+      crush: "{name}'s teen crush",
+      me: "{name}'s photo",
+      hand: "{name}'s hand",
+      foot: "{name}'s foot",
+      ear: "{name}'s ear",
+      eye: "{name}'s eye",
+      nose: "{name}'s nose",
+      smile: "{name}'s smile",
+      knee: "{name}'s knee",
+      elbow: "{name}'s elbow",
+      navel: "{name}'s belly button",
+      hair: "{name}'s hair",
     },
     sherlock: {
-      title: { parents: 'Sherlock', family: 'Sherlock', childhood: 'Sherlock', pick: 'Mind reader' },
+      title: { parents: 'Sherlock', family: 'Sherlock', childhood: 'Sherlock', pick: 'Mind reader', roll: 'Phone snoop', crush: 'Love detective', whois: 'Face reader', body: 'Forensic expert' },
       parents: {
         one: [
           '{names} spotted {value} out of {total} parents. Were you going through everyone’s photo albums?',
-          '{names} spotted {value} out of {total} parents. Suspiciously good. We’re watching you. 👀',
+          '{names} spotted {value} out of {total} parents. Suspiciously good. We’re watching you. 👀',
         ],
         many: ['{names} spotted {value} out of {total} parents each. Great minds stalk alike.'],
       },
       family: {
         one: [
           '{names} got {value} out of {total} right. Were you going through everyone’s photo albums?',
-          '{names} got {value} out of {total} right. Suspiciously good. We’re watching you. 👀',
+          '{names} got {value} out of {total} right. Suspiciously good. We’re watching you. 👀',
         ],
         many: ['{names} got {value} out of {total} right each. Great minds stalk alike.'],
       },
       childhood: {
         one: [
           '{names} recognised {value} out of {total} baby faces. Were you there when they were born?',
-          '{names} recognised {value} out of {total} baby faces. Did you work at their daycare? 👀',
+          '{names} recognised {value} out of {total} baby faces. Did you work at their daycare? 👀',
         ],
         many: ['{names} recognised {value} out of {total} baby faces each. Former daycare staff, all of them.'],
       },
       pick: {
         one: [
           '{names} guessed who picked what {value} times out of {total}. Are you reading our minds?',
-          '{names} matched {value} out of {total} pictures to their picker. You know us way too well. 👀',
+          '{names} matched {value} out of {total} pictures to their picker. You know us way too well. 👀',
         ],
         many: ['{names} guessed who picked what {value} times out of {total} each. A coven of mind readers.'],
       },
+      roll: {
+        one: [
+          '{names} matched {value} out of {total} camera rolls. Have you been going through our phones?',
+          '{names} got {value} out of {total} right. You know what’s in our phones. That’s creepy. 👀',
+        ],
+        many: ['{names} matched {value} out of {total} camera rolls each. Phone snoops, the lot of them.'],
+      },
+      crush: {
+        one: [
+          '{names} matched {value} out of {total} teen crushes. Were you reading everyone’s diary?',
+          '{names} got {value} out of {total} right. You knew about the posters, didn’t you? 👀',
+        ],
+        many: ['{names} matched {value} out of {total} teen crushes each. Diary readers, all of them.'],
+      },
+      whois: {
+        one: [
+          '{names} recognised {value} out of {total} faces. Even blurry, nobody hides from you.',
+          '{names} recognised {value} out of {total} faces. Facial recognition, but make it human. 👀',
+        ],
+        many: ['{names} recognised {value} out of {total} faces each. A security camera would be jealous.'],
+      },
+      body: {
+        one: [
+          '{names} identified {value} out of {total} body parts. How do you know these so well?',
+          '{names} got {value} out of {total} right. You’ve studied our elbows, haven’t you? 👀',
+        ],
+        many: ['{names} identified {value} out of {total} body parts each. Questions will be asked.'],
+      },
     },
     needsGlasses: {
-      title: { parents: 'Needs glasses', family: 'Needs glasses', childhood: 'Needs glasses', pick: 'Total stranger' },
+      title: {
+        parents: 'Needs glasses',
+        family: 'Needs glasses',
+        childhood: 'Needs glasses',
+        pick: 'Total stranger',
+        roll: 'Total stranger',
+        crush: 'Clueless',
+        whois: 'Needs glasses',
+        body: 'Needs glasses',
+      },
       parents: {
         one: [
           '{names} got {value} out of {total} right. An eye test has been booked for you.',
@@ -104,21 +173,58 @@ const en = {
       },
       childhood: {
         one: [
-          '{names} got {value} out of {total} right. To be fair, all babies look the same. 👶',
+          '{names} got {value} out of {total} right. To be fair, all babies look the same. 👶',
           '{names} got {value} out of {total} right. Would not even recognise their own baby photo.',
         ],
-        many: ['{names} got {value} out of {total} right. To be fair, all babies look the same. 👶'],
+        many: ['{names} got {value} out of {total} right. To be fair, all babies look the same. 👶'],
       },
       pick: {
         one: [
-          '{names} got {value} out of {total} right. Do you even know these people? 😬',
+          '{names} got {value} out of {total} right. Do you even know these people? 😬',
           '{names} got {value} out of {total} right. Maybe try talking to your friends sometimes.',
         ],
         many: ['{names} got {value} out of {total} right. Total strangers, all of you.'],
       },
+      roll: {
+        one: [
+          '{names} got {value} out of {total} right. Do you even know these people? 😬',
+          '{names} got {value} out of {total} right. Maybe ask your friends what they’re up to sometimes.',
+        ],
+        many: ['{names} got {value} out of {total} right. Total strangers, all of you.'],
+      },
+      crush: {
+        one: [
+          '{names} got {value} out of {total} right. Never once listened during sleepovers.',
+          '{names} got {value} out of {total} right. Missed every single heart drawn in a notebook. 😬',
+        ],
+        many: ['{names} got {value} out of {total} right. Never invited to the sleepovers, clearly.'],
+      },
+      whois: {
+        one: [
+          '{names} got {value} out of {total} right. Couldn’t recognise a friend standing right there.',
+          '{names} got {value} out of {total} right. Everything looks blurry to you, even at the end.',
+        ],
+        many: ['{names} got {value} out of {total} right. Group discount at the optician!'],
+      },
+      body: {
+        one: [
+          '{names} got {value} out of {total} right. A knee is a knee, right? 🦵',
+          '{names} got {value} out of {total} right. Would not recognise their own hand.',
+        ],
+        many: ['{names} got {value} out of {total} right. To be fair, all elbows look the same.'],
+      },
     },
     carbonCopy: {
-      title: { parents: 'Carbon copy', family: 'Carbon copy', childhood: 'Hasn’t changed a bit', pick: 'Open book' },
+      title: {
+        parents: 'Carbon copy',
+        family: 'Carbon copy',
+        childhood: 'Hasn’t changed a bit',
+        pick: 'Open book',
+        roll: 'Open book',
+        crush: 'So predictable',
+        whois: 'Unmistakable',
+        body: 'One of a kind',
+      },
       parents: {
         one: [
           "{value}% of the guesses on {names}'s parents were right. Same face, no DNA test needed.",
@@ -138,27 +244,43 @@ const en = {
         many: ['{value}% recognised {names} as kids. Same faces, just taller.'],
       },
       pick: {
-        one: [
-          "{value}% saw {names}'s pick coming a mile away. So predictable.",
-          "{value}% of the guesses on {names}'s picks were right. No secrets, no mystery.",
-        ],
+        one: ["{value}% saw {names}'s pick coming a mile away. So predictable.", "{value}% of the guesses on {names}'s picks were right. No secrets, no mystery."],
         many: ['{value}% saw the picks of {names} coming a mile away. Predictable, all of them.'],
+      },
+      roll: {
+        one: ["{value}% knew that camera roll was {names}'s. Your phone is an open book.", "{value}% of the guesses on {names}'s camera roll were right. Zero mystery."],
+        many: ['{value}% recognised the camera rolls of {names}. Predictable phones, all of them.'],
+      },
+      crush: {
+        one: ["{value}% knew {names}'s teen crush. Everyone saw the posters.", "{value}% of the guesses on {names}'s crush were right. You weren’t subtle at 14."],
+        many: ['{value}% guessed the crushes of {names}. Not subtle teens, any of them.'],
+      },
+      whois: {
+        one: ['{value}% recognised {names} right away. Same face since forever.', '{value}% spotted {names} instantly, blur or no blur.'],
+        many: ['{value}% recognised {names} right away. Unmistakable faces, all of them.'],
+      },
+      body: {
+        one: ["{value}% recognised {names}'s body parts. Distinctive, to say the least.", "{value}% of the guesses on {names}'s close-ups were right. Recognisable from any angle."],
+        many: ['{value}% recognised the close-ups of {names}. Distinctive, all of them.'],
       },
     },
     masterOfDisguise: {
-      title: { parents: 'Master of disguise', family: 'Master of disguise', childhood: 'Glow-up of the year', pick: 'Poker face' },
+      title: {
+        parents: 'Master of disguise',
+        family: 'Master of disguise',
+        childhood: 'Glow-up of the year',
+        pick: 'Poker face',
+        roll: 'Poker face',
+        crush: 'Secret crush',
+        whois: 'Glow-up of the year',
+        body: 'Incognito',
+      },
       parents: {
-        one: [
-          "Only {value}% recognised {names}'s parents. Are you sure you’re not adopted?",
-          "Only {value}% recognised {names}'s parents. Swapped at birth, maybe?",
-        ],
+        one: ["Only {value}% recognised {names}'s parents. Are you sure you’re not adopted?", "Only {value}% recognised {names}'s parents. Swapped at birth, maybe?"],
         many: ['Only {value}% recognised the parents of {names}. Swapped at birth, all of them?'],
       },
       family: {
-        one: [
-          "Only {value}% matched {names}'s photos. Are you sure you know these people?",
-          "Only {value}% matched {names}'s photos. Zero family resemblance. Suspicious.",
-        ],
+        one: ["Only {value}% matched {names}'s photos. Are you sure you know these people?", "Only {value}% matched {names}'s photos. Zero family resemblance. Suspicious."],
         many: ['Only {value}% matched the photos of {names}. Who even are these people?'],
       },
       childhood: {
@@ -166,12 +288,37 @@ const en = {
         many: ['Only {value}% recognised {names} as kids. Glow-ups all round!'],
       },
       pick: {
-        one: ["Only {value}% guessed {names}'s pick. Nobody saw that coming. 🃏", "Only {value}% guessed {names}'s pick. Full of surprises, aren’t you?"],
-        many: ['Only {value}% guessed the picks of {names}. Full of surprises, all of them. 🃏'],
+        one: ["Only {value}% guessed {names}'s pick. Nobody saw that coming. 🃏", "Only {value}% guessed {names}'s pick. Full of surprises, aren’t you?"],
+        many: ['Only {value}% guessed the picks of {names}. Full of surprises, all of them. 🃏'],
+      },
+      roll: {
+        one: ["Only {value}% guessed {names}'s camera roll. What do you even do with your phone?", "Only {value}% matched {names}'s camera roll. A phone full of surprises."],
+        many: ['Only {value}% matched the camera rolls of {names}. Mysterious phones, all of them.'],
+      },
+      crush: {
+        one: ["Only {value}% guessed {names}'s teen crush. A secret kept since middle school. 🤫", "Only {value}% guessed {names}'s crush. Nobody saw that one coming."],
+        many: ['Only {value}% guessed the crushes of {names}. Secret admirers, all of them.'],
+      },
+      whois: {
+        one: ['Only {value}% recognised {names}. Is that really you?', 'Only {value}% recognised {names}. Witness protection would hire you.'],
+        many: ['Only {value}% recognised {names}. Unrecognisable, all of them.'],
+      },
+      body: {
+        one: ["Only {value}% recognised {names}'s close-ups. Nobody knows you that well.", "Only {value}% identified {names}'s body parts. Totally incognito."],
+        many: ['Only {value}% recognised the close-ups of {names}. Incognito, all of them.'],
       },
     },
     doppelganger: {
-      title: { parents: 'Doppelgänger', family: 'Doppelgänger', childhood: 'Generic baby', pick: 'Usual suspect' },
+      title: {
+        parents: 'Doppelgänger',
+        family: 'Doppelgänger',
+        childhood: 'Generic baby',
+        pick: 'Usual suspect',
+        roll: 'Usual suspect',
+        crush: 'Fickle heart',
+        whois: 'Doppelgänger',
+        body: 'Standard model',
+      },
       parents: {
         one: [
           '{value} votes wrongly went to {names}. Apparently everyone’s parents look like yours.',
@@ -188,10 +335,10 @@ const en = {
       },
       childhood: {
         one: [
-          '{value} votes wrongly went to {names}. Apparently every baby looks like you. 👶',
+          '{value} votes wrongly went to {names}. Apparently every baby looks like you. 👶',
           'People saw {names} {value} times in someone else’s baby photo. You have one of those faces.',
         ],
-        many: ['{value} wrong votes each for {names}. Apparently every baby looks like you. 👶'],
+        many: ['{value} wrong votes each for {names}. Apparently every baby looks like you. 👶'],
       },
       pick: {
         one: [
@@ -200,27 +347,78 @@ const en = {
         ],
         many: ['{value} wrong votes each for {names}. Every weird pick sounds like you, apparently.'],
       },
+      roll: {
+        one: [
+          '{value} votes wrongly went to {names}. Every chaotic camera roll sounds like you.',
+          'People blamed {names} {value} times for someone else’s camera roll. Your reputation precedes you.',
+        ],
+        many: ['{value} wrong votes each for {names}. Every chaotic phone sounds like yours, apparently.'],
+      },
+      crush: {
+        one: [
+          '{value} votes wrongly went to {names}. Apparently you had a crush on everyone.',
+          'People thought {names} swooned over {value} crushes that weren’t theirs. Big heart.',
+        ],
+        many: ['{value} wrong votes each for {names}. A crush on everyone, apparently.'],
+      },
+      whois: {
+        one: [
+          '{value} votes wrongly went to {names}. Apparently everyone looks like you.',
+          'People saw {names} {value} times in someone else’s photo. You have one of those faces.',
+        ],
+        many: ['{value} wrong votes each for {names}. Everyone looks like you, apparently.'],
+      },
+      body: {
+        one: [
+          '{value} votes wrongly went to {names}. Apparently every elbow looks like yours.',
+          'People saw {names} {value} times in someone else’s close-up. Very standard parts.',
+        ],
+        many: ['{value} wrong votes each for {names}. Every close-up looks like yours, apparently.'],
+      },
+    },
+    /** Blur games only: the most speed-bonus points. */
+    eagleEye: {
+      title: same('Eagle eye'),
+      one: [
+        '{names} grabbed {value} bonus points by guessing through the blur. Who needs pixels?',
+        '{names} recognised everyone before the photo even sharpened: +{value} speed bonus. 🦅',
+      ],
+      many: ['{names} grabbed {value} bonus points each by guessing through the blur. Laser eyes, all of them.'],
     },
     mostConfusing: {
       title: same('Most confusing photo'),
-      text: ['{possessive} got votes for {value} different people. Total chaos.', '{possessive} fooled everyone: {value} different suspects!'],
+      /** {possessive}: "Paul's mom" (mid-sentence), {Possessive}: the same at the start of a sentence. */
+      text: ['{Possessive}: votes for {value} different people. Total chaos.', '{value} different suspects for {possessive}. Nobody agreed on anything!'],
     },
     biggestMixup: {
       title: same('Biggest mix-up'),
       /** {possessive}: "Paul's mom" (mid-sentence), {names}: the owner, {other}: who got picked instead. */
       daron: ["{value} people think {possessive} is actually {other}'s. {other}, anything to tell us?"],
       daronne: ["{value} people think {possessive} is actually {other}'s. {other}, anything to tell us?"],
-      brother: ["{value} people think {possessive} is actually {other}'s. {other}, a secret sibling? 👀"],
-      sister: ["{value} people think {possessive} is actually {other}'s. {other}, a secret sibling? 👀"],
+      brother: ["{value} people think {possessive} is actually {other}'s. {other}, a secret sibling? 👀"],
+      sister: ["{value} people think {possessive} is actually {other}'s. {other}, a secret sibling? 👀"],
       grandpa: ["{value} people think {possessive} is actually {other}'s. {other}, anything to tell us?"],
       grandma: ["{value} people think {possessive} is actually {other}'s. {other}, anything to tell us?"],
-      friend: ["{value} people think {possessive} is actually {other}'s. Friend thief! 👀"],
-      partner: ["{value} people think {possessive} is actually {other}'s. Awkward… 😬"],
+      friend: ["{value} people think {possessive} is actually {other}'s. Friend thief! 👀"],
+      partner: ["{value} people think {possessive} is actually {other}'s. Awkward… 😬"],
       pet: ["{value} people think {possessive} is actually {other}'s. {other}, give the pet back!"],
       kid: ['{value} people were sure this cutie was {other}. Plot twist: it’s {names}! Separated at birth?'],
       pick: ['{value} people think {other} picked this one. Nope, it was {names}! But {other}, it does sound like you.'],
+      roll: ["{value} people think {possessive} is actually {other}'s. {other}, show us your phone!"],
+      crush: ['{value} people were sure {other} had a crush on this one. Nope, it was {names}! {other}, you’re blushing.'],
+      me: ['{value} people were sure this was {other}. Nope, it’s {names}! Separated at birth?'],
+      hand: ["{value} people think {possessive} is actually {other}'s. Compare palms, you two."],
+      foot: ["{value} people think {possessive} is actually {other}'s. {other}, shoes off, now."],
+      ear: ["{value} people think {possessive} is actually {other}'s. {other}, are you listening?"],
+      eye: ["{value} people think {possessive} is actually {other}'s. {other}, we’ve got our eye on you. 👀"],
+      nose: ["{value} people think {possessive} is actually {other}'s. Something smells fishy, {other}."],
+      smile: ["{value} people think {possessive} is actually {other}'s. {other}, say cheese to compare!"],
+      knee: ["{value} people think {possessive} is actually {other}'s. {other}, roll up your trousers."],
+      elbow: ["{value} people think {possessive} is actually {other}'s. {other}, elbows on the table, let’s compare."],
+      navel: ["{value} people think {possessive} is actually {other}'s. {other}, nothing to declare?"],
+      hair: ["{value} people think {possessive} is actually {other}'s. {other}, same hairdresser?"],
     },
-    /** Headline number of an award, printed as a date stamp (digits, "/" and "%" only). */
+    /** Headline number of an award (digits, "/", "%" and "+" only). */
     stat: {
       sherlock: '{value}/{total}',
       needsGlasses: '{value}/{total}',
@@ -229,8 +427,9 @@ const en = {
       doppelganger: '{value}',
       mostConfusing: '{value}',
       biggestMixup: '{value}',
+      eagleEye: '+{value}',
     },
-    /** Micro-label above the stamp. */
+    /** Typewriter micro-label under the number. */
     statLabel: {
       sherlock: 'found',
       needsGlasses: 'found',
@@ -239,28 +438,42 @@ const en = {
       doppelganger: 'wrong votes',
       mostConfusing: 'suspects',
       biggestMixup: 'votes',
+      eagleEye: 'speed bonus',
     },
   },
   mine: {
     title: 'Your game',
+    /** Header of the report card. */
+    card: 'Report card',
     rank: '#{rank}',
-    /** Micro-label of the rank stamp. */
     rankLabel: 'Rank',
-    /** Screen-reader text of the rank stamp. */
+    /** Screen-reader text of the rank. */
     rankAria: 'Rank {rank} out of {count}',
-    guessed: 'guessed right',
+    guessed: 'Guessed right',
+    bonus: 'Speed bonus',
+    photos: 'Your photos',
+    /** Teacher's comment (the verdict). */
+    comment: 'Teacher’s comment',
     /** Under "found/votes" on the viewer's own photos. */
     recognised: {
       parents: 'recognised your parents',
       family: 'matched your photos',
       childhood: 'recognised mini you',
       pick: 'knew it was you',
+      roll: 'knew it was your phone',
+      crush: 'guessed your crush',
+      whois: 'recognised you',
+      body: 'recognised your parts',
     },
     noPhotos: {
       parents: 'No parents this time',
       family: 'No photos this time',
       childhood: 'No baby photo this time',
       pick: 'No pick this time',
+      roll: 'No camera roll this time',
+      crush: 'No crush this time',
+      whois: 'No photo of you this time',
+      body: 'No close-ups this time',
     },
     noVotes: 'no votes',
     yourPhoto: {
@@ -275,9 +488,22 @@ const en = {
       pet: 'Your pet',
       kid: 'Mini you',
       pick: 'Your pick',
+      roll: 'Your camera roll',
+      crush: 'Your crush',
+      me: 'You!',
+      hand: 'Your hand',
+      foot: 'Your foot',
+      ear: 'Your ear',
+      eye: 'Your eye',
+      nose: 'Your nose',
+      smile: 'Your smile',
+      knee: 'Your knee',
+      elbow: 'Your elbow',
+      navel: 'Your belly button',
+      hair: 'Your hair',
     },
     photoScore: '{correct}/{total}',
-    /** Screen-reader text of a photo score stamp. */
+    /** Screen-reader text of a photo score. */
     photoScoreAria: '{correct} of {total} found it',
     yourAwards: 'Your awards',
     verdict: {
@@ -286,20 +512,33 @@ const en = {
         family: ['Undisputed family detective.', 'Nobody can hide a relative from you.'],
         childhood: ['Undisputed baby-face detective.', 'Nobody can hide their baby pics from you.'],
         pick: ['Undisputed mind reader.', 'Nobody can hide their taste from you.'],
+        roll: ['Undisputed phone snoop.', 'Nobody can hide their camera roll from you.'],
+        crush: ['Undisputed love detective.', 'Nobody can hide a teen crush from you.'],
+        whois: ['Undisputed face detective.', 'Nobody can hide behind a blur from you.'],
+        body: ['Undisputed anatomy expert.', 'Nobody can hide an elbow from you.'],
       },
       podium: ['On the podium! Your mom would be proud.', 'Podium! Not bad at all, detective.'],
       middle: ['Solid effort. Some photos remain a mystery.', 'Right in the middle. Very balanced, very Swiss.'],
-      last: ['Last place. Do you even know your friends? 😬', 'Dead last. Maybe hang out with your friends more?'],
-      afk: ['You didn’t guess a single photo. Were you even here? 👻'],
-      nobody: ['Tied first… with zero points. Nothing to brag about. 🙃'],
+      last: ['Last place. Do you even know your friends? 😬', 'Dead last. Maybe hang out with your friends more?'],
+      afk: ['You didn’t guess a single photo. Were you even here? 👻'],
+      nobody: ['Tied first… with zero points. Nothing to brag about. 🙃'],
     },
     share: 'Share my score',
   },
   wall: {
-    title: { parents: 'The parent wall', family: 'The photo wall', childhood: 'The baby wall', pick: 'The wall of picks' },
+    title: {
+      parents: 'The parent wall',
+      family: 'The photo wall',
+      childhood: 'The baby wall',
+      pick: 'The wall of picks',
+      roll: 'The camera-roll wall',
+      crush: 'The crush wall',
+      whois: 'The face wall',
+      body: 'The anatomy wall',
+    },
     subtitle: 'Tap a photo to zoom in',
-    /** Stamp on each print: how many people found it. */
-    badge: '{correct}/{total}',
+    /** Marker note next to each print: how many people found it. */
+    badge: '{correct}/{total} ✓',
     badgeAria: '{correct} of {total} found it',
     lightbox: '{caption} · {correct}/{total} found it',
     youGotIt: 'You got it',
@@ -311,8 +550,8 @@ const en = {
     share: 'Share my score',
   },
   share: {
-    first: 'I won at Daron Guessr 🏆 {correct}/{guesses} photos guessed! Your turn:',
-    other: 'I finished #{rank} at Daron Guessr 🕵️ {correct}/{guesses} photos guessed! Your turn:',
+    first: 'I won at Daron Guessr 🏆 {correct}/{guesses} photos guessed! Your turn:',
+    other: 'I finished #{rank} at Daron Guessr 🕵️ {correct}/{guesses} photos guessed! Your turn:',
     copied: 'Score copied, paste it anywhere!',
     failed: 'Couldn’t share your score.',
   },
@@ -326,23 +565,39 @@ const fr: typeof en = {
       family: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, spécialiste des familles !', '{name} connaît vos proches mieux que vous.'],
       childhood: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, spécialiste des bébés !', '{name} vous reconnaîtrait tous en couche-culotte.'],
       pick: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, télépathe officiel·le !', '{name} connaît vos goûts mieux que vous.'],
+      roll: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, spécialiste des pellicules !', '{name} connaît vos téléphones mieux que vous.'],
+      crush: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, gardien·ne des secrets d’ado !', '{name} sait exactement qui était en poster dans vos chambres.'],
+      whois: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, physionomiste en chef !', '{name} vous reconnaîtrait tous derrière une vitre dépolie.'],
+      body: ['{name} remporte la couronne !', 'Tous à genoux devant {name}, expert·e en anatomie !', '{name} vous reconnaîtrait tous rien qu’au coude.'],
     },
     me: {
       parents: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Les darons de tes potes n’ont aucun secret pour toi.'],
       family: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Les proches de tes potes n’ont aucun secret pour toi.'],
       childhood: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Aucune bouille de bébé ne te résiste.'],
       pick: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Tu lis dans tes potes comme dans un livre ouvert.'],
+      roll: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Les pellicules de tes potes n’ont aucun secret pour toi.'],
+      crush: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Tu connais les crushs d’ado de tout le monde par cœur.'],
+      whois: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Aucun visage ne te résiste, flou ou pas.'],
+      body: ['C’est TOI ! Salue la foule.', 'T’as gagné ! Encadre ce moment.', 'Champion·ne ! Tu connais tes potes sous toutes les coutures.'],
     },
     tie: ['Égalité ! {names} se partagent la couronne.', 'Impossible de les départager : {names} règnent ensemble !'],
-    nobody: ['Personne n’a marqué un seul point… Tout le monde a perdu ! 🙈', 'Zéro pointé pour tout le monde. Vous vous connaissez vraiment ?'],
+    nobody: ['Personne n’a marqué un seul point… Tout le monde a perdu ! 🙈', 'Zéro pointé pour tout le monde. Vous vous connaissez vraiment ?'],
   },
   and: 'et',
   pts: 'pts',
   more: '+{count}',
+  notes: {
+    boss: 'le boss !',
+    bosses: 'les boss !',
+    shame: 'la honte',
+    suspect: 'le suspect',
+    nobody: 'sérieux ?',
+  },
   ranking: {
     title: 'Classement final',
     guessedRight: '{correct}/{guesses} trouvés',
     noGuesses: 'Aucun vote',
+    bonus: 'dont +{bonus} de bonus vitesse',
   },
   awards: {
     title: 'Les trophées',
@@ -358,43 +613,102 @@ const fr: typeof en = {
       grandma: 'la mamie de {name}',
       friend: 'le ou la pote de {name}',
       partner: 'la moitié de {name}',
-      pet: "l'animal de {name}",
+      pet: 'l’animal de {name}',
       kid: '{name} en version mini',
       pick: 'le choix de {name}',
+      roll: 'la pellicule de {name}',
+      crush: 'le crush d’ado de {name}',
+      me: 'la photo de {name}',
+      hand: 'la main de {name}',
+      foot: 'le pied de {name}',
+      ear: 'l’oreille de {name}',
+      eye: 'l’œil de {name}',
+      nose: 'le nez de {name}',
+      smile: 'le sourire de {name}',
+      knee: 'le genou de {name}',
+      elbow: 'le coude de {name}',
+      navel: 'le nombril de {name}',
+      hair: 'les cheveux de {name}',
     },
     sherlock: {
-      title: { parents: 'Sherlock', family: 'Sherlock', childhood: 'Sherlock', pick: 'Télépathe' },
+      title: {
+        parents: 'Sherlock',
+        family: 'Sherlock',
+        childhood: 'Sherlock',
+        pick: 'Télépathe',
+        roll: 'Fouineur de téléphones',
+        crush: 'Détective du cœur',
+        whois: 'Physionomiste',
+        body: 'Médecin légiste',
+      },
       parents: {
         one: [
           '{names} a reconnu {value} darons sur {total}. T’as fouillé les albums photo de tout le monde ?',
-          '{names} a reconnu {value} darons sur {total}. Louche. On te surveille. 👀',
+          '{names} a reconnu {value} darons sur {total}. Louche. On te surveille. 👀',
         ],
         many: ['{names} ont reconnu {value} darons sur {total} chacun. De vrais détectives privés.'],
       },
       family: {
         one: [
           '{names} a vu juste {value} fois sur {total}. T’as fouillé les albums photo de tout le monde ?',
-          '{names} a vu juste {value} fois sur {total}. Louche. On te surveille. 👀',
+          '{names} a vu juste {value} fois sur {total}. Louche. On te surveille. 👀',
         ],
         many: ['{names} ont vu juste {value} fois sur {total} chacun. De vrais détectives privés.'],
       },
       childhood: {
         one: [
           '{names} a reconnu {value} bouilles de bébé sur {total}. T’étais à la maternité ou quoi ?',
-          '{names} a reconnu {value} bouilles de bébé sur {total}. T’as bossé à leur crèche ? 👀',
+          '{names} a reconnu {value} bouilles de bébé sur {total}. T’as bossé à leur crèche ? 👀',
         ],
         many: ['{names} ont reconnu {value} bouilles de bébé sur {total} chacun. D’anciens de la crèche, forcément.'],
       },
       pick: {
         one: [
           '{names} a deviné qui avait choisi quoi {value} fois sur {total}. Tu lis dans nos pensées ?',
-          '{names} a vu juste {value} fois sur {total}. Tu nous connais beaucoup trop bien. 👀',
+          '{names} a vu juste {value} fois sur {total}. Tu nous connais beaucoup trop bien. 👀',
         ],
         many: ['{names} ont deviné qui avait choisi quoi {value} fois sur {total} chacun. Une secte de télépathes.'],
       },
+      roll: {
+        one: [
+          '{names} a reconnu {value} pellicules sur {total}. T’as fouillé nos téléphones ?',
+          '{names} a vu juste {value} fois sur {total}. Tu sais ce qu’il y a dans nos téléphones. Flippant. 👀',
+        ],
+        many: ['{names} ont reconnu {value} pellicules sur {total} chacun. Des fouineurs de téléphones, tous.'],
+      },
+      crush: {
+        one: [
+          '{names} a deviné {value} crushs d’ado sur {total}. T’as lu le journal intime de tout le monde ?',
+          '{names} a vu juste {value} fois sur {total}. Toi, t’étais au courant pour les posters. 👀',
+        ],
+        many: ['{names} ont deviné {value} crushs d’ado sur {total} chacun. Des lecteurs de journaux intimes.'],
+      },
+      whois: {
+        one: [
+          '{names} a reconnu {value} visages sur {total}. Même flou, personne ne t’échappe.',
+          '{names} a reconnu {value} visages sur {total}. La reconnaissance faciale, version humaine. 👀',
+        ],
+        many: ['{names} ont reconnu {value} visages sur {total} chacun. Les caméras de surveillance sont jalouses.'],
+      },
+      body: {
+        one: [
+          '{names} a identifié {value} morceaux sur {total}. Comment tu les connais si bien ?',
+          '{names} a vu juste {value} fois sur {total}. T’as étudié nos coudes, avoue. 👀',
+        ],
+        many: ['{names} ont identifié {value} morceaux sur {total} chacun. On a des questions.'],
+      },
     },
     needsGlasses: {
-      title: { parents: 'Besoin de lunettes', family: 'Besoin de lunettes', childhood: 'Besoin de lunettes', pick: 'Connaît personne' },
+      title: {
+        parents: 'Besoin de lunettes',
+        family: 'Besoin de lunettes',
+        childhood: 'Besoin de lunettes',
+        pick: 'Connaît personne',
+        roll: 'Connaît personne',
+        crush: 'À côté de la plaque',
+        whois: 'Besoin de lunettes',
+        body: 'Besoin de lunettes',
+      },
       parents: {
         one: [
           '{names} a trouvé {value} sur {total}. Rendez-vous chez l’ophtalmo pris d’office.',
@@ -411,21 +725,49 @@ const fr: typeof en = {
       },
       childhood: {
         one: [
-          '{names} a trouvé {value} sur {total}. En même temps, tous les bébés se ressemblent. 👶',
+          '{names} a trouvé {value} sur {total}. En même temps, tous les bébés se ressemblent. 👶',
           '{names} a trouvé {value} sur {total}. Capable de ne pas se reconnaître sur ses propres photos de bébé.',
         ],
-        many: ['{names} ont trouvé {value} sur {total}. En même temps, tous les bébés se ressemblent. 👶'],
+        many: ['{names} ont trouvé {value} sur {total}. En même temps, tous les bébés se ressemblent. 👶'],
       },
       pick: {
-        one: [
-          '{names} a trouvé {value} sur {total}. Tu les connais vraiment, ces gens ? 😬',
-          '{names} a trouvé {value} sur {total}. Faudrait parler à tes potes de temps en temps.',
-        ],
+        one: ['{names} a trouvé {value} sur {total}. Tu les connais vraiment, ces gens ? 😬', '{names} a trouvé {value} sur {total}. Faudrait parler à tes potes de temps en temps.'],
         many: ['{names} ont trouvé {value} sur {total}. De parfaits inconnus, tous autant qu’ils sont.'],
+      },
+      roll: {
+        one: ['{names} a trouvé {value} sur {total}. Tu les connais vraiment, ces gens ? 😬', '{names} a trouvé {value} sur {total}. Demande des nouvelles à tes potes, de temps en temps.'],
+        many: ['{names} ont trouvé {value} sur {total}. De parfaits inconnus, tous autant qu’ils sont.'],
+      },
+      crush: {
+        one: [
+          '{names} a trouvé {value} sur {total}. Jamais écouté une seule confidence en soirée pyjama.',
+          '{names} a trouvé {value} sur {total}. N’a vu aucun des cœurs dessinés dans les cahiers. 😬',
+        ],
+        many: ['{names} ont trouvé {value} sur {total}. Jamais invités aux soirées pyjama, visiblement.'],
+      },
+      whois: {
+        one: [
+          '{names} a trouvé {value} sur {total}. Incapable de reconnaître un pote assis juste à côté.',
+          '{names} a trouvé {value} sur {total}. Pour toi, tout est resté flou jusqu’au bout.',
+        ],
+        many: ['{names} ont trouvé {value} sur {total}. Tarif de groupe chez l’opticien !'],
+      },
+      body: {
+        one: ['{names} a trouvé {value} sur {total}. Un genou, c’est un genou, non ? 🦵', '{names} a trouvé {value} sur {total}. Capable de ne pas reconnaître sa propre main.'],
+        many: ['{names} ont trouvé {value} sur {total}. En même temps, tous les coudes se ressemblent.'],
       },
     },
     carbonCopy: {
-      title: { parents: 'Copié-collé', family: 'Copié-collé', childhood: 'Pas changé d’un poil', pick: 'Livre ouvert' },
+      title: {
+        parents: 'Copié-collé',
+        family: 'Copié-collé',
+        childhood: 'Pas changé d’un poil',
+        pick: 'Livre ouvert',
+        roll: 'Livre ouvert',
+        crush: 'Trop prévisible',
+        whois: 'Reconnaissable entre mille',
+        body: 'Signe distinctif',
+      },
       parents: {
         one: [
           '{value} % des votes sur les darons de {names} étaient bons. Même tête, pas besoin de test ADN.',
@@ -448,9 +790,34 @@ const fr: typeof en = {
         one: ['{value} % ont grillé le choix de {names} direct. Prévisible à souhait.', '{value} % des votes sur les choix de {names} étaient bons. Aucun mystère, aucun secret.'],
         many: ['{value} % ont grillé les choix de {names} direct. Prévisibles à souhait.'],
       },
+      roll: {
+        one: ['{value} % ont reconnu la pellicule de {names} direct. Ton téléphone est un livre ouvert.', '{value} % des votes sur la pellicule de {names} étaient bons. Zéro mystère.'],
+        many: ['{value} % ont reconnu les pellicules de {names}. Des téléphones prévisibles à souhait.'],
+      },
+      crush: {
+        one: ['{value} % ont deviné le crush d’ado de {names}. Tout le monde avait vu les posters.', '{value} % des votes sur le crush de {names} étaient bons. T’étais pas discret·ète à 14 ans.'],
+        many: ['{value} % ont deviné les crushs de {names}. Des ados pas discrets pour un sou.'],
+      },
+      whois: {
+        one: ['{value} % ont reconnu {names} direct. Même tête depuis toujours.', '{value} % ont grillé {names} tout de suite, flou ou pas flou.'],
+        many: ['{value} % ont reconnu {names} direct. Reconnaissables entre mille.'],
+      },
+      body: {
+        one: ['{value} % ont reconnu les morceaux de {names}. Signe distinctif, c’est le cas de le dire.', '{value} % des votes sur les gros plans de {names} étaient bons. Reconnaissable sous tous les angles.'],
+        many: ['{value} % ont reconnu les gros plans de {names}. Signes distinctifs à gogo.'],
+      },
     },
     masterOfDisguise: {
-      title: { parents: 'Maître du déguisement', family: 'Maître du déguisement', childhood: 'Méconnaissable', pick: 'Impénétrable' },
+      title: {
+        parents: 'Maître du déguisement',
+        family: 'Maître du déguisement',
+        childhood: 'Méconnaissable',
+        pick: 'Impénétrable',
+        roll: 'Impénétrable',
+        crush: 'Crush secret',
+        whois: 'Méconnaissable',
+        body: 'Incognito',
+      },
       parents: {
         one: [
           'Seulement {value} % ont reconnu les darons de {names}. On t’aurait pas échangé à la maternité ?',
@@ -473,12 +840,37 @@ const fr: typeof en = {
         many: ['Seulement {value} % ont reconnu {names} en version mini. Métamorphoses en série !'],
       },
       pick: {
-        one: ['Seulement {value} % ont deviné le choix de {names}. Personne ne l’avait vu venir. 🃏', 'Seulement {value} % ont deviné le choix de {names}. Toujours là où on ne l’attend pas.'],
-        many: ['Seulement {value} % ont deviné les choix de {names}. Personne ne les avait vus venir. 🃏'],
+        one: ['Seulement {value} % ont deviné le choix de {names}. Personne ne l’avait vu venir. 🃏', 'Seulement {value} % ont deviné le choix de {names}. Toujours là où on ne l’attend pas.'],
+        many: ['Seulement {value} % ont deviné les choix de {names}. Personne ne les avait vus venir. 🃏'],
+      },
+      roll: {
+        one: ['Seulement {value} % ont reconnu la pellicule de {names}. Mais tu fais quoi de ton téléphone ?', 'Seulement {value} % ont reconnu la pellicule de {names}. Un téléphone plein de surprises.'],
+        many: ['Seulement {value} % ont reconnu les pellicules de {names}. Des téléphones mystérieux.'],
+      },
+      crush: {
+        one: ['Seulement {value} % ont deviné le crush d’ado de {names}. Un secret bien gardé depuis le collège. 🤫', 'Seulement {value} % ont deviné le crush de {names}. Celui-là, personne ne l’avait vu venir.'],
+        many: ['Seulement {value} % ont deviné les crushs de {names}. Des admirateurs secrets, tous.'],
+      },
+      whois: {
+        one: ['Seulement {value} % ont reconnu {names}. C’est vraiment toi, là ?', 'Seulement {value} % ont reconnu {names}. La protection des témoins va t’embaucher.'],
+        many: ['Seulement {value} % ont reconnu {names}. Méconnaissables, tous.'],
+      },
+      body: {
+        one: ['Seulement {value} % ont reconnu les gros plans de {names}. Personne ne te connaît si bien.', 'Seulement {value} % ont identifié les morceaux de {names}. Incognito total.'],
+        many: ['Seulement {value} % ont reconnu les gros plans de {names}. Incognito, tous.'],
       },
     },
     doppelganger: {
-      title: { parents: 'Sosie officiel', family: 'Sosie officiel', childhood: 'Bébé passe-partout', pick: 'Suspect n°1' },
+      title: {
+        parents: 'Sosie officiel',
+        family: 'Sosie officiel',
+        childhood: 'Bébé passe-partout',
+        pick: 'Suspect n°1',
+        roll: 'Suspect n°1',
+        crush: 'Cœur d’artichaut',
+        whois: 'Sosie officiel',
+        body: 'Modèle standard',
+      },
       parents: {
         one: [
           '{value} votes sont tombés à tort sur {names}. Apparemment, tous les darons te ressemblent.',
@@ -495,10 +887,10 @@ const fr: typeof en = {
       },
       childhood: {
         one: [
-          '{value} votes sont tombés à tort sur {names}. Apparemment, tous les bébés te ressemblent. 👶',
+          '{value} votes sont tombés à tort sur {names}. Apparemment, tous les bébés te ressemblent. 👶',
           'On a vu {names} {value} fois sur des photos de bébé qui n’étaient pas les siennes. T’as une bouille passe-partout.',
         ],
-        many: ['{value} votes à tort chacun pour {names}. Apparemment, tous les bébés vous ressemblent. 👶'],
+        many: ['{value} votes à tort chacun pour {names}. Apparemment, tous les bébés vous ressemblent. 👶'],
       },
       pick: {
         one: [
@@ -507,24 +899,73 @@ const fr: typeof en = {
         ],
         many: ['{value} votes à tort chacun pour {names}. Tous les choix chelous vous ressemblent, apparemment.'],
       },
+      roll: {
+        one: [
+          '{value} votes sont tombés à tort sur {names}. Toutes les pellicules chaotiques te ressemblent.',
+          'On a accusé {names} {value} fois pour la pellicule de quelqu’un d’autre. Ta réputation te précède.',
+        ],
+        many: ['{value} votes à tort chacun pour {names}. Tous les téléphones en bazar vous ressemblent, apparemment.'],
+      },
+      crush: {
+        one: [
+          '{value} votes sont tombés à tort sur {names}. Apparemment, t’as craqué pour tout le monde.',
+          'On a prêté à {names} {value} crushs d’ado qui n’étaient pas les siens. Cœur d’artichaut.',
+        ],
+        many: ['{value} votes à tort chacun pour {names}. Des cœurs d’artichaut, apparemment.'],
+      },
+      whois: {
+        one: [
+          '{value} votes sont tombés à tort sur {names}. Apparemment, tout le monde te ressemble.',
+          'On a vu {names} {value} fois sur la photo de quelqu’un d’autre. T’as une tête passe-partout.',
+        ],
+        many: ['{value} votes à tort chacun pour {names}. Tout le monde vous ressemble, apparemment.'],
+      },
+      body: {
+        one: [
+          '{value} votes sont tombés à tort sur {names}. Apparemment, tous les coudes ressemblent aux tiens.',
+          'On a vu {names} {value} fois sur le gros plan de quelqu’un d’autre. Modèle de série.',
+        ],
+        many: ['{value} votes à tort chacun pour {names}. Tous les gros plans vous ressemblent, apparemment.'],
+      },
+    },
+    eagleEye: {
+      title: same('Œil de lynx'),
+      one: [
+        '{names} a raflé {value} points de bonus en devinant à travers le flou. Qui a besoin de pixels ?',
+        '{names} a reconnu tout le monde avant même que la photo soit nette : +{value} de bonus vitesse. 🦅',
+      ],
+      many: ['{names} ont raflé {value} points de bonus chacun en devinant à travers le flou. Des yeux laser.'],
     },
     mostConfusing: {
       title: same('La photo qui embrouille'),
-      text: ['{possessive} a récolté des votes pour {value} personnes différentes. Le chaos total.', '{possessive} a semé le doute : {value} suspects différents !'],
+      text: ['{Possessive} : des votes pour {value} personnes différentes. Le chaos total.', '{value} suspects différents pour {possessive}. Personne n’était d’accord !'],
     },
     biggestMixup: {
       title: same('La grosse confusion'),
       daron: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, un truc à nous avouer ?'],
       daronne: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, un truc à nous avouer ?'],
-      brother: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, un frère caché ? 👀'],
-      sister: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, une sœur cachée ? 👀'],
+      brother: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, un frère caché ? 👀'],
+      sister: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, une sœur cachée ? 👀'],
       grandpa: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, un truc à nous avouer ?'],
       grandma: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, un truc à nous avouer ?'],
-      friend: ['{value} personnes ont refilé {possessive} à {other}. Vol de pote en bande organisée ! 👀'],
-      partner: ['{value} personnes pensent que {possessive} est en fait celle de {other}. Gênant… 😬'],
+      friend: ['{value} personnes ont refilé {possessive} à {other}. Vol de pote en bande organisée ! 👀'],
+      partner: ['{value} personnes pensent que {possessive} est en fait celle de {other}. Gênant… 😬'],
       pet: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, rends-lui sa bestiole !'],
       kid: ['{value} personnes étaient sûres que ce bout de chou, c’était {other}. Raté : c’est {names} ! Séparés à la naissance ?'],
       pick: ['{value} personnes pensent que c’est {other} qui a choisi cette image. Raté, c’est {names} ! Mais avoue {other}, ça te ressemble.'],
+      roll: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, montre-nous ton téléphone !'],
+      crush: ['{value} personnes étaient sûres que c’était le crush d’ado de {other}. Raté, c’est celui de {names} ! {other}, tu rougis.'],
+      me: ['{value} personnes étaient sûres que c’était {other}. Raté, c’est {names} ! Séparés à la naissance ?'],
+      hand: ['{value} personnes pensent que {possessive} est en fait celle de {other}. Comparez vos paumes, tous les deux.'],
+      foot: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, enlève tes chaussures.'],
+      ear: ['{value} personnes pensent que {possessive} est en fait celle de {other}. {other}, tu nous écoutes ?'],
+      eye: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, on t’a à l’œil. 👀'],
+      nose: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, ça sent l’embrouille.'],
+      smile: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, souris pour comparer !'],
+      knee: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, remonte ton pantalon.'],
+      elbow: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, coude à coude, on compare.'],
+      navel: ['{value} personnes pensent que {possessive} est en fait celui de {other}. {other}, rien à déclarer ?'],
+      hair: ['{value} personnes pensent que {possessive} sont en fait ceux de {other}. {other}, même coiffeur ?'],
     },
     stat: {
       sherlock: '{value}/{total}',
@@ -534,6 +975,7 @@ const fr: typeof en = {
       doppelganger: '{value}',
       mostConfusing: '{value}',
       biggestMixup: '{value}',
+      eagleEye: '+{value}',
     },
     statLabel: {
       sherlock: 'trouvés',
@@ -543,25 +985,38 @@ const fr: typeof en = {
       doppelganger: 'votes à tort',
       mostConfusing: 'suspects',
       biggestMixup: 'votes',
+      eagleEye: 'bonus vitesse',
     },
   },
   mine: {
     title: 'Ta partie',
+    card: 'Bulletin de notes',
     rank: '#{rank}',
     rankLabel: 'Rang',
     rankAria: 'Rang {rank} sur {count}',
-    guessed: 'bien trouvés',
+    guessed: 'Bien trouvés',
+    bonus: 'Bonus vitesse',
+    photos: 'Tes photos',
+    comment: 'Appréciation',
     recognised: {
       parents: 'ont reconnu tes darons',
       family: 'ont trouvé tes photos',
       childhood: 'ont reconnu mini-toi',
       pick: 'ont deviné que c’était toi',
+      roll: 'ont reconnu ta pellicule',
+      crush: 'ont deviné ton crush',
+      whois: 't’ont reconnu·e',
+      body: 'ont reconnu tes morceaux',
     },
     noPhotos: {
       parents: 'Pas de darons cette fois',
       family: 'Pas de photos cette fois',
       childhood: 'Pas de photo de bébé cette fois',
       pick: 'Pas de choix cette fois',
+      roll: 'Pas de pellicule cette fois',
+      crush: 'Pas de crush cette fois',
+      whois: 'Pas de photo de toi cette fois',
+      body: 'Pas de gros plans cette fois',
     },
     noVotes: 'aucun vote',
     yourPhoto: {
@@ -576,6 +1031,19 @@ const fr: typeof en = {
       pet: 'Ton animal',
       kid: 'Mini-toi',
       pick: 'Ton choix',
+      roll: 'Ta pellicule',
+      crush: 'Ton crush',
+      me: 'Toi !',
+      hand: 'Ta main',
+      foot: 'Ton pied',
+      ear: 'Ton oreille',
+      eye: 'Ton œil',
+      nose: 'Ton nez',
+      smile: 'Ton sourire',
+      knee: 'Ton genou',
+      elbow: 'Ton coude',
+      navel: 'Ton nombril',
+      hair: 'Tes cheveux',
     },
     photoScore: '{correct}/{total}',
     photoScoreAria: '{correct} sur {total} ont trouvé',
@@ -586,19 +1054,32 @@ const fr: typeof en = {
         family: ['Détective des familles incontesté·e.', 'Impossible de te cacher un proche.'],
         childhood: ['Détective des bébés incontesté·e.', 'Impossible de te cacher une photo de bébé.'],
         pick: ['Télépathe incontesté·e.', 'Impossible de te cacher quoi que ce soit.'],
+        roll: ['Fouineur·se de téléphones incontesté·e.', 'Impossible de te cacher une pellicule.'],
+        crush: ['Détective du cœur incontesté·e.', 'Impossible de te cacher un crush d’ado.'],
+        whois: ['Physionomiste incontesté·e.', 'Impossible de se cacher derrière le flou avec toi.'],
+        body: ['Expert·e en anatomie incontesté·e.', 'Impossible de te cacher un coude.'],
       },
       podium: ['Sur le podium ! Ta daronne serait fière.', 'Podium ! Pas mal du tout, inspecteur.'],
       middle: ['Honnête. Certaines photos restent un mystère.', 'Pile au milieu. Très suisse, tout ça.'],
-      last: ['Lanterne rouge. Tu connais vraiment tes potes ? 😬', 'Dernière place. Faudrait voir tes potes plus souvent.'],
-      afk: ['T’as pas voté une seule fois. T’étais là au moins ? 👻'],
-      nobody: ['Premier ex æquo… avec zéro point. Pas de quoi frimer. 🙃'],
+      last: ['Lanterne rouge. Tu connais vraiment tes potes ? 😬', 'Dernière place. Faudrait voir tes potes plus souvent.'],
+      afk: ['T’as pas voté une seule fois. T’étais là au moins ? 👻'],
+      nobody: ['Premier ex æquo… avec zéro point. Pas de quoi frimer. 🙃'],
     },
     share: 'Partager mon score',
   },
   wall: {
-    title: { parents: 'Le mur des darons', family: 'Le mur des photos', childhood: 'Le mur des bébés', pick: 'Le mur des choix' },
+    title: {
+      parents: 'Le mur des darons',
+      family: 'Le mur des photos',
+      childhood: 'Le mur des bébés',
+      pick: 'Le mur des choix',
+      roll: 'Le mur des pellicules',
+      crush: 'Le mur des crushs',
+      whois: 'Le mur des têtes',
+      body: 'Le mur anatomique',
+    },
     subtitle: 'Touche une photo pour zoomer',
-    badge: '{correct}/{total}',
+    badge: '{correct}/{total} ✓',
     badgeAria: '{correct} sur {total} ont trouvé',
     lightbox: '{caption} · {correct}/{total} ont trouvé',
     youGotIt: 'Trouvé',
@@ -610,8 +1091,8 @@ const fr: typeof en = {
     share: 'Partager mon score',
   },
   share: {
-    first: 'J’ai gagné à Daron Guessr 🏆 {correct}/{guesses} photos trouvées ! À ton tour :',
-    other: 'J’ai fini #{rank} à Daron Guessr 🕵️ {correct}/{guesses} photos trouvées ! À ton tour :',
+    first: 'J’ai gagné à Daron Guessr 🏆 {correct}/{guesses} photos trouvées ! À ton tour :',
+    other: 'J’ai fini #{rank} à Daron Guessr 🕵️ {correct}/{guesses} photos trouvées ! À ton tour :',
     copied: 'Score copié, colle-le où tu veux !',
     failed: 'Impossible de partager ton score.',
   },

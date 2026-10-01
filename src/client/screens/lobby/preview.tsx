@@ -10,9 +10,10 @@ import {
   type Settings,
 } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
-import { fakePhoto, fakePlayers, fakeView } from '../../dev/fixtures';
+import { fakePhoto, fakePlayers, fakePortrait, fakeView } from '../../dev/fixtures';
 import { __devSetState } from '../../lib/store';
 import { LobbyScreen } from './LobbyScreen';
+import { ProfileModal } from './ProfileModal';
 
 /** Dev-only preview variants for this screen (see src/client/dev/PreviewApp.tsx). */
 
@@ -33,7 +34,23 @@ function fullRoom(): PublicPlayer[] {
   return players;
 }
 
+/** Gives players a selfie (fake portraits), by index. */
+function withSelfies(players: PublicPlayer[], who: number[]): PublicPlayer[] {
+  return players.map((p, i) => (who.includes(i) ? { ...p, selfieUrl: fakePortrait(100 + i, i % 2 ? 'daronne' : 'daron') } : p));
+}
+
 const render = (view: RoomView | null) => (view ? <LobbyScreen view={view} /> : null);
+
+/** The lobby with my profile modal open (name, avatar, selfie). */
+const withProfile = (view: RoomView | null) => {
+  const me = view?.players.find((p) => p.id === view.meId);
+  return view && me ? (
+    <>
+      <LobbyScreen view={view} />
+      <ProfileModal open me={me} onClose={() => undefined} />
+    </>
+  ) : null;
+};
 
 type Step = (v: RoomView) => RoomView;
 
@@ -90,6 +107,7 @@ const GUEST_STEPS: Step[] = [
   (v) => ({ ...v, settings: { ...v.settings, voteSeconds: 15 } }),
   (v) => ({ ...v, settings: { ...v.settings, anonymousVotes: false } }),
   (v) => ({ ...v, settings: { ...v.settings, voteSeconds: 0 } }),
+  (v) => ({ ...v, settings: { ...v.settings, blur: true } }),
   // The host leaves: the crown comes to us.
   (v) => ({
     ...v,
@@ -116,7 +134,17 @@ const THEME_STEPS: Step[] = [
     settings: { ...v.settings, theme: 'family', photosPerPlayer: 3 },
     myPhotos: v.myPhotos.map((p) => ({ ...p, kind: p.slot ? 'brother' : 'sister' })),
   }),
-  (v) => ({ ...v, settings: { ...v.settings, theme: 'mix', photosPerPlayer: 2 } }),
+  (v) => ({
+    ...v,
+    settings: { ...v.settings, theme: 'body', photosPerPlayer: 2 },
+    myPhotos: v.myPhotos.map((p) => ({ ...p, kind: p.slot ? 'knee' : 'ear' })),
+  }),
+  (v) => ({
+    ...v,
+    settings: { ...v.settings, theme: 'whois', photosPerPlayer: 1, blur: true },
+    myPhotos: v.myPhotos.map((p) => ({ ...p, kind: 'me' })),
+  }),
+  (v) => ({ ...v, settings: { ...v.settings, theme: 'mix', photosPerPlayer: 2, blur: false } }),
 ];
 
 const previews: PreviewRegistry = {
@@ -252,6 +280,73 @@ const previews: PreviewRegistry = {
         myPhotos: [myPhoto(22, 0, 'pick'), myPhoto(23, 1, 'pick'), myPhoto(24, 2, 'pick')],
       }),
     render,
+  },
+  body: {
+    view: () =>
+      fakeView(fakePlayers(4, { notReady: [2] }), 0, {
+        settings: settings({ theme: 'body', photosPerPlayer: 2 }),
+        myPhotos: [myPhoto(30, 0, 'ear')],
+      }),
+    render,
+  },
+  'body-empty-guest': {
+    view: () =>
+      fakeView(fakePlayers(4, { notReady: [1, 2] }), 1, {
+        settings: settings({ theme: 'body', photosPerPlayer: 3 }),
+      }),
+    render,
+  },
+  'whois-blur': {
+    view: () =>
+      fakeView(withSelfies(fakePlayers(4, { notReady: [3] }), [0, 1]), 0, {
+        settings: settings({ theme: 'whois', photosPerPlayer: 1, blur: true }),
+        myPhotos: [myPhoto(31, 0, 'me')],
+      }),
+    render,
+  },
+  'whois-blur-guest': {
+    view: () =>
+      fakeView(withSelfies(fakePlayers(4, { notReady: [2] }), [0, 2]), 2, {
+        settings: settings({ theme: 'whois', photosPerPlayer: 1, blur: true, voteSeconds: 0 }),
+      }),
+    render,
+  },
+  roll: {
+    view: () =>
+      fakeView(fakePlayers(5, { notReady: [3, 4] }), 0, {
+        settings: settings({ theme: 'roll', photosPerPlayer: 1 }),
+      }),
+    render,
+  },
+  crush: {
+    view: () =>
+      fakeView(fakePlayers(5, { notReady: [3] }), 1, {
+        settings: settings({ theme: 'crush', photosPerPlayer: 1, blur: true }),
+        myPhotos: [myPhoto(32, 0, 'crush')],
+      }),
+    render,
+  },
+  selfies: {
+    view: () =>
+      fakeView(withSelfies(fakePlayers(6, { notReady: [4], offline: [5] }), [0, 1, 2, 4, 5]), 0, {
+        myPhotos: [myPhoto(33, 0, 'daron'), myPhoto(34, 1, 'daronne')],
+      }),
+    render,
+  },
+  'selfie-nudge': {
+    view: () =>
+      fakeView(withSelfies(fakePlayers(5, { notReady: [3] }), [0, 2, 4]), 1, {
+        myPhotos: [myPhoto(35, 0, 'daron')],
+      }),
+    render,
+  },
+  'profile-no-selfie': {
+    view: () => fakeView(fakePlayers(3), 1, { myPhotos: [myPhoto(36, 0, 'daron')] }),
+    render: withProfile,
+  },
+  'profile-selfie': {
+    view: () => fakeView(withSelfies(fakePlayers(3), [1]), 1, { myPhotos: [myPhoto(37, 0, 'daron')] }),
+    render: withProfile,
   },
   'live-theme': {
     view: () => fakeView(fakePlayers(4), 1, { myPhotos: [myPhoto(25, 0, 'daron'), myPhoto(26, 1, 'daronne')] }),

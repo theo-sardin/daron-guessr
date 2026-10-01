@@ -3,14 +3,14 @@ import type { ReactNode } from 'react';
 import type { Award, PhotoResult, PublicPlayer, RankingEntry } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Icon, type IconName } from '../../components/Icon';
-import { IconBadge } from '../../components/IconBadge';
-import { pad, Stamp } from '../../components/Stamp';
+import { Icon } from '../../components/Icon';
+import { Annotation, MarkerCircle } from '../../components/Marker';
+import { Paper } from '../../components/Paper';
+import { Polaroid } from '../../components/Polaroid';
+import { RubberStamp } from '../../components/RubberStamp';
+import { Stamp } from '../../components/Stamp';
 import { useI18n } from '../../i18n';
-import { CountUp } from './CountUp';
-import { AWARD_TONE, awardIcon, flavorOfKinds, MEDAL_TONE, medalIcon, seedOf, tiltOf, type Flavor } from './helpers';
-import { DateImprint } from './DateImprint';
+import { AWARD_PAPER, flavorOfKinds, seedOf, tiltOf, type Flavor } from './helpers';
 
 type Verdict = 'first' | 'podium' | 'middle' | 'last' | 'afk' | 'nobody';
 
@@ -24,27 +24,20 @@ function verdictOf(me: RankingEntry, ranking: RankingEntry[]): Verdict {
   return 'middle';
 }
 
-/** A stat on paper: "value/total" printed as a date stamp, icon + caption under it (beside it when wide). */
-function StatTile({ icon, caption, value, total }: { icon: IconName; caption: string; value: ReactNode; total: number }) {
+/** One line of the report card: a typewriter subject on the left, the grade on the right. */
+function Line({ label, children, sub }: { label: string; children: ReactNode; sub?: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1.5 rounded-2xl border-3 border-ink bg-white p-3 shadow-pop-sm sm:flex-row sm:items-center sm:gap-4 sm:px-4">
-      <span className="flex shrink-0 items-baseline">
-        <Stamp glow={false} size="lg">
-          {value}
-        </Stamp>
-        <Stamp glow={false} size="lg" className="opacity-60">
-          {`/${total}`}
-        </Stamp>
-      </span>
-      <div className="flex items-start gap-1 text-xs leading-tight font-extrabold text-ink/75 sm:text-sm">
-        <Icon name={icon} weight="bold" className="mt-px size-3.5 shrink-0 sm:size-4" />
-        <span>{caption}</span>
+    <div className="flex items-end justify-between gap-3 border-b border-dashed border-blue/30 py-2.5">
+      <div className="min-w-0">
+        <div className="label-type text-[0.8rem] uppercase">{label}</div>
+        {sub && <div className="text-pen mt-1 text-[18px] leading-none">{sub}</div>}
       </div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
 
-/** "Your game": personal rank, guesses, how many people recognised your photos, your awards. */
+/** "Your game" as a report card: rank, guesses, bonus, how your photos did, the teacher's comment, your awards. */
 export function MyGame({
   me,
   player,
@@ -67,7 +60,7 @@ export function MyGame({
   seed: string;
   /** The game's flavor. */
   flavor: Flavor;
-  /** Flavor of one award (its title and icon depend on it). */
+  /** Flavor of one award (its title depends on it). */
   awardFlavor: (award: Award) => Flavor;
   onShare: () => void;
   sharing: boolean;
@@ -86,122 +79,112 @@ export function MyGame({
     verdict === 'first'
       ? tpick(`results.mine.verdict.first.${flavor}`, seedOf(seed, player.id, 'verdict'))
       : tpick(`results.mine.verdict.${verdict}`, seedOf(seed, player.id, 'verdict'));
-  const medal = me.score > 0 ? medalIcon(me.rank) : null;
+  const podium = me.score > 0 && me.rank <= 3;
 
   return (
-    <Card
-      tone="cream"
-      className="relative"
+    <motion.div
       initial={{ opacity: 0, y: 40, rotate: -2 }}
       whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-      viewport={{ once: true, amount: 0.25 }}
+      viewport={{ once: true, amount: 0.2 }}
       transition={{ type: 'spring', stiffness: 260, damping: 20 }}
     >
-      <div className="flex items-center gap-4">
-        {/* Rank on a small dark display, a medal sticker slapped on its corner */}
-        <motion.div
-          className="relative shrink-0"
-          initial={{ scale: 0, rotate: -20 }}
-          whileInView={{ scale: 1, rotate: -3 }}
-          viewport={{ once: true }}
-          transition={{ type: 'spring', stiffness: 300, damping: 14, delay: 0.15 }}
-        >
-          <div
-            className="flex flex-col items-start gap-2 rounded-2xl border-3 border-ink bg-ink px-3 pt-2.5 pb-2.5 text-cream shadow-pop"
-            role="img"
-            aria-label={t('results.mine.rankAria', { rank: me.rank, count: ranking.length })}
-          >
-            <span className="label-mono text-cream/60" aria-hidden>
+      <Paper surface="grid" torn="b" tape tilt={-0.6} seed="report" className="px-4 pt-5 pb-7 sm:px-6">
+        {/* Header: who, and the rank circled in red */}
+        <div className="flex items-start gap-3">
+          <Avatar player={player} size="lg" crown={false} dimOffline={false} selfie tilt={-4} />
+          <div className="min-w-0 flex-1 pt-0.5">
+            <div className="label-type text-[0.8rem] uppercase">{t('results.mine.card')}</div>
+            <div className="truncate font-display text-2xl leading-tight">{player.name}</div>
+          </div>
+          <div className="flex shrink-0 flex-col items-end" role="img" aria-label={t('results.mine.rankAria', { rank: me.rank, count: ranking.length })}>
+            <span className="label-type mb-1" aria-hidden>
               {t('results.mine.rankLabel')}
             </span>
-            <span className="flex items-baseline gap-1" aria-hidden>
-              <Stamp size="xl">{pad(me.rank)}</Stamp>
-              <Stamp size="sm" className="opacity-70">
-                {`/${pad(ranking.length)}`}
-              </Stamp>
+            <span aria-hidden>
+              {podium ? (
+                <MarkerCircle pad={8} strokeWidth={3} className="flex">
+                  <Stamp size="lg" valueClassName="text-red-ink">{`${me.rank}/${ranking.length}`}</Stamp>
+                </MarkerCircle>
+              ) : (
+                <Stamp size="lg">{`${me.rank}/${ranking.length}`}</Stamp>
+              )}
             </span>
           </div>
-          {medal && <IconBadge name={medal} tone={MEDAL_TONE[me.rank]} size="md" tilt={12} className="absolute -top-4 -right-4" />}
-        </motion.div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <Avatar player={player} size="sm" crown={false} dimOffline={false} />
-            <span className="truncate font-display text-2xl leading-tight">{player.name}</span>
-          </div>
-          <p className="mt-1 leading-snug font-bold text-ink-soft">{verdictText}</p>
         </div>
-      </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <StatTile icon="check" caption={t('results.mine.guessed')} value={<CountUp to={me.correct} delay={0.3} plain />} total={me.guesses} />
-        {photos.length > 0 ? (
-          <StatTile icon="eye" caption={t(`results.mine.recognised.${myFlavor}`)} value={<CountUp to={found} delay={0.45} plain />} total={votes} />
-        ) : (
-          <div className="flex flex-col items-start justify-center gap-1.5 rounded-2xl border-3 border-dashed border-ink/40 p-3 text-sm leading-tight font-extrabold text-ink/65 sm:flex-row sm:items-center sm:gap-3 sm:px-4">
-            <Icon name="image" className="size-6" />
-            {t(`results.mine.noPhotos.${flavor}`)}
-          </div>
-        )}
-      </div>
-
-      {photos.length > 0 && (
-        <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-3">
-          {photos.map((p) => {
-            const label = t(`results.mine.yourPhoto.${p.photo.kind}`);
-            return (
-              <motion.button
-                key={p.photo.id}
-                type="button"
-                onClick={() => onOpenPhoto(p)}
-                whileTap={{ scale: 0.94 }}
-                whileHover={{ rotate: 0, scale: 1.04 }}
-                className="relative flex flex-col items-center rounded-md border-3 border-ink bg-white p-1.5 pb-0.5 shadow-pop-sm"
-                style={{ rotate: tiltOf(p.photo.id, 5) }}
-                aria-label={label}
-              >
-                <span className="relative block overflow-hidden rounded-sm">
-                  <img src={p.photo.url} alt="" className="block size-20 object-cover" draggable={false} />
-                  <DateImprint id={p.photo.id} className="right-1 bottom-1" />
-                </span>
-                <span className="text-hand mt-0.5 max-w-[5.5rem] truncate pr-1 pl-0.5 text-xl">{label}</span>
-                <span className="absolute -top-3 -right-3 flex rounded-lg border-2 border-ink bg-ink px-1.5 py-1 shadow-[0_2px_0_0_var(--color-ink)]">
-                  {p.totalVotes > 0 ? (
-                    <Stamp size="xs" ariaLabel={t('results.mine.photoScoreAria', { correct: p.correctVotes, total: p.totalVotes })}>
-                      {t('results.mine.photoScore', { correct: p.correctVotes, total: p.totalVotes })}
-                    </Stamp>
-                  ) : (
-                    <span className="label-mono text-[0.625rem] text-cream/70">{t('results.mine.noVotes')}</span>
-                  )}
-                </span>
-              </motion.button>
-            );
-          })}
+        <div className="mt-3">
+          <Line label={t('results.mine.guessed')}>
+            <Stamp size="md" ariaLabel={`${me.correct}/${me.guesses}`}>{`${me.correct}/${me.guesses}`}</Stamp>
+          </Line>
+          {me.bonus > 0 && (
+            <Line label={t('results.mine.bonus')}>
+              <span className="font-num text-[1.6rem] text-red-ink">+{me.bonus}</span>
+            </Line>
+          )}
+          <Line label={t('results.mine.photos')} sub={photos.length > 0 ? t(`results.mine.recognised.${myFlavor}`) : t(`results.mine.noPhotos.${flavor}`)}>
+            {photos.length > 0 ? <Stamp size="md">{`${found}/${votes}`}</Stamp> : <span className="font-num text-[1.6rem] text-ink-faint">–</span>}
+          </Line>
         </div>
-      )}
 
-      {myAwards.length > 0 && (
-        <div className="mt-5">
-          <div className="label-mono mb-2 text-ink/60">{t('results.mine.yourAwards')}</div>
-          <div className="flex flex-wrap gap-2">
-            {myAwards.map((a) => {
-              const f = awardFlavor(a);
+        {photos.length > 0 && (
+          <div className="mt-5 mb-4 flex flex-wrap justify-center gap-x-6 gap-y-8">
+            {photos.map((p) => {
+              const label = t(`results.mine.yourPhoto.${p.photo.kind}`);
               return (
-                <span
-                  key={a.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border-2 border-ink bg-white py-0.5 pr-3 pl-0.5 text-sm font-extrabold shadow-pop-sm"
-                >
-                  <IconBadge name={awardIcon(a.id, f)} tone={AWARD_TONE[a.id]} size="xs" shadow={false} className="rounded-full" />
-                  {t(`results.awards.${a.id}.title.${f}`)}
-                </span>
+                <div key={p.photo.id} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => onOpenPhoto(p)}
+                    className="block cursor-zoom-in focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-blue"
+                    aria-label={label}
+                  >
+                    <Polaroid
+                      src={p.photo.url}
+                      tilt={tiltOf(p.photo.id, 5)}
+                      tape="cream"
+                      caption={<span className="block max-w-[6rem] truncate">{label}</span>}
+                      className="w-[6.5rem] p-1.5! pb-1!"
+                      captionClassName="text-[1.2rem]!"
+                    />
+                  </button>
+                  <span className="pointer-events-none absolute -right-5 -bottom-6" aria-label={t('results.mine.photoScoreAria', { correct: p.correctVotes, total: p.totalVotes })} role="img">
+                    <Annotation rotate={-8} size={19}>
+                      {p.totalVotes > 0 ? t('results.wall.badge', { correct: p.correctVotes, total: p.totalVotes }) : t('results.mine.noVotes')}
+                    </Annotation>
+                  </span>
+                </div>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
 
-      <Button variant="sky" size="md" block className="mt-5" onClick={onShare} loading={sharing} icon={<Icon name="share" weight="bold" className="size-5" />}>
-        {t('results.mine.share')}
-      </Button>
-    </Card>
+        {/* The teacher's comment, in red marker */}
+        <div className="mt-6">
+          <div className="label-type text-[0.8rem] uppercase">{t('results.mine.comment')}</div>
+          <Annotation as="p" size={21} rotate={-1} className="mt-1.5 leading-[1.15]">
+            {verdictText}
+          </Annotation>
+        </div>
+
+        {myAwards.length > 0 && (
+          <div className="mt-5">
+            <div className="label-type text-[0.8rem] uppercase">{t('results.mine.yourAwards')}</div>
+            <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-2">
+              {myAwards.map((a, i) => (
+                <li key={a.id}>
+                  <RubberStamp tone={AWARD_PAPER[a.id].stamp} size={14} tilt={i % 2 ? 3 : -4}>
+                    {t(`results.awards.${a.id}.title.${awardFlavor(a)}`)}
+                  </RubberStamp>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <Button variant="secondary" size="md" block className="mt-6" onClick={onShare} loading={sharing} icon={<Icon name="share" weight="bold" className="size-5" />}>
+          {t('results.mine.share')}
+        </Button>
+      </Paper>
+    </motion.div>
   );
 }

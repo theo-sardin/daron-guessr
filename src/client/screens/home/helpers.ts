@@ -1,6 +1,6 @@
 import { useAnimate } from 'motion/react';
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
-import { normalizeRoomCode, ROOM_CODE_LENGTH, type Theme } from '../../../shared/protocol';
+import { normalizeRoomCode, ROOM_CODE_LENGTH } from '../../../shared/protocol';
 import { loadProfile, saveProfile } from '../../lib/session';
 import { getState } from '../../lib/store';
 import { vibrate } from '../../lib/util';
@@ -107,12 +107,3 @@ export function useDesktopAutoFocus(ref: RefObject<HTMLInputElement | null>, ena
     // Mount only: re-focusing later would steal focus from whatever the player is doing.
   }, []);
 }
-
-/** Solid background of each game mode's accent (the selected mode card, the summary chip). */
-export const THEME_BG: Record<Theme, string> = {
-  parents: 'bg-sun',
-  family: 'bg-mint',
-  childhood: 'bg-tangerine',
-  pick: 'bg-lilac',
-  mix: 'bg-sky',
-};
