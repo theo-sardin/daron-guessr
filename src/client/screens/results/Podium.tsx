@@ -126,11 +126,13 @@ export function Podium({
   // Sticker sizes: as big as the room allows (single winner xl, a crowd of ties smaller).
   const counts = groups.map((g) => Math.min(g.entries.length, MAX_SHOWN));
   const idx = counts.map((c, g) => (g === 0 ? 4 - c : 3 - c));
-  const room = wide ? 600 : 330;
+  const room = wide ? 600 : 336;
   const widthOf = (i: number[]) => i.reduce((sum, v, g) => sum + counts[g] * (DIAMETER[LADDER[Math.max(0, v)]] + 4) + 26, 0);
-  // Too wide: shrink the biggest stickers first (the runners-up before the winners on a tie).
-  for (let guard = 0; guard < 8 && widthOf(idx) > room && idx.some((v) => v > 0); guard++) {
-    const g = idx.lastIndexOf(Math.max(...idx));
+  // Too wide: shrink the runners-up first (down to one size below the winners), then the winners.
+  for (let guard = 0; guard < 10 && widthOf(idx) > room && idx.some((v) => v > 0); guard++) {
+    const others = idx.map((v, g) => (g > 0 && v > 0 && v >= idx[0] - 1 ? v : -1));
+    const best = Math.max(...others);
+    const g = best >= 0 ? others.lastIndexOf(best) : 0;
     idx[g] -= 1;
   }
   const sizes = idx.map((v) => LADDER[Math.max(0, v)]);
