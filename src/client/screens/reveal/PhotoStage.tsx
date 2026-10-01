@@ -53,7 +53,7 @@ export interface PhotoStageProps {
   /** Blur game: the photo stays blurred until the owner reveal wipes it clean. */
   blur: boolean;
   /** Share of correct votes (album: resemblance meter). */
-  resemblance: number;
+  resemblance: number | null;
   /** Board scene: the pinned suspects (only candidates with votes, + the owner once revealed). */
   suspects: Suspect[];
   /** The viewer's verdict sticker. */
@@ -84,7 +84,7 @@ export function PhotoStage(p: PhotoStageProps) {
 
   return (
     <div className="relative mx-auto h-[300px] w-full max-w-[24rem] md:h-[384px] md:max-w-[30rem]">
-      {strip && <PaperStrip tone={strip} tilt={-4} bleed="md" className="-inset-x-8 top-[78px] h-[118px] md:top-[100px] md:h-[150px]" seed={`reveal-${p.index}`} />}
+      {strip && <PaperStrip tone={strip} tilt={-4} className="-inset-x-8 top-[78px] h-[118px] md:top-[100px] md:h-[150px]" seed={`reveal-${p.index}`} />}
       {scene === 'album' && <AlbumPage />}
       {board && <CorkBoard />}
 
@@ -183,7 +183,7 @@ export function PhotoStage(p: PhotoStageProps) {
         </>
       )}
 
-      {p.badge && <div className="pointer-events-none absolute bottom-0 left-0 z-[8] md:-left-2">{p.badge}</div>}
+      {p.badge && <div className={cn('pointer-events-none absolute bottom-0 z-[8]', board ? 'left-1/2 -translate-x-1/2 -bottom-2' : 'left-0 md:-left-2')}>{p.badge}</div>}
     </div>
   );
 }
@@ -215,7 +215,7 @@ function BlurWipe({ src, revealed, wipe }: { src: string; revealed: boolean; wip
 
 /** Long verdicts ("CRUSH SECRET") get a smaller stamp so they fit the print. */
 function stampSize(text: string): number {
-  return Math.max(18, Math.min(30, Math.round(230 / Math.max(6, text.length))));
+  return Math.max(17, Math.min(27, Math.round(205 / Math.max(6, text.length))));
 }
 
 type T = ReturnType<typeof useI18n>['t'];

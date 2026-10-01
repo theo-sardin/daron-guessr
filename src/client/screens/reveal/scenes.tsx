@@ -79,10 +79,11 @@ export function PhotoCorners() {
  * The hand-drawn "family resemblance" meter: a ballpoint gauge whose red needle swings to the
  * share of players who recognised the owner (a resemblance everybody saw = 100%).
  */
-export function ResemblanceMeter({ value, delay = 0.6 }: { value: number; delay?: number }) {
+export function ResemblanceMeter({ value, delay = 0.6 }: { value: number | null; delay?: number }) {
   const { t } = useI18n();
-  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
-  const angle = -90 + pct * 1.8;
+  // No votes: nobody can tell, the needle hesitates in the middle.
+  const pct = value === null ? null : Math.round(Math.max(0, Math.min(1, value)) * 100);
+  const angle = pct === null ? 0 : -90 + pct * 1.8;
   return (
     <motion.div
       className="pointer-events-none absolute top-0 right-0 z-[5] flex w-[140px] flex-col items-center md:top-1 md:right-1 md:w-[176px]"
@@ -110,9 +111,10 @@ export function ResemblanceMeter({ value, delay = 0.6 }: { value: number; delay?
             <line key={a} x1="60" y1="17" x2="60" y2="26" stroke={BLUE} strokeWidth="3" strokeLinecap="round" transform={`rotate(${a} 60 60)`} />
           ))}
           <motion.g
-            style={{ originX: '60px', originY: '60px' }}
+            // Pivot at the needle's base (transform-box is the needle's own box).
+            style={{ originX: 0.5, originY: 1 }}
             initial={{ rotate: -90 }}
-            animate={{ rotate: [-90, Math.min(90, angle + 25), angle - 8, angle] }}
+            animate={{ rotate: pct === null ? [-90, 40, -40, 20, 0] : [-90, Math.min(90, angle + 25), angle - 8, angle] }}
             transition={{ duration: 1.1, times: [0, 0.55, 0.8, 1], delay: delay + 0.45, ease: 'easeOut' }}
           >
             <path d="M60 60 L60 16" stroke={RED} strokeWidth="5" strokeLinecap="round" />
@@ -125,7 +127,7 @@ export function ResemblanceMeter({ value, delay = 0.6 }: { value: number; delay?
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: delay + 1.2, type: 'spring', stiffness: 500, damping: 18 }}
         >
-          {pct}%
+          {pct === null ? '?' : `${pct}%`}
         </motion.span>
       </div>
     </motion.div>
@@ -222,8 +224,8 @@ export function TreeDoodle({ relation, delay = 0.4 }: { relation: string; delay?
 
 const HEART = 'M12 21 C 5 15, 1 11, 2.5 6.5 C 4 2, 9.5 1.5, 12 5.5 C 14.5 1.5, 20 2, 21.5 6.5 C 23 11, 19 15, 12 21 Z';
 const HEARTS: Array<{ cls: string; size: number; rotate: number; fill: string }> = [
-  { cls: 'top-[6px] left-[6%]', size: 34, rotate: -18, fill: 'var(--color-pink)' },
-  { cls: 'top-[150px] left-[1%]', size: 26, rotate: 12, fill: 'var(--color-red)' },
+  { cls: 'top-[96px] left-[1%]', size: 34, rotate: -18, fill: 'var(--color-pink)' },
+  { cls: 'top-[190px] left-[3%] md:top-[240px]', size: 26, rotate: 12, fill: 'var(--color-red)' },
   { cls: 'top-[232px] left-[10%] md:top-[300px]', size: 30, rotate: -8, fill: 'var(--color-pink)' },
   { cls: 'top-[14px] right-[30%] md:right-[33%]', size: 22, rotate: 20, fill: 'var(--color-red)' },
   { cls: 'top-[70px] right-[6%]', size: 32, rotate: 14, fill: 'var(--color-pink)' },
@@ -257,7 +259,7 @@ export function PosterMasthead({ delay = 0.2 }: { delay?: number }) {
   const { t } = useI18n();
   return (
     <motion.div
-      className="pointer-events-none absolute -top-3 -inset-x-4 z-[5] flex justify-center"
+      className="pointer-events-none absolute -top-4 -inset-x-4 z-[5] flex justify-center"
       initial={{ y: -40, opacity: 0, rotate: -12 }}
       animate={{ y: 0, opacity: 1, rotate: -5 }}
       transition={{ type: 'spring', stiffness: 380, damping: 16, delay }}
@@ -294,22 +296,20 @@ export function LensCallout({ delay = 0.5 }: { delay?: number }) {
     <>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[5] size-full" aria-hidden>
         {[
-          [78, 54, 61, 10],
-          [78, 54, 61, 84],
+          [74, 47, 60, 8],
+          [76, 61, 60, 86],
         ].map(([x1, y1, x2, y2], i) => (
           <motion.line
             key={i}
             x1={x1}
             y1={y1}
-            x2={x2}
-            y2={y2}
             stroke={BLUE}
             strokeWidth="2.2"
             strokeDasharray="5 5"
             vectorEffect="non-scaling-stroke"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.45, delay: delay + 0.35 + i * 0.12 }}
+            initial={{ x2: x1, y2: y1, opacity: 0 }}
+            animate={{ x2, y2, opacity: 1 }}
+            transition={{ duration: 0.45, delay: delay + 0.35 + i * 0.12, ease: 'easeOut' }}
           />
         ))}
       </svg>
@@ -380,15 +380,15 @@ export function SuspectBoard({ suspects, culpritId, live }: { suspects: Suspect[
                 key={s.player.id}
                 x1={PHOTO_PIN[0]}
                 y1={PHOTO_PIN[1]}
-                x2={slot.pin[0]}
-                y2={slot.pin[1]}
                 stroke="#c4161c"
                 strokeWidth={1.6 + Math.min(4, s.votes) * 0.9}
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1, opacity: culpritId && !culprit ? 0.35 : 1 }}
-                transition={{ pathLength: { duration: 0.45, delay: 0.15 + i * 0.12 }, opacity: { duration: 0.3 } }}
+                // The string shoots out from the photo's pin to the suspect's (a dash animation
+                // would be distorted by the stretched viewBox).
+                initial={{ x2: PHOTO_PIN[0], y2: PHOTO_PIN[1] }}
+                animate={{ x2: slot.pin[0], y2: slot.pin[1], opacity: culpritId && !culprit ? 0.35 : 1 }}
+                transition={{ x2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' }, y2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' }, opacity: { duration: 0.3 } }}
                 style={{ filter: 'drop-shadow(0 1px 0 rgb(0 0 0 / 0.35))' }}
               />
             );

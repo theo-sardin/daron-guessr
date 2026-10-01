@@ -111,7 +111,7 @@ function BarRow({
   const maxStickers = dense ? 4 : 5;
   const note = isOwner ? t(isMyPick ? 'reveal.note.rightMine' : 'reveal.note.right') : isMyPick ? t('reveal.note.mine') : null;
   // A short strip leaves room for the note after it; a long one gets the note on a paper tag.
-  const noteAfter = pct <= 46;
+  const noteAfter = pct <= (isOwner ? 42 : 52);
 
   return (
     <motion.li

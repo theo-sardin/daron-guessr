@@ -185,7 +185,7 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
     return list;
   }, [model, owner, cur.tally]);
 
-  const resemblance = cur.totalVotes > 0 ? cur.correctVotes / cur.totalVotes : 0.5;
+  const resemblance = cur.totalVotes > 0 ? cur.correctVotes / cur.totalVotes : null;
 
   const onZoom = useCallback(() => setZoom(true), []);
   const closeZoom = useCallback(() => setZoom(false), []);

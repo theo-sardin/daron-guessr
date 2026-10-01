@@ -55,7 +55,7 @@ export function Headline({ stage, kind, index, owner }: { stage: Stage; kind: Ph
               exit={{ scale: 1.3, opacity: 0, transition: { duration: 0.16 } }}
               transition={{ scale: { duration: 0.5, repeat: Infinity }, opacity: { duration: 0.15 } }}
             >
-              <CutoutText as="h1" text={tpick('reveal.andItIs', index)} size={46} seed={index} animate stagger={0.05} />
+              <CutoutText as="h1" text={tpick('reveal.andItIs', index)} size={36} seed={index} animate stagger={0.05} />
             </motion.div>
           )}
           {mode === 'owner' && owner && (
