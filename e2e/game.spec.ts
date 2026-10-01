@@ -65,8 +65,8 @@ async function voteWhileVoting(page: Page, stop: () => boolean) {
   while (!stop()) {
     const buttons = page.getByRole('button', { name: /^Vote for / });
     const n = await buttons.count();
-    const enabled = n > 0 && (await buttons.first().isEnabled().catch(() => false));
-    if (enabled && !(await page.getByText(/Locked in|Nice bluff/).first().isVisible().catch(() => false))) {
+    const enabled = n > 0 && (await buttons.first().isEnabled({ timeout: 1_000 }).catch(() => false));
+    if (enabled && !(await page.getByText(/Locked in|Nice bluff/).first().isVisible({ timeout: 1_000 }).catch(() => false))) {
       await buttons
         .nth(voted % n)
         .click({ timeout: 2_000 })
@@ -256,6 +256,52 @@ test('a "Mini me" game: one childhood photo each', async ({ browser, baseURL }) 
   await expect(host.getByRole('button', { name: /Play again/ })).toBeVisible({ timeout: 15_000 });
   await host.waitForTimeout(5_000);
   await host.screenshot({ path: `${SHOTS}/13-minime-results.png`, fullPage: true });
+
+  bots.forEach((b) => b.stop());
+  expect(errors).toEqual([]);
+});
+
+test('a blurry "Who\'s that?" game with selfies: photos sharpen, early right guesses earn a bonus', async ({ browser, baseURL }) => {
+  const host = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  host.on('pageerror', (e) => errors.push(e.message));
+
+  // "Who's that?" turns blur on by default.
+  const code = await createRoom(host, 'Host Théo', "Who's that?", 1);
+  const bots: Bot[] = [];
+  for (let i = 0; i < 3; i++) bots.push(await spawnBot(baseURL!, code, i, { selfie: true }));
+  await host.locator('input[type=file]').first().setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: makeFacePng(77) });
+  await expect(host.locator('img[src^="/photos/"]').first()).toBeVisible({ timeout: 15_000 });
+  await host.screenshot({ path: `${SHOTS}/20-blur-lobby.png`, fullPage: true });
+
+  await host.getByRole('button', { name: /Start the game/ }).click();
+  await expect(host.getByText('Who is this?').first()).toBeVisible({ timeout: 10_000 });
+
+  // Let the first photo sharpen a bit before voting (bots have voted, the round waits for the host).
+  await host.waitForTimeout(4_500);
+  await host.screenshot({ path: `${SHOTS}/21-blur-step0.png` });
+  await host.waitForTimeout(7_000);
+  await host.screenshot({ path: `${SHOTS}/22-blur-step1.png` });
+
+  let revealing = false;
+  const watcher = (async () => {
+    await expect(host.getByRole('button', { name: /Next photo|See the results/ })).toBeVisible({ timeout: 150_000 });
+    revealing = true;
+  })();
+  await Promise.all([voteWhileVoting(host, () => revealing), watcher]);
+
+  const next = host.getByRole('button', { name: /Next photo|See the results/ });
+  for (let i = 0; i < 4; i++) {
+    await expect(next).toBeEnabled({ timeout: 20_000 });
+    if (i === 0) await host.screenshot({ path: `${SHOTS}/23-blur-reveal.png` });
+    const label = (await next.textContent()) ?? '';
+    await next.click();
+    if (/results/i.test(label)) break;
+    await expect(next).toBeDisabled({ timeout: 5_000 });
+  }
+  await expect(host.getByRole('button', { name: /Play again/ })).toBeVisible({ timeout: 15_000 });
+  await host.waitForTimeout(5_000);
+  await host.screenshot({ path: `${SHOTS}/24-blur-results.png`, fullPage: true });
 
   bots.forEach((b) => b.stop());
   expect(errors).toEqual([]);

@@ -93,7 +93,9 @@ export function CandidateGrid({
                   <Avatar player={player} size={faces ? 'lg' : 'md'} selfie crown={false} tilt={-tilt * 2} className="max-[359px]:scale-90" />
                   <span
                     className={cn(
-                      'line-clamp-2 min-w-0 flex-1 text-[1.15rem] leading-[1.08] font-extrabold tracking-[-0.01em] break-words sm:text-[1.3rem]',
+                      'line-clamp-2 min-w-0 flex-1 leading-[1.08] font-extrabold tracking-[-0.01em] break-words',
+                      // A long single word (e.g. "Robodaron") shrinks instead of breaking mid-word.
+                      nameSize(player.name),
                       crowded && 'lg:w-full lg:flex-none lg:text-[1.15rem]',
                     )}
                   >
@@ -121,4 +123,12 @@ export function CandidateGrid({
       })}
     </motion.ul>
   );
+}
+
+/** Font size for a candidate name, smaller when its longest word would not fit on one line. */
+function nameSize(name: string): string {
+  const longest = Math.max(0, ...name.split(/\s+/).map((w) => Array.from(w).length));
+  if (longest > 11) return 'text-[0.85rem] sm:text-[1.05rem]';
+  if (longest > 8) return 'text-[0.98rem] sm:text-[1.2rem]';
+  return 'text-[1.15rem] sm:text-[1.3rem]';
 }

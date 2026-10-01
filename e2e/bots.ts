@@ -39,7 +39,12 @@ function emitAck<T extends object>(socket: BotSocket, event: string, ...args: un
  * default kind for that slot (with its blur variants, like the web client), and votes randomly
  * whenever a round opens.
  */
-export async function spawnBot(baseUrl: string, code: string, index: number, opts: { photos?: number } = {}): Promise<Bot> {
+export async function spawnBot(
+  baseUrl: string,
+  code: string,
+  index: number,
+  opts: { photos?: number; selfie?: boolean } = {},
+): Promise<Bot> {
   const socket: BotSocket = io(baseUrl, { transports: ['websocket'], forceNew: true });
   await new Promise<void>((resolve, reject) => {
     socket.once('connect', () => resolve());
@@ -84,6 +89,11 @@ export async function spawnBot(baseUrl: string, code: string, index: number, opt
       variants: BLUR_VARIANT_WIDTHS.map((width) => makeFacePng(seed, width)),
     });
     if (!res.ok) throw new Error(`bot ${name} upload failed: ${res.error}`);
+  }
+
+  if (opts.selfie) {
+    const res = await emitAck(socket, 'player:selfie', { mime: 'image/png', data: makeFacePng(index * 10 + 9, 160) });
+    if (!res.ok) throw new Error(`bot ${name} selfie failed: ${res.error}`);
   }
 
   return {
