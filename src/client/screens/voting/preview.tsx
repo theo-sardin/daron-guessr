@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import {
   ALL_VOTED_GRACE_MS,
+  BLUR_NO_TIMER_ROUND_MS,
+  BLUR_VARIANT_WIDTHS,
   DEFAULT_SETTINGS,
   GAME_INTRO_MS,
   PHOTO_KINDS,
@@ -13,7 +15,7 @@ import {
   type VotingView,
 } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
-import { fakePhoto, fakePlayers, fakeView } from '../../dev/fixtures';
+import { fakePhoto, fakePlayers, fakePortrait, fakeView } from '../../dev/fixtures';
 import { __devSetState, api, getState, useRoom } from '../../lib/store';
 import { VotingScreen } from './VotingScreen';
 
@@ -52,7 +54,15 @@ interface Opts {
   theme?: Theme;
   names?: string[];
   offline?: number[];
+  /** Blur step (0 = blurriest), or undefined for no blur. */
+  blur?: number;
+  /** Blur from the full photo (no variants uploaded): stronger CSS blur. */
+  fullBlur?: boolean;
+  /** Indexes of players with a selfie. */
+  selfies?: number[];
 }
+
+const BLUR_STEPS = BLUR_VARIANT_WIDTHS.length + 1;
 
 function makeView(o: Opts = {}): RoomView {
   const now = Date.now();
@@ -61,6 +71,7 @@ function makeView(o: Opts = {}): RoomView {
   const voteSeconds = o.voteSeconds ?? 20;
   let players: PublicPlayer[] = fakePlayers(n, { offline: o.offline });
   if (o.names) players = players.map((p, i) => ({ ...p, name: o.names![i] ?? p.name }));
+  if (o.selfies) players = players.map((p, i) => (o.selfies!.includes(i) ? { ...p, selfieUrl: fakePortrait(40 + i, i % 2 ? 'sister' : 'brother') } : p));
   const endsIn = o.endsIn !== undefined ? o.endsIn : voteSeconds === 0 ? null : o.startsIn !== undefined ? o.startsIn + voteSeconds * 1000 : 20_000;
   const startsIn = o.startsIn ?? (endsIn === null ? -5000 : endsIn - voteSeconds * 1000);
   const startsAt = now + startsIn;
@@ -78,13 +89,22 @@ function makeView(o: Opts = {}): RoomView {
     myVote: o.myVote ?? null,
     candidates: players.filter((p) => p.id !== players[me].id).map((p) => p.id),
     votedIds: (o.voted ?? []).map((i) => players[i].id),
+    blur:
+      o.blur === undefined
+        ? null
+        : { step: o.blur, steps: BLUR_STEPS, nextStepAt: o.blur < BLUR_STEPS - 1 ? now + 4000 : null, fromVariant: !o.fullBlur },
   };
-  return fakeView(players, me, { phase: 'voting', serverNow: now, settings: { ...DEFAULT_SETTINGS, voteSeconds, anonymousVotes: true, theme }, voting });
+  return fakeView(players, me, {
+    phase: 'voting',
+    serverNow: now,
+    settings: { ...DEFAULT_SETTINGS, voteSeconds, anonymousVotes: true, theme, blur: o.blur !== undefined },
+    voting,
+  });
 }
 
 /** Narrowest theme that allows `kind`. */
 function themeFor(kind: PhotoKind): Theme {
-  const order: Theme[] = ['parents', 'childhood', 'pick', 'family', 'mix'];
+  const order: Theme[] = ['parents', 'childhood', 'pick', 'roll', 'crush', 'whois', 'body', 'family', 'mix'];
   return order.find((th) => THEME_KINDS[th].includes(kind)) ?? 'mix';
 }
 
@@ -100,7 +120,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Kind of the photo shown in round `round` of the sim, cycling through `kinds`. */
 const simKind = (kinds: readonly PhotoKind[], round: number): PhotoKind => kinds[round % kinds.length];
 
-function Sim({ kinds }: { kinds: readonly PhotoKind[] }) {
+function Sim({ kinds, blur = false }: { kinds: readonly PhotoKind[]; blur?: boolean }) {
   const view = useRoom();
   useEffect(() => {
     const orig = { vote: api.vote, skipRound: api.skipRound };
@@ -123,6 +143,7 @@ function Sim({ kinds }: { kinds: readonly PhotoKind[] }) {
           isMine: round === 2,
           myVote: null,
           votedIds: [],
+          blur: blur ? { step: 0, steps: BLUR_STEPS, nextStepAt: null, fromVariant: true } : null,
         };
       });
 
@@ -146,6 +167,16 @@ function Sim({ kinds }: { kinds: readonly PhotoKind[] }) {
       const now = Date.now();
       if (v.endsAt !== null && now >= v.endsAt + 300) return close(v.endsAt);
       if (now < v.startsAt) return;
+      if (v.blur) {
+        const roundMs = v.endsAt === null ? BLUR_NO_TIMER_ROUND_MS : SIM_SECONDS * 1000;
+        const stepMs = roundMs / BLUR_STEPS;
+        const step = Math.min(BLUR_STEPS - 1, Math.floor((now - v.startsAt) / stepMs));
+        if (step !== v.blur.step) {
+          const nextStepAt = step < BLUR_STEPS - 1 ? v.startsAt + (step + 1) * stepMs : null;
+          patchVoting((cur) => ({ blur: cur.blur && { ...cur.blur, step, nextStepAt } }));
+          return;
+        }
+      }
       const waiting = room.players.filter((p) => p.connected && p.id !== room.meId && !v.votedIds.includes(p.id));
       if (waiting.length && Math.random() < 0.1) {
         const bot = waiting[Math.floor(Math.random() * waiting.length)];
@@ -161,7 +192,7 @@ function Sim({ kinds }: { kinds: readonly PhotoKind[] }) {
       api.vote = orig.vote;
       api.skipRound = orig.skipRound;
     };
-  }, [kinds]);
+  }, [kinds, blur]);
   return view ? <VotingScreen view={view} /> : null;
 }
 
@@ -245,6 +276,45 @@ const previews: PreviewRegistry = {
   'intro-childhood': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'kid' }), render },
   'intro-pick': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'pick' }), render },
   'intro-mix': { view: () => makeView({ round: 0, startsIn: GAME_INTRO_MS, kind: 'pet', theme: 'mix' }), render },
+  /** "Who's that?" intro: blur chip. */
+  'intro-blur': { view: () => makeView({ round: 0, startsIn: 60_000, kind: 'me', blur: 0 }), render },
+
+  // --- Blur, selfies, new modes -------------------------------------------------------------
+  /** Blur on, first (blurriest) step. */
+  'blur-0': { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0], kind: 'me', blur: 0 }), render },
+  /** Blur, middle step, with a vote cast (bonus kept is only known after voting in this tab). */
+  'blur-2': { view: () => makeView({ round: 1, endsIn: 12_000, voteSeconds: 30, voted: [0, 2], kind: 'me', blur: 2, myVote: 'p3' }), render },
+  /** Blur, last step: sharp, no bonus left. */
+  'blur-4': { view: () => makeView({ round: 1, endsIn: 3_500, voteSeconds: 30, voted: [0, 2, 3], kind: 'me', blur: 4 }), render },
+  /** Blur from the full photo (uploaded without variants): stronger CSS blur. */
+  'blur-full': { view: () => makeView({ round: 2, endsIn: 20_000, voteSeconds: 30, kind: 'daronne', blur: 0, fullBlur: true }), render },
+  /** Owner's view of a blurred photo (no bonus note). */
+  'blur-mine': { view: () => makeView({ round: 2, endsIn: 18_000, voteSeconds: 30, kind: 'me', blur: 1, isMine: true }), render },
+  /** Playable loop with blur stepping. */
+  'sim-blur': {
+    view: () => makeView({ me: 0, round: 0, total: 5, startsIn: 4000, voteSeconds: SIM_SECONDS, kind: 'me', blur: 0 }),
+    render: () => <Sim kinds={['me']} blur />,
+  },
+  /** Candidates with selfies (big faces to compare with the photo). */
+  selfies: { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0, 2], kind: 'kid', selfies: [0, 2, 3, 4], myVote: 'p2' }), render },
+  /** Selfies with 12 players and long names. */
+  'selfies-many': {
+    view: () => makeView({ players: 12, me: 5, round: 3, total: 12, names: LONG_NAMES, voted: [0, 1], kind: 'me', selfies: [0, 1, 2, 3, 4, 6, 7, 9, 10], endsIn: 25_000, voteSeconds: 45 }),
+    render,
+  },
+  /** Body parts: "Whose ear is this?". */
+  ear: { view: () => makeView({ round: 1, endsIn: 20_000, voteSeconds: 30, voted: [0, 2], kind: 'ear' }), render },
+  /** Body parts: hair (French plural: "Ce sont TES cheveux !"). */
+  'mine-hair': { view: () => makeView({ round: 3, endsIn: 15_000, voted: [1], isMine: true, kind: 'hair' }), render },
+  /** Camera-roll roulette. */
+  roll: { view: () => makeView({ round: 0, total: 5, endsIn: 20_000, voteSeconds: 30, voted: [4], kind: 'roll' }), render },
+  /** Teen crush. */
+  crush: { view: () => makeView({ round: 2, total: 5, endsIn: 20_000, voteSeconds: 30, voted: [0, 2], kind: 'crush', myVote: 'p0' }), render },
+  /** Who's that? (kind `me`), no blur. */
+  whois: { view: () => makeView({ round: 1, total: 5, endsIn: 20_000, voteSeconds: 30, voted: [0], kind: 'me', selfies: [0, 2, 3] }), render },
+  'mine-crush': { view: () => makeView({ round: 2, endsIn: 15_000, voted: [1], isMine: true, kind: 'crush' }), render },
+  'transition-ear': { view: () => makeView({ round: 2, startsIn: 60_000, kind: 'ear' }), render },
+  'transition-roll': { view: () => makeView({ round: 1, startsIn: 60_000, kind: 'roll' }), render },
 };
 
 const SIM_PARENTS: readonly PhotoKind[] = ['daron', 'daronne', 'daron'];

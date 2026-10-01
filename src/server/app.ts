@@ -5,8 +5,8 @@ import path from 'node:path';
 import express, { type Express, type Request } from 'express';
 import { Server } from 'socket.io';
 import * as parser from 'socket.io-parser';
-import { MAX_PHOTO_BYTES, normalizeRoomCode, type RoomPeek } from '../shared/protocol';
-import { DEFAULT_TIMING, type Rng, type Timing } from './game';
+import { BLUR_VARIANT_WIDTHS, MAX_BLUR_VARIANT_BYTES, MAX_PHOTO_BYTES, normalizeRoomCode, type RoomPeek } from '../shared/protocol';
+import { DEFAULT_TIMING, findImage, type Rng, type Timing } from './game';
 import { KeyedRateLimiter, clientIp } from './rateLimit';
 import { RoomRegistry } from './rooms';
 import { DEFAULT_RATE_LIMITS, attachGameServer, type IoServer, type Logger, type RateLimits } from './socket';
@@ -44,16 +44,45 @@ const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
 const SOCKET_BUFFER_BYTES = MAX_PHOTO_BYTES + 256 * 1024;
 
 /**
- * Only `photo:upload` carries binary data, as a single attachment. The default decoder
- * accepts 10 per packet and keeps the pieces of an unfinished packet in memory, so one
- * connection could pin 10 x SOCKET_BUFFER_BYTES: allow 1.
+ * Only `photo:upload` (the photo + its BLUR_VARIANT_WIDTHS.length blur variants) and
+ * `player:selfie` (1) carry binary data.
  */
-class SingleAttachmentDecoder extends parser.Decoder {
+const MAX_ATTACHMENTS = 1 + BLUR_VARIANT_WIDTHS.length;
+/** Largest legit binary payload of one packet: a photo and its variants, plus some slack. */
+const MAX_PACKET_BINARY_BYTES = MAX_PHOTO_BYTES + BLUR_VARIANT_WIDTHS.length * MAX_BLUR_VARIANT_BYTES + 64 * 1024;
+
+/**
+ * The default decoder accepts 10 attachments per packet and keeps the pieces of an unfinished
+ * packet in memory, so one connection could pin 10 x SOCKET_BUFFER_BYTES. This one allows
+ * MAX_ATTACHMENTS and caps the bytes a packet's attachments may add up to (MAX_PACKET_BINARY_BYTES);
+ * past that it throws, which closes the connection.
+ */
+class BoundedAttachmentDecoder extends parser.Decoder {
+  private pendingBytes = 0;
+
   constructor() {
-    super({ maxAttachments: 1 });
+    super({ maxAttachments: MAX_ATTACHMENTS });
+  }
+
+  override add(obj: unknown): void {
+    if (typeof obj === 'string') {
+      this.pendingBytes = 0;
+    } else {
+      this.pendingBytes += binarySize(obj);
+      if (this.pendingBytes > MAX_PACKET_BINARY_BYTES) throw new Error('attachments too large');
+    }
+    super.add(obj);
   }
 }
-const socketParser = { ...parser, Decoder: SingleAttachmentDecoder };
+
+function binarySize(obj: unknown): number {
+  if (obj instanceof ArrayBuffer || ArrayBuffer.isView(obj)) return obj.byteLength;
+  // Base64 fallback of old transports: { base64: true, data: string }.
+  const data = (obj as { data?: unknown } | null)?.data;
+  return typeof data === 'string' ? data.length : 0;
+}
+
+const socketParser = { ...parser, Decoder: BoundedAttachmentDecoder };
 
 export function createApp(options: AppOptions = {}): App {
   const logger = options.logger ?? console;
@@ -131,9 +160,10 @@ function mountApi(app: Express, registry: RoomRegistry, allowPeek: (req: Request
     res.status(404).json({ ok: false, error: 'NOT_FOUND' });
   });
 
+  // Game photos, their blur variants and selfies (all have random ids).
   app.get('/photos/:code/:photoId', (req, res) => {
     const room = registry.get(req.params.code);
-    const photo = room?.photos.find((ph) => ph.id === req.params.photoId);
+    const photo = room && findImage(room, req.params.photoId);
     if (!photo) {
       res.status(404).type('text/plain').send('Not found');
       return;

@@ -2,24 +2,25 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   PHOTOS_PER_PLAYER_OPTIONS,
+  THEME_DEFAULT_BLUR,
   THEME_DEFAULT_PHOTOS,
   THEMES,
   VOTE_SECONDS_OPTIONS,
   type Settings,
   type Theme,
 } from '../../../shared/protocol';
-import { Card } from '../../components/Card';
 import { Icon, type IconName } from '../../components/Icon';
+import { MarkerCheck, MarkerCircle } from '../../components/Marker';
+import { NotebookCard } from '../../components/Paper';
 import { ThemeArt } from '../../components/ThemeArt';
 import { toast } from '../../components/Toast';
-import { Viewfinder } from '../../components/Viewfinder';
 import { useT } from '../../i18n';
 import { errorText } from '../../lib/errors';
 import { sfx } from '../../lib/sfx';
 import { api } from '../../lib/store';
 import { cn } from '../../lib/util';
 import { CardTitle } from './CardTitle';
-import { THEME_PICKER_ID, themeBg } from './look';
+import { THEME_PICKER_ID } from './look';
 
 /** How long an acknowledged change may wait for the room state before we drop the local value. */
 const CONFIRM_TIMEOUT_MS = 3000;
@@ -40,14 +41,15 @@ function useChangeCount(value: number | boolean | string | null): number {
 }
 
 /**
- * Theme, photos per player, seconds per photo and anonymous votes. The host edits them
+ * Theme, photos per player, seconds per photo, blurry photos and anonymous votes, on a
+ * notebook page. The host edits them
  * (applied locally right away, reconciled with the next room state); everyone else sees
  * them read-only, with a flash when the host changes something.
  */
 export function SettingsCard({ settings, isHost, hostName }: { settings: Settings; isHost: boolean; hostName: string }) {
   const t = useT();
   const [draft, setDraft] = useState<Draft>({});
-  const seq = useRef<Record<Key, number>>({ voteSeconds: 0, anonymousVotes: 0, theme: 0, photosPerPlayer: 0 });
+  const seq = useRef<Record<Key, number>>({ voteSeconds: 0, anonymousVotes: 0, theme: 0, photosPerPlayer: 0, blur: 0 });
   const timers = useRef<number[]>([]);
   const effective: Settings = { ...settings, ...draft };
 
@@ -102,27 +104,29 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
 
   const pickTheme = (theme: Theme) => {
     if (theme === effective.theme) return;
-    void change({ theme, photosPerPlayer: THEME_DEFAULT_PHOTOS[theme] }, { theme });
+    // The server resets photos per player and the blur option to the new theme's defaults.
+    void change({ theme, photosPerPlayer: THEME_DEFAULT_PHOTOS[theme], blur: THEME_DEFAULT_BLUR[theme] }, { theme });
   };
 
   const themeFlash = useChangeCount(isHost ? null : settings.theme);
   const photosFlash = useChangeCount(isHost ? null : settings.photosPerPlayer);
   const timerFlash = useChangeCount(isHost ? null : settings.voteSeconds);
   const anonFlash = useChangeCount(isHost ? null : settings.anonymousVotes);
+  const blurFlash = useChangeCount(isHost ? null : settings.blur);
   const theme = effective.theme;
   const perPlayer = effective.photosPerPlayer;
   const secs = effective.voteSeconds;
   const anon = effective.anonymousVotes;
+  const blur = effective.blur;
   const secondsLabel = (v: number) => (v === 0 ? t('lobby.settings.noTimer') : t('lobby.settings.seconds', { n: v }));
+  const infinity = <span className="font-heavy text-[1.9rem] leading-none">∞</span>;
 
   return (
-    <Card tone="white" className="@container p-4 sm:p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <CardTitle icon="settings" tone="sun">
-          {t('lobby.settings.title')}
-        </CardTitle>
-        <span className={cn('flex items-center gap-1.5 text-sm font-extrabold', isHost ? 'text-ink' : 'text-ink-soft')}>
-          <Icon name={isHost ? 'crown' : 'lock'} fill={isHost ? 'var(--color-sun)' : undefined} className="size-4.5 shrink-0" />
+    <NotebookCard tilt={-0.4} tape seed="settings" className="@container pt-4 pr-4 pb-6 sm:pr-5 sm:pb-7">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <CardTitle>{t('lobby.settings.title')}</CardTitle>
+        <span className={cn('text-pen flex items-center gap-1.5 text-[1.15rem]', !isHost && 'text-ink-soft')}>
+          <Icon name={isHost ? 'crown' : 'lock'} fill={isHost ? 'var(--color-yellow)' : undefined} className="size-4.5 shrink-0 text-ink" />
           {isHost ? t('lobby.settings.youPick') : t('lobby.settings.hostPicks', { name: hostName })}
         </span>
       </div>
@@ -133,18 +137,11 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
           <Label icon="film">{t('lobby.settings.theme')}</Label>
           {isHost ? (
             <>
-              <div role="radiogroup" aria-label={t('lobby.settings.theme')} className="mt-2.5 grid grid-cols-2 gap-2.5 @sm:grid-cols-6">
+              <div role="radiogroup" aria-label={t('lobby.settings.theme')} className="mt-3 grid grid-cols-3 gap-x-2 gap-y-2.5 @md:gap-x-3">
                 {THEMES.map((th, i) => (
-                  <ThemeTile
-                    key={th}
-                    theme={th}
-                    selected={th === theme}
-                    className={cn(i < 3 ? '@sm:col-span-2' : '@sm:col-span-3', i === THEMES.length - 1 && 'col-span-2')}
-                    onPick={() => pickTheme(th)}
-                  />
+                  <ThemeTile key={th} theme={th} index={i} selected={th === theme} onPick={() => pickTheme(th)} />
                 ))}
               </div>
-              {/* A bit more air: the tiles above have shadows and wiggle when picked. */}
               <Help id={theme} className="mt-3">
                 {t(`common.theme.${theme}.desc`)}
               </Help>
@@ -156,7 +153,7 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
       </Row>
 
       {/* Photos per player */}
-      <Row flash={photosFlash} className="mt-5">
+      <Row flash={photosFlash} className="mt-6">
         {/* The dial drops under the label on very narrow phones. */}
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
           <Label icon="images">{t('lobby.settings.photos')}</Label>
@@ -165,12 +162,11 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
               label={t('lobby.settings.photos')}
               options={PHOTOS_PER_PLAYER_OPTIONS}
               value={perPlayer}
-              layoutId="lobby-photos-pick"
-              className="w-32 shrink-0"
+              className="shrink-0"
               onPick={(n) => void change({ photosPerPlayer: n })}
             />
           ) : (
-            <Lcd key={perPlayer}>{perPlayer}</Lcd>
+            <Value key={perPlayer}>{perPlayer}</Value>
           )}
         </div>
         <Help id={`p${perPlayer}`}>
@@ -179,21 +175,21 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
       </Row>
 
       {/* Time per photo */}
-      <Row flash={timerFlash} className="mt-5">
+      <Row flash={timerFlash} className="mt-6">
         <div className="flex items-center justify-between gap-3">
           <Label icon="clock">{t('lobby.settings.timer')}</Label>
           {isHost ? (
-            <span className="label-mono text-ink-soft" aria-hidden>
+            <span className="label-type" aria-hidden>
               {t('lobby.settings.secUnit')}
             </span>
           ) : secs === 0 ? (
-            <Lcd key={0} face="custom" srLabel={t('lobby.settings.noTimer')}>
-              <span className="font-display text-[1.75rem] leading-none">∞</span>
-            </Lcd>
+            <Value key={0} srLabel={t('lobby.settings.noTimer')}>
+              {infinity}
+            </Value>
           ) : (
-            <Lcd key={secs} unit={t('lobby.settings.secUnit')}>
+            <Value key={secs} unit={t('lobby.settings.secUnit')}>
               {secs}
-            </Lcd>
+            </Value>
           )}
         </div>
         {isHost && (
@@ -201,20 +197,38 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
             label={t('lobby.settings.timer')}
             options={VOTE_SECONDS_OPTIONS}
             value={secs}
-            layoutId="lobby-timer-pick"
-            className="mt-2"
+            className="mt-1.5 w-full justify-between"
             ariaFor={secondsLabel}
-            render={(v) => (v === 0 ? <span className="font-display text-[1.75rem] leading-none">∞</span> : undefined)}
+            render={(v) => (v === 0 ? infinity : undefined)}
             onPick={(v) => void change({ voteSeconds: v })}
           />
         )}
-        <Help id={`t${secs === 0 ? 0 : 1}`}>
-          {secs === 0 ? t('lobby.settings.noTimerHelp') : t('lobby.settings.timerHelp', { n: secs })}
-        </Help>
+        <Help id={`t${secs === 0 ? 0 : 1}`}>{secs === 0 ? t('lobby.settings.noTimerHelp') : t('lobby.settings.timerHelp', { n: secs })}</Help>
+      </Row>
+
+      {/* Blurry photos + speed bonus */}
+      <Row flash={blurFlash} className="mt-6">
+        <div className="flex items-center justify-between gap-3">
+          <Label icon={blur ? 'eye-off' : 'eye'}>{t('lobby.settings.blur')}</Label>
+          {isHost ? (
+            <Switch
+              on={blur}
+              label={t('lobby.settings.blur')}
+              onLabel={t('lobby.settings.on')}
+              offLabel={t('lobby.settings.off')}
+              onToggle={() => void change({ blur: !blur })}
+            />
+          ) : (
+            <Value key={String(blur)} word dim={!blur}>
+              {blur ? t('lobby.settings.on') : t('lobby.settings.off')}
+            </Value>
+          )}
+        </div>
+        <Help id={blur ? 'blur-on' : 'blur-off'}>{blur ? t('lobby.settings.blurOnHelp') : t('lobby.settings.blurOffHelp')}</Help>
       </Row>
 
       {/* Anonymous votes */}
-      <Row flash={anonFlash} className="mt-5">
+      <Row flash={anonFlash} className="mt-6">
         <div className="flex items-center justify-between gap-3">
           <Label icon={anon ? 'mask' : 'eye'}>{t('lobby.settings.anonymous')}</Label>
           {isHost ? (
@@ -226,21 +240,21 @@ export function SettingsCard({ settings, isHost, hostName }: { settings: Setting
               onToggle={() => void change({ anonymousVotes: !anon })}
             />
           ) : (
-            <Lcd key={String(anon)} face="mono" dim={!anon}>
+            <Value key={String(anon)} word dim={!anon}>
               {anon ? t('lobby.settings.on') : t('lobby.settings.off')}
-            </Lcd>
+            </Value>
           )}
         </div>
         <Help id={anon ? 'on' : 'off'}>{anon ? t('lobby.settings.anonymousOnHelp') : t('lobby.settings.anonymousOffHelp')}</Help>
       </Row>
-    </Card>
+    </NotebookCard>
   );
 }
 
 /** A setting's name with its icon. */
 function Label({ icon, children }: { icon: IconName; children: ReactNode }) {
   return (
-    <span className="flex min-w-0 items-center gap-2 font-extrabold">
+    <span className="flex min-w-0 items-center gap-2 font-display text-[1.02rem] leading-tight">
       <Icon name={icon} className="size-5 shrink-0" />
       <span className="min-w-0">{children}</span>
     </span>
@@ -248,14 +262,13 @@ function Label({ icon, children }: { icon: IconName; children: ReactNode }) {
 }
 
 /**
- * A camera-LCD selector: ink strip, the options as unlit digits, the chosen one lit in the
- * orange date-stamp color and framed by little viewfinder brackets that slide over.
+ * A row of big bold numbers on the notebook page; the chosen one circled in red marker (the
+ * loop draws itself when the host picks another).
  */
 function Dial<T extends number>({
   label,
   options,
   value,
-  layoutId,
   className,
   ariaFor,
   render,
@@ -264,21 +277,15 @@ function Dial<T extends number>({
   label: string;
   options: readonly T[];
   value: T;
-  layoutId: string;
   className?: string;
   /** Accessible name of an option (default: the number). */
   ariaFor?: (v: T) => string;
-  /** Custom face for an option; undefined = the number in DSEG7. */
+  /** Custom face for an option; undefined = the number. */
   render?: (v: T) => ReactNode;
   onPick: (v: T) => void;
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className={cn('grid gap-0.5 rounded-2xl border-3 border-ink bg-ink p-1 shadow-pop-sm', className)}
-      style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
-    >
+    <div role="radiogroup" aria-label={label} className={cn('flex items-center gap-1', className)}>
       {options.map((v) => {
         const selected = v === value;
         return (
@@ -291,20 +298,13 @@ function Dial<T extends number>({
             onClick={() => onPick(v)}
             whileTap={{ scale: 0.88 }}
             className={cn(
-              'relative flex h-11 min-w-0 items-center justify-center rounded-xl transition-colors',
-              selected ? 'text-stamp' : 'text-cream/40 hover:bg-white/5 hover:text-cream/75',
+              'relative flex h-11 min-w-11 items-center justify-center px-1 transition-colors',
+              selected ? 'text-ink' : 'text-ink-faint hover:text-ink',
             )}
           >
-            {selected && (
-              <motion.span
-                layoutId={layoutId}
-                className="absolute inset-0 rounded-xl bg-white/8"
-                transition={{ type: 'spring', stiffness: 500, damping: 34 }}
-              >
-                <Viewfinder className="absolute inset-0" color="var(--color-cream)" gap={-3} length={8} thickness={2} radius={2} />
-              </motion.span>
-            )}
-            <span className="relative">{render?.(v) ?? <span className="font-stamp7 text-xl tracking-[0.06em]">{v}</span>}</span>
+            <MarkerCircle show={selected} pad={5} strokeWidth={3.2} seed={`dial-${v}`}>
+              <span className="block px-1 font-num text-[1.7rem]">{render?.(v) ?? v}</span>
+            </MarkerCircle>
           </motion.button>
         );
       })}
@@ -312,19 +312,19 @@ function Dial<T extends number>({
   );
 }
 
-/** Read-only value on a little camera LCD (guests), lit like the host's dials and switch. */
-function Lcd({
+/** Read-only value (guests): big and bold on a stroke of highlighter. */
+function Value({
   children,
   unit,
-  face = 'seg7',
+  word = false,
   dim = false,
   srLabel,
 }: {
   children: ReactNode;
   unit?: string;
-  /** seg7: digits; mono: a short word (ON / OFF); custom: the children style themselves. */
-  face?: 'seg7' | 'mono' | 'custom';
-  /** Unlit (an "off" value). */
+  /** A short word (ON / OFF) rather than a number. */
+  word?: boolean;
+  /** An "off" value: no highlighter. */
   dim?: boolean;
   /** Spoken instead of the face (e.g. "No timer" for ∞). */
   srLabel?: string;
@@ -332,62 +332,48 @@ function Lcd({
   return (
     <motion.span
       initial={{ scale: 1.4, rotate: -6 }}
-      animate={{ scale: 1, rotate: 0 }}
+      animate={{ scale: 1, rotate: -2 }}
       transition={{ type: 'spring', stiffness: 500, damping: 14 }}
-      className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border-2 border-ink bg-ink px-3 shadow-pop-sm"
+      className={cn('flex h-10 shrink-0 items-baseline gap-1 px-2 pt-1', !dim && 'bg-yellow/80 [clip-path:polygon(2%_10%,98%_0,100%_88%,0_100%)]')}
     >
-      <span
-        aria-hidden={srLabel ? true : undefined}
-        className={cn(
-          dim ? 'text-cream/50' : 'text-stamp',
-          face === 'seg7' && 'font-stamp7 text-xl tracking-[0.06em]',
-          face === 'mono' && 'font-mono text-sm font-bold tracking-[0.14em] uppercase',
-        )}
-      >
+      <span aria-hidden={srLabel ? true : undefined} className={cn(word ? 'font-wide text-base uppercase' : 'font-num text-[1.8rem]', dim && 'text-ink-faint')}>
         {children}
       </span>
       {srLabel && <span className="sr-only">{srLabel}</span>}
-      {unit && <span className="label-mono text-cream/60">{unit}</span>}
+      {unit && <span className="label-type">{unit}</span>}
     </motion.span>
   );
 }
 
-/** One tappable theme card in the host's picker. */
-function ThemeTile({ theme, selected, className, onPick }: { theme: Theme; selected: boolean; className?: string; onPick: () => void }) {
+/** One tappable theme in the host's picker: a little print of the theme's collage; the chosen one on yellow, ticked. */
+function ThemeTile({ theme, index, selected, onPick }: { theme: Theme; index: number; selected: boolean; onPick: () => void }) {
   const t = useT();
+  const tilt = selected ? -2 : index % 2 ? 1.2 : -1.2;
   return (
     <motion.button
       type="button"
       role="radio"
       aria-checked={selected}
       onClick={onPick}
-      whileHover={selected ? undefined : { y: -2, rotate: -1 }}
+      whileHover={selected ? undefined : { y: -2, rotate: 0 }}
       whileTap={{ scale: 0.92 }}
-      animate={selected ? { rotate: [0, -3, 2, -1] } : { rotate: 0 }}
+      animate={selected ? { rotate: [tilt, -5, 1, tilt], scale: [1, 1.06, 1] } : { rotate: tilt, scale: 1 }}
       transition={{ type: 'spring', stiffness: 500, damping: 18 }}
       className={cn(
-        'relative flex min-h-[6.25rem] min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl border-ink px-2 pt-2 pb-2.5 text-center text-ink transition-colors',
-        selected ? cn('border-3 shadow-pop-sm', themeBg(theme)) : 'border-2 border-dashed border-ink/25 bg-cream hover:border-ink/50 hover:bg-white',
-        className,
+        'relative flex min-h-[6.5rem] min-w-0 flex-col items-center justify-start gap-1 px-1 pt-2 pb-2 text-center text-ink shadow-paper-sm transition-colors',
+        selected ? 'paper-postit z-10' : 'paper-sheet hover:bg-paper',
       )}
     >
-      {selected && (
-        // Inside the tile: outside, they would run into the neighbours and the help line.
-        <Viewfinder className="pointer-events-none absolute inset-0" color="var(--color-ink)" gap={-7} length={13} thickness={3} snap />
-      )}
-      <motion.span
-        className={cn('flex', !selected && 'opacity-85 saturate-[0.6]')}
-        animate={selected ? { scale: [1, 1.18, 1] } : { scale: 1 }}
-        transition={{ duration: 0.4 }}
-      >
-        <ThemeArt theme={theme} className="size-14" />
-      </motion.span>
-      <span className="font-display text-sm leading-tight">{t(`common.theme.${theme}.name`)}</span>
+      {selected && <MarkerCheck className="absolute -top-2.5 -right-1.5 size-7" />}
+      <span className={cn('flex', !selected && 'opacity-90 saturate-[0.7]')}>
+        <ThemeArt theme={theme} className="size-13" />
+      </span>
+      <span className="font-display text-[0.8rem] leading-[1.05] [overflow-wrap:anywhere] @md:text-[0.88rem]">{t(`common.theme.${theme}.name`)}</span>
     </motion.button>
   );
 }
 
-/** Read-only current theme for everyone but the host: big, since it says what to upload. */
+/** Read-only current theme for everyone but the host: the collage + name + description. */
 function ThemeSticker({ theme }: { theme: Theme }) {
   const t = useT();
   const first = useRef(true);
@@ -400,15 +386,15 @@ function ThemeSticker({ theme }: { theme: Theme }) {
       initial={first.current ? false : { scale: 0.8, rotate: -6 }}
       animate={{ scale: 1, rotate: -1 }}
       transition={{ type: 'spring', stiffness: 520, damping: 16 }}
-      className={cn('mt-2.5 flex items-center gap-3 rounded-2xl border-3 border-ink p-3 text-ink shadow-pop-sm', themeBg(theme))}
+      className="paper-sheet mt-3 flex items-center gap-3 p-3 shadow-paper-sm"
       aria-live="polite"
     >
-      <span className="flex size-16 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-cream" aria-hidden>
-        <ThemeArt theme={theme} className="size-13" />
+      <span className="shrink-0" aria-hidden>
+        <ThemeArt theme={theme} className="size-16" />
       </span>
       <span className="min-w-0">
-        <span className="block font-display text-xl leading-tight">{t(`common.theme.${theme}.name`)}</span>
-        <span className="block text-sm leading-snug font-semibold text-ink/80">{t(`common.theme.${theme}.desc`)}</span>
+        <span className="block font-heavy text-lg leading-tight">{t(`common.theme.${theme}.name`)}</span>
+        <span className="mt-0.5 block text-sm leading-snug text-ink-soft">{t(`common.theme.${theme}.desc`)}</span>
       </span>
     </motion.div>
   );
@@ -416,11 +402,11 @@ function ThemeSticker({ theme }: { theme: Theme }) {
 
 function Row({ children, flash, className }: { children: ReactNode; flash: number; className?: string }) {
   return (
-    <div className={cn('relative rounded-2xl', className)}>
+    <div className={cn('relative', className)}>
       {flash > 0 && (
         <motion.span
           key={flash}
-          className="pointer-events-none absolute -inset-2 rounded-2xl bg-sun"
+          className="pointer-events-none absolute -inset-2 bg-yellow"
           initial={{ opacity: 0.85, scale: 0.96 }}
           animate={{ opacity: 0, scale: 1.02 }}
           transition={{ duration: 1.1, ease: 'easeOut' }}
@@ -437,7 +423,7 @@ function Help({ id, children, className }: { id: string; children: ReactNode; cl
     <AnimatePresence mode="wait" initial={false}>
       <motion.p
         key={id}
-        className={cn('mt-1.5 text-sm leading-snug text-ink-soft', className)}
+        className={cn('text-pen mt-1.5 text-[1.12rem] leading-[1.1]', className)}
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 4 }}
@@ -450,7 +436,7 @@ function Help({ id, children, className }: { id: string; children: ReactNode; cl
   );
 }
 
-/** On / off as a camera toggle: lit like the LCD dials when on, a plain cream slot when off. */
+/** On / off: an ink pill with the word in yellow type when on, a dashed pencil slot when off. */
 function Switch({
   on,
   label,
@@ -473,22 +459,17 @@ function Switch({
       onClick={onToggle}
       whileTap={{ scale: 0.92 }}
       className={cn(
-        'relative flex h-11 w-24 shrink-0 items-center rounded-full border-3 border-ink p-1 shadow-pop-sm transition-colors',
-        on ? 'justify-end bg-ink' : 'justify-start bg-cream',
+        'relative flex h-11 w-24 shrink-0 items-center rounded-full p-1 transition-colors',
+        on ? 'justify-end bg-ink shadow-paper-sm' : 'justify-start border-2 border-dashed border-ink/50 bg-sheet',
       )}
     >
-      <span
-        className={cn(
-          'absolute font-mono text-xs font-bold tracking-[0.12em] uppercase',
-          on ? 'text-stamp left-3.5' : 'right-3 text-ink-soft',
-        )}
-      >
+      <span className={cn('absolute font-type text-[0.8rem] tracking-[0.1em] uppercase', on ? 'left-3.5 text-yellow' : 'right-3 text-ink-soft')}>
         {on ? onLabel : offLabel}
       </span>
       <motion.span
         layout
         transition={{ type: 'spring', stiffness: 600, damping: 30 }}
-        className={cn('relative size-8 rounded-full border-2', on ? 'border-cream/80 bg-cream' : 'border-ink bg-white shadow-pop-sm')}
+        className={cn('relative size-8 rounded-full', on ? 'bg-yellow' : 'bg-ink/80')}
       />
     </motion.button>
   );

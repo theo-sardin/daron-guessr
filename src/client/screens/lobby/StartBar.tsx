@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { MIN_PHOTO_OWNERS, type PublicPlayer, type RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
 import { BottomBar } from '../../components/Layout';
+import { MarkerCheck } from '../../components/Marker';
 import { ConfirmDialog } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
@@ -102,7 +102,7 @@ function HostStart({ view }: { view: RoomView }) {
     <>
       {/* Keeps clear of the floating reaction button (bottom-right) on narrow screens. */}
       <div className="flex w-full justify-center pr-[72px] md:pr-0">
-        <div className="flex max-w-full items-center gap-2 rounded-2xl border-2 border-white/15 bg-grape-950/75 py-1 pr-3 pl-1.5 backdrop-blur">
+        <div className="paper-sheet flex max-w-full -rotate-1 items-center gap-2 py-1.5 pr-3 pl-2 shadow-paper-sm">
           {/* One little frame per player needed: exposed (mint, checked) once someone brought a photo. */}
           <span className="flex gap-1" aria-hidden>
             {Array.from({ length: MIN_PHOTO_OWNERS }, (_, i) => {
@@ -111,14 +111,14 @@ function HostStart({ view }: { view: RoomView }) {
                 <motion.span
                   key={`${i}${filled}`}
                   className={cn(
-                    'flex size-6 shrink-0 items-center justify-center rounded-md border-2',
-                    filled ? 'border-ink bg-mint text-ink' : 'border-dashed border-white/30 bg-white/5',
+                    'relative flex size-6 shrink-0 items-center justify-center',
+                    filled ? 'bg-mint shadow-paper-sm' : 'border-2 border-dashed border-ink/40',
                   )}
                   initial={filled ? { scale: 1.5, rotate: -12 } : false}
                   animate={{ scale: 1, rotate: filled ? (i % 2 ? 4 : -4) : 0 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 12 }}
                 >
-                  {filled && <Icon name="check" weight="bold" className="size-3.5" />}
+                  {filled && <MarkerCheck className="absolute -top-1 -right-1 size-6" />}
                 </motion.span>
               );
             })}
@@ -126,7 +126,7 @@ function HostStart({ view }: { view: RoomView }) {
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={helper}
-              className={cn('min-w-0 text-xs leading-tight font-extrabold sm:text-sm', canStart ? 'text-mint' : 'text-grape-200')}
+              className={cn('min-w-0 font-display text-xs leading-tight sm:text-sm', canStart ? 'text-ink' : 'text-ink-soft')}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -151,8 +151,8 @@ function HostStart({ view }: { view: RoomView }) {
           loading={starting}
           disabled={!canStart}
           onClick={onStartClick}
-          icon={starting ? undefined : <Icon name="flash" fill="var(--color-sun)" weight="bold" className="size-7" />}
-          className={cn(canStart && !starting && 'shadow-[0_8px_0_0_var(--color-ink),0_0_30px_6px_rgb(255_79_163/0.45)]')}
+          arrow
+          tape={canStart}
         >
           {t('lobby.start.button')}
         </Button>
@@ -183,9 +183,9 @@ function WaitingPill({ host }: { host: PublicPlayer | null }) {
   const { t } = useI18n();
   return (
     <div className="flex w-full justify-center">
-      <div className="flex h-14 max-w-full animate-pulse-soft items-center gap-2.5 rounded-full border-3 border-ink bg-cream py-1 pr-5 pl-1.5 text-ink shadow-pop">
-        {host && <Avatar player={host} size="sm" crown={false} />}
-        <span className="min-w-0 truncate font-display text-base sm:text-lg">
+      <div className="paper-sheet flex min-h-14 max-w-full -rotate-1 items-center gap-2.5 py-1.5 pr-4 pl-2 text-ink shadow-paper">
+        {host && <Avatar player={host} size="sm" crown={false} selfie />}
+        <span className="text-pen line-clamp-2 min-w-0 text-[1.25rem] leading-[0.95]">
           {t('lobby.start.waiting', { name: host?.name ?? t('common.host') })}
         </span>
         <span className="flex shrink-0 gap-0.5" aria-hidden>

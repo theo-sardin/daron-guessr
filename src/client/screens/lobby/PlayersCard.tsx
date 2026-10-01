@@ -2,11 +2,14 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { MAX_PLAYERS, type PublicPlayer, type RoomView } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
-import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
+import { DymoLabel } from '../../components/DymoLabel';
 import { Icon, type IconName } from '../../components/Icon';
 import { IconBadge } from '../../components/IconBadge';
+import { MarkerCheck } from '../../components/Marker';
 import { ConfirmDialog } from '../../components/Modal';
-import { pad, Stamp } from '../../components/Stamp';
+import { Paper, PostIt } from '../../components/Paper';
+import { RubberStamp } from '../../components/RubberStamp';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
 import { errorText } from '../../lib/errors';
@@ -16,6 +19,7 @@ import { cn, hashString } from '../../lib/util';
 import { CardTitle } from './CardTitle';
 import { useCopyInvite } from './InviteCard';
 import { ProfileModal } from './ProfileModal';
+import { useSelfie } from './selfie';
 
 /** How long a newcomer keeps its waving-hand badge. */
 const FRESH_MS = 2600;
@@ -125,36 +129,35 @@ export function PlayersCard({ view }: { view: RoomView }) {
   };
 
   return (
-    <Card tone="cream" className="@container p-4 sm:p-5">
-      {/* Narrow card: title + capacity on the first row, the ready count under the title. */}
-      <div className="mb-5 flex flex-wrap items-center gap-x-2.5 gap-y-2">
-        <CardTitle icon="users" tone="mint" className="mr-auto">
-          {t('lobby.players.title')}
-        </CardTitle>
-        <span
-          className={cn(
-            'order-last flex h-7 items-center gap-1 rounded-full border-2 px-2 text-xs font-extrabold @sm:order-none',
-            readyCount ? 'border-ink bg-mint' : 'border-ink/30 text-ink-soft',
-          )}
-        >
-          <Icon name="check" weight="bold" className="size-3.5" />
-          {t('lobby.players.readyCount', { n: readyCount })}
-        </span>
+    <Paper surface="grain" torn="b" tilt={0.5} tape="pink" seed="players" className="@container p-4 pb-6 sm:p-5 sm:pb-7">
+      {/* Title, then "5/12" big and bold; the ready count scribbled under the title. */}
+      <div className="mb-5 flex items-start gap-2.5">
+        <div className="mr-auto min-w-0">
+          <CardTitle>{t('lobby.players.title')}</CardTitle>
+          <p className={cn('text-pen mt-1 -rotate-1 text-[1.15rem] leading-none', !readyCount && 'text-ink-faint')}>
+            {t('lobby.players.readyCount', { n: readyCount })}
+          </p>
+        </div>
         <motion.span
           key={count}
           initial={{ scale: 1.6, rotate: -8 }}
-          animate={{ scale: 1, rotate: 0 }}
+          animate={{ scale: 1, rotate: -2 }}
           transition={{ type: 'spring', stiffness: 500, damping: 14 }}
-          className="flex items-center gap-1.5"
+          className="flex shrink-0 flex-col items-end gap-1"
         >
-          {full && <span className="label-mono rounded-[5px] bg-ink px-1.5 py-1 text-cream">{t('lobby.players.full')}</span>}
-          <Stamp glow={false} size="md" ariaLabel={t('lobby.players.capacity', { count, max: MAX_PLAYERS })}>
-            {t('lobby.players.capacity', { count: pad(count), max: MAX_PLAYERS })}
-          </Stamp>
+          <span className="flex items-baseline font-num" role="img" aria-label={t('lobby.players.capacity', { count, max: MAX_PLAYERS })}>
+            <span className="text-[2.1rem]">{count}</span>
+            <span className="text-[1.25rem] text-ink-soft">/{MAX_PLAYERS}</span>
+          </span>
+          {full && (
+            <RubberStamp size="xs" tilt={-6}>
+              {t('lobby.players.full')}
+            </RubberStamp>
+          )}
         </motion.span>
       </div>
 
-      <ul className="grid grid-cols-3 gap-x-2 gap-y-3 sm:gap-x-3">
+      <ul className="grid grid-cols-3 gap-x-2 gap-y-6 sm:gap-x-3">
         <AnimatePresence initial={true}>
           {view.players.map((p, i) => (
             <PlayerTile
@@ -183,19 +186,19 @@ export function PlayersCard({ view }: { view: RoomView }) {
                 onClick={copyInvite}
                 whileTap={{ scale: 0.94 }}
                 aria-label={t('lobby.players.inviteSeat')}
-                className="group flex h-full min-h-28 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-3 border-dashed border-ink/30 px-1.5 py-2 text-center text-ink-soft transition-colors hover:border-ink/60 hover:bg-ink/5"
+                className="group flex h-full min-h-28 w-full flex-col items-center justify-start gap-1.5 px-1 pt-1.5 pb-1 text-center text-ink-soft"
               >
-                <span className="flex size-12 shrink-0 animate-pulse-soft items-center justify-center rounded-full border-3 border-dashed border-ink/35 transition-transform group-hover:scale-110">
-                  <Icon name="plus" weight="bold" className="size-5" />
+                <span className="flex size-16 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-ink/40 transition-all group-hover:scale-105 group-hover:border-ink group-hover:text-ink">
+                  <Icon name="plus" weight="bold" className="size-6" />
                 </span>
-                <span className="text-xs leading-tight font-extrabold">
-                  {tpick('lobby.players.waitingSeat', hashString(view.code) + count)}
-                </span>
+                <span className="text-pen text-[1.1rem] leading-[0.95]">{tpick('lobby.players.waitingSeat', hashString(view.code) + count)}</span>
               </motion.button>
             </motion.li>
           )}
         </AnimatePresence>
       </ul>
+
+      {me && <SelfieNudge me={me} code={view.code} />}
 
       <ConfirmDialog
         open={kickTarget !== null}
@@ -207,7 +210,77 @@ export function PlayersCard({ view }: { view: RoomView }) {
         onConfirm={() => void confirmKick()}
       />
       {me && <ProfileModal open={editOpen} me={me} onClose={() => setEditOpen(false)} />}
-    </Card>
+    </Paper>
+  );
+}
+
+/** Session key remembering that this player dismissed the selfie nudge in this room. */
+const nudgeKey = (code: string) => `dg:selfieNudge:${code}`;
+
+/**
+ * "Add your face so people can compare!": a post-it for players without a selfie. The button
+ * opens the front camera right away; "Later" hides it for this room (this tab).
+ */
+function SelfieNudge({ me, code }: { me: PublicPlayer; code: string }) {
+  const t = useI18n().t;
+  const selfie = useSelfie();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(nudgeKey(code)) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const show = !me.selfieUrl && !dismissed;
+  const later = () => {
+    setDismissed(true);
+    try {
+      sessionStorage.setItem(nudgeKey(code), '1');
+    } catch {
+      // Private mode: it just comes back next time.
+    }
+  };
+  return (
+    <>
+      <AnimatePresence initial={false}>
+        {show && (
+          <motion.div
+            key="nudge"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="-mx-1 overflow-hidden px-1 pt-2 pb-1"
+          >
+            <PostIt tilt={-1.2} tape seed="selfie-nudge" className="mt-3 flex items-start gap-3 px-3 pt-3 pb-3.5">
+              <span className="relative mt-0.5 shrink-0" aria-hidden>
+                <Avatar player={me} size="md" crown={false} dimOffline={false} tilt={-6} />
+                <span className="absolute -right-1.5 -bottom-1 flex size-6 items-center justify-center rounded-full bg-ink text-yellow">
+                  <Icon name="camera" weight="bold" className="size-3.5" />
+                </span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-heavy text-[1.05rem] leading-tight">{t('lobby.players.selfieNudge')}</p>
+                <p className="mt-1 text-sm leading-snug">{t('lobby.players.selfieNudgeBody')}</p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    loading={selfie.busy === 'upload'}
+                    icon={<Icon name="camera" className="size-4.5" />}
+                    onClick={selfie.take}
+                  >
+                    {t('lobby.players.selfieNudgeButton')}
+                  </Button>
+                  <button type="button" onClick={later} className="text-pen h-11 px-1 text-[1.15rem] underline decoration-2 underline-offset-4">
+                    {t('lobby.players.selfieNudgeLater')}
+                  </button>
+                </div>
+              </div>
+            </PostIt>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -235,13 +308,14 @@ function PlayerTile({
   const tilt = tiltOf(player.id);
   const status: IconName = offline ? 'ghost' : player.ready ? 'check' : 'clock';
 
+  const statusLabel = offline ? t('lobby.players.offline') : player.ready ? t('lobby.players.ready') : t('lobby.players.notReady');
   const body = (
     <>
       <span className="relative shrink-0">
-        {/* The host's crown comes with the Avatar (an icon on the rim). */}
-        <Avatar player={player} size="md" />
+        {/* The host's crown comes with the Avatar (an icon on the rim); selfies show the face. */}
+        <Avatar player={player} size="lg" selfie tilt={tilt * 2} />
       </span>
-      <span className={cn('block w-full truncate text-sm leading-tight font-extrabold', offline && 'opacity-60')}>
+      <span className={cn('block w-full truncate px-0.5 font-display text-[0.95rem] leading-tight', offline && 'opacity-60')}>
         {player.name}
         {isMe && <span className="sr-only"> {t('common.youTag')}</span>}
         {player.isHost && <span className="sr-only"> ({t('common.host')})</span>}
@@ -254,27 +328,22 @@ function PlayerTile({
           exit={{ scale: 0.5, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 500, damping: 18 }}
           className={cn(
-            'inline-flex h-5.5 max-w-full items-center gap-1 rounded-full border-2 pr-1.5 pl-1 text-[11px] leading-none font-extrabold whitespace-nowrap sm:pr-2',
-            offline
-              ? 'border-ink/25 bg-ink/10 text-ink-soft'
-              : player.ready
-                ? 'border-ink bg-mint text-ink'
-                : 'border-ink/30 bg-cream text-ink-soft',
+            'inline-flex max-w-full items-center gap-1 font-type text-[0.72rem] leading-none whitespace-nowrap',
+            offline ? 'text-ink-faint' : player.ready ? 'text-ink' : 'text-ink-faint',
           )}
         >
-          <Icon name={status} weight={player.ready && !offline ? 'bold' : 'regular'} className="size-3 shrink-0" />
-          <span className="truncate">
-            {offline ? t('lobby.players.offline') : player.ready ? t('lobby.players.ready') : t('lobby.players.notReady')}
-          </span>
+          {player.ready && !offline ? (
+            <MarkerCheck className="-mt-1 shrink-0" style={{ width: 17, height: 17 }} strokeWidth={4} animate={bumped} />
+          ) : (
+            <Icon name={status} className="size-3 shrink-0" />
+          )}
+          <span className="truncate">{statusLabel}</span>
         </motion.span>
       </AnimatePresence>
     </>
   );
 
-  const tileClass = cn(
-    'relative flex h-full w-full min-w-0 flex-col items-center gap-1 rounded-2xl border-3 border-ink px-1 pt-3.5 pb-2 text-center text-ink',
-    isMe ? 'shadow-pop' : 'bg-white shadow-pop-sm',
-  );
+  const tileClass = 'relative flex h-full w-full min-w-0 flex-col items-center gap-1 px-0.5 pt-2 pb-1.5 text-center text-ink';
 
   return (
     <motion.li
@@ -296,18 +365,16 @@ function PlayerTile({
           whileHover={{ y: -2 }}
           aria-label={`${player.name} ${t('common.youTag')}. ${t('lobby.players.edit')}`}
           title={t('lobby.players.edit')}
-          className={cn(tileClass, 'group')}
-          style={{ backgroundColor: `color-mix(in srgb, ${player.color} 28%, white)` }}
+          className={cn(tileClass, 'group isolate')}
         >
+          {/* My tile: highlighted in yellow like a name in the class photo, "YOU" punched on a Dymo. */}
+          <span className="absolute inset-0 -z-10 bg-yellow/70 [clip-path:polygon(3%_6%,97%_0,100%_94%,0_100%)]" aria-hidden />
           {body}
-          <span
-            className="absolute -top-2.5 -left-2 -rotate-12 rounded-full border-2 border-ink bg-ink px-1.5 py-px font-display text-[11px] tracking-wider text-sun uppercase shadow-pop-sm"
-            aria-hidden
-          >
-            {t('common.you')}
+          <span className="absolute -bottom-3 left-1/2 z-10 -translate-x-1/2" aria-hidden>
+            <DymoLabel text={t('common.you')} size="xs" tilt={-8} spacing={0.12} />
           </span>
           <span
-            className="absolute -top-2.5 -right-2 flex size-8 items-center justify-center rounded-full border-2 border-ink bg-white text-ink shadow-pop-sm transition-colors group-hover:bg-sun"
+            className="absolute -top-2 -right-1 z-10 flex size-8 items-center justify-center rounded-full border-2 border-blue bg-sheet text-blue shadow-paper-sm transition-colors group-hover:bg-yellow"
             aria-hidden
           >
             <Icon name="edit" className="size-4" />
@@ -329,10 +396,10 @@ function PlayerTile({
           aria-label={t('lobby.players.kick', { name: player.name })}
           title={t('lobby.players.kick', { name: player.name })}
           // 44px hit area around a 30px visual badge on the tile's corner.
-          className="group absolute -top-3.5 -right-3 flex size-11 items-center justify-center"
+          className="group absolute -top-3.5 -right-2 z-10 flex size-11 items-center justify-center"
         >
           {/* Ink, not red: a dozen red dots would shout over the players. It turns red on hover. */}
-          <span className="flex size-7 items-center justify-center rounded-full border-2 border-ink bg-ink text-cream shadow-[0_2px_0_0_rgb(27_16_54/0.35)] transition-colors group-hover:bg-danger group-hover:text-ink">
+          <span className="flex size-7 items-center justify-center rounded-full bg-ink text-sheet shadow-paper-sm transition-colors group-hover:bg-red">
             <Icon name="x" weight="bold" className="size-3.5" />
           </span>
         </motion.button>

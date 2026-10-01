@@ -1,12 +1,15 @@
 import { motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PhotoResult, ResultsView, RoomView } from '../../../shared/protocol';
-import { Avatar } from '../../components/Avatar';
+import { Avatar, paperColor } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { flashScreen } from '../../components/Flash';
-import { Icon, type IconName } from '../../components/Icon';
-import { IconBadge } from '../../components/IconBadge';
-import { BottomBar, ScreenShell, ScreenTitle } from '../../components/Layout';
+import { CutoutText } from '../../components/CutoutText';
+import { Icon } from '../../components/Icon';
+import { BottomBar, ScreenShell } from '../../components/Layout';
+import { Annotation, MarkerUnderline } from '../../components/Marker';
+import { RoundButton } from '../../components/RoundButton';
+import { TornPaper } from '../../components/TornPaper';
 import { Lightbox } from '../../components/Lightbox';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
@@ -25,21 +28,23 @@ import { RankingList } from './RankingList';
 
 const EMPTY: ResultsView = { photos: [], ranking: [], awards: [] };
 
-function Section({ icon, title, sub, children }: { icon: IconName; title: string; sub?: string; children: ReactNode }) {
+/** A page of the zine: a bold title underlined in marker, a pen note under it. */
+function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
-    <section className="mt-12">
+    <section className="mt-14">
       <motion.header
-        className="mb-4"
+        className="mb-5"
         initial={{ opacity: 0, y: 16, rotate: -2 }}
-        whileInView={{ opacity: 1, y: 0, rotate: 0 }}
+        whileInView={{ opacity: 1, y: 0, rotate: -1 }}
         viewport={{ once: true, amount: 0.8 }}
         transition={{ type: 'spring', stiffness: 400, damping: 22 }}
       >
-        <h2 className="text-outline-sm flex items-center gap-3 font-display text-3xl leading-tight text-cream">
-          <IconBadge name={icon} tone="cream" size="md" tilt={-6} />
-          {title}
+        <h2 className="font-display text-[1.9rem] leading-tight text-ink sm:text-4xl">
+          <MarkerUnderline tone="red" strokeWidth={3.4}>
+            {title}
+          </MarkerUnderline>
         </h2>
-        {sub && <p className="mt-1 font-semibold text-grape-200">{sub}</p>}
+        {sub && <p className="text-pen mt-2 text-[21px]">{sub}</p>}
       </motion.header>
       {children}
     </section>
@@ -69,7 +74,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
 
   // Colors are read when the confetti fires, so player updates never restart the timeline.
   const colorsRef = useRef<string[]>([]);
-  colorsRef.current = [...winnerPlayers.map((p) => p.color), '#ffd23f', '#ffffff'];
+  colorsRef.current = [...winnerPlayers.map((p) => paperColor(p.color)), '#ffdf3d', '#e3321f', '#2344c8', '#fffdf6'];
   const nobodyRef = useRef(false);
   nobodyRef.current = topScore === 0;
 
@@ -184,27 +189,22 @@ export function ResultsScreen({ view }: { view: RoomView }) {
   return (
     <>
       <ScreenShell width="lg">
-        <ScreenTitle className="mb-0">{t('results.title')}</ScreenTitle>
-        <div className="flex min-h-12 items-start justify-center px-2">
-          <motion.p
-            className="mt-2 max-w-md -rotate-2 rounded-2xl border-3 border-ink bg-pink px-4 py-1.5 text-center font-display text-lg leading-snug text-white shadow-pop-sm sm:text-xl"
-            initial={{ opacity: 0, scale: 0.3, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 14, delay: timeline.crownAt + 0.2 }}
-          >
+        <CutoutText as="h1" text={t('results.title')} size="md" seed="winner" animate className="block text-center" />
+        <div className="flex min-h-14 items-start justify-center px-2">
+          <Annotation as="p" font="pen" size={25} rotate={-2} delay={timeline.crownAt + 0.2} className="mt-2 max-w-md text-center leading-[1.05]">
             {winnerLine}
-          </motion.p>
+          </Annotation>
         </div>
 
         <div className="mt-2">
           <Podium groups={groups} players={players} meId={meId} timeline={timeline} />
         </div>
 
-        <Section icon="medal" title={t('results.ranking.title')}>
+        <Section title={t('results.ranking.title')}>
           <RankingList ranking={ranking} players={players} meId={meId} ready={podiumDone} />
         </Section>
 
-        <Section icon="trophy" title={t('results.awards.title')} sub={t('results.awards.subtitle')}>
+        <Section title={t('results.awards.title')} sub={t('results.awards.subtitle')}>
           <Awards
             awards={res.awards}
             players={players}
@@ -218,7 +218,7 @@ export function ResultsScreen({ view }: { view: RoomView }) {
         </Section>
 
         {meEntry && me && (
-          <Section icon="user" title={t('results.mine.title')}>
+          <Section title={t('results.mine.title')}>
             <MyGame
               me={meEntry}
               player={me}
@@ -236,56 +236,33 @@ export function ResultsScreen({ view }: { view: RoomView }) {
         )}
 
         {photos.length > 0 && (
-          <Section icon="images" title={t(`results.wall.title.${flavor}`)} sub={t('results.wall.subtitle')}>
+          <Section title={t(`results.wall.title.${flavor}`)} sub={t('results.wall.subtitle')}>
             <PhotoWall photos={photos} players={players} meId={meId} onOpen={setZoom} />
           </Section>
         )}
       </ScreenShell>
 
-      <BottomBar>
+      <BottomBar className="gap-2.5">
         {isHost ? (
-          <Button
-            size="lg"
-            className="min-w-0 flex-1"
-            onClick={playAgain}
-            loading={busy === 'again'}
-            disabled={busy !== null}
-            icon={<Icon name="refresh" weight="bold" className="size-6" />}
-          >
+          <Button size="md" className="min-w-0 flex-1 px-3!" onClick={playAgain} loading={busy === 'again'} disabled={busy !== null} arrow={false}>
             {t('results.bar.playAgain')}
           </Button>
         ) : (
-          <div className="flex h-14 min-w-0 flex-1 items-center gap-2 rounded-2xl border-3 border-white/20 bg-grape-800/80 px-3 backdrop-blur">
-            {host && <Avatar player={host} size="xs" crown={false} />}
-            <span className="animate-pulse-soft line-clamp-2 text-sm leading-tight font-bold break-words text-grape-200">
+          <TornPaper surface="kraft" edges="tb" amp={2.5} seed="waiting" lift="sm" wrapperClassName="min-w-0 flex-1" className="flex h-14 items-center gap-2 px-3">
+            {host && <Avatar player={host} size="sm" crown={false} selfie />}
+            <span className="animate-pulse-soft text-pen line-clamp-2 min-w-0 text-[19px] leading-[1.05] break-words">
               {t('results.bar.waiting', { host: host?.name ?? t('common.host') })}
             </span>
-          </div>
+          </TornPaper>
         )}
         {meEntry && (
-          <Button
-            variant="sky"
-            size="lg"
-            className="w-14 shrink-0 px-0!"
-            onClick={share}
-            loading={sharing}
-            aria-label={t('results.bar.share')}
-            title={t('results.bar.share')}
-            icon={<Icon name="share" weight="bold" className="size-6" />}
-          />
+          <RoundButton label={t('results.bar.share')} tone="blue" size={46} onClick={share} disabled={sharing} className="shrink-0">
+            <Icon name="share" weight="bold" className="size-5" />
+          </RoundButton>
         )}
-        <Button
-          variant="ghost"
-          size="lg"
-          className="shrink-0 px-4!"
-          onClick={leave}
-          loading={busy === 'leave'}
-          disabled={busy !== null}
-          icon={<Icon name="leave" weight="bold" className="size-5" />}
-        >
-          {/* Icon only on very narrow phones: the name stays for screen readers. */}
-          <span className="max-[359px]:sr-only">{t('common.leave')}</span>
-        </Button>
+        <RoundButton label={t('common.leave')} tone="red" size={46} onClick={leave} disabled={busy !== null} className="shrink-0">
+          <Icon name="leave" weight="bold" className="size-5" />
+        </RoundButton>
       </BottomBar>
 
       <Lightbox src={zoom?.photo.url ?? null} caption={zoomCaption} onClose={() => setZoom(null)} />

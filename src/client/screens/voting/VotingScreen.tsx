@@ -1,11 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { RoomView, VotingView } from '../../../shared/protocol';
+import { BLUR_BONUS_BY_STEP, type RoomView, type VotingView } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
 import { flashScreen } from '../../components/Flash';
-import { Icon, type IconName } from '../../components/Icon';
-import { IconBadge, type IconBadgeTone } from '../../components/IconBadge';
+import { Icon } from '../../components/Icon';
 import { BottomBar, ScreenShell } from '../../components/Layout';
 import { Lightbox } from '../../components/Lightbox';
 import { Spinner } from '../../components/Spinner';
@@ -21,9 +20,11 @@ import { CandidateGrid } from './CandidateGrid';
 import { IntroOverlay, type IntroStage } from './IntroOverlay';
 import { MineBanner } from './MineBanner';
 import { PhotoStage } from './PhotoStage';
+import { Question } from './Question';
 import { RoundTransition } from './RoundTransition';
 import { useVote } from './useVote';
 import { VoteHeader } from './VoteHeader';
+import { VotersStrip } from './VotersStrip';
 
 /** How long "GO!" stays on screen after the first round opens. */
 const GO_MS = 750;
@@ -34,38 +35,14 @@ export function VotingScreen({ view }: { view: RoomView }) {
   if (!view.voting) {
     return (
       <ScreenShell className="flex justify-center">
-        <Spinner className="size-10 text-sun" />
+        <Spinner className="size-10 text-red" />
       </ScreenShell>
     );
   }
   return <Voting view={view} v={view.voting} />;
 }
 
-type StatusKey = keyof typeof STATUS_KEYS;
-const STATUS_KEYS = {
-  waiting: 'voting.status.waiting',
-  pick: 'voting.status.pick',
-  hurry: 'voting.status.hurry',
-  changeTimer: 'voting.status.changeTimer',
-  changeNoTimer: 'voting.status.changeNoTimer',
-  minePick: 'voting.status.minePick',
-  bluff: 'voting.status.bluff',
-  locked: 'voting.status.locked',
-  missed: 'voting.status.missed',
-} as const satisfies Record<string, TKey>;
-
-/** Icon sticker next to each status line (one accent each, matching the moment). */
-const STATUS_ICON: Record<StatusKey, { name: IconName; tone: IconBadgeTone }> = {
-  waiting: { name: 'clock', tone: 'cream' },
-  pick: { name: 'hand', tone: 'sun' },
-  hurry: { name: 'clock', tone: 'danger' },
-  changeTimer: { name: 'check', tone: 'mint' },
-  changeNoTimer: { name: 'check', tone: 'mint' },
-  minePick: { name: 'mask', tone: 'tangerine' },
-  bluff: { name: 'mask', tone: 'lilac' },
-  locked: { name: 'lock', tone: 'ink' },
-  missed: { name: 'ghost', tone: 'cream' },
-};
+type Note = { key: TKey; tone: 'pen' | 'marker' };
 
 function Voting({ view, v }: { view: RoomView; v: VotingView }) {
   const t = useT();
@@ -87,6 +64,10 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
   const { selected, choose } = useVote(v);
   const urgent = canVote && secondsLeft !== null && secondsLeft <= URGENT_S && !selected;
 
+  // Blur bonus kept: the step at which this browser last changed its vote (the server scores the same way).
+  const [voteStep, setVoteStep] = useState<{ round: number; step: number } | null>(null);
+  const keptBonus = v.blur && selected && voteStep?.round === v.round ? (BLUR_BONUS_BY_STEP[voteStep.step] ?? 0) : null;
+
   // Sound cues, each played once when it first shows up (a late mount stays silent).
   const cue =
     introStage === null ? (inTransition ? `t${v.round}` : timeUp ? `lock${v.round}` : null) : introStage === 'ready' ? null : `i${introStage}`;
@@ -106,22 +87,30 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     else if (cue.startsWith('lock')) sfx.play('tock');
   }, [cue]);
 
+  // A sharper step: a soft shutter click.
+  const blurStep = v.blur?.step ?? null;
+  const lastStep = useRef(blurStep);
+  useEffect(() => {
+    if (blurStep !== null && lastStep.current !== null && blurStep > lastStep.current) sfx.play('tick');
+    lastStep.current = blurStep;
+  }, [blurStep]);
+
   const onPick = useCallback(
     (id: string, el: HTMLElement) => {
       if (!canVote) return;
       if (!choose(id)) return;
+      if (v.blur) setVoteStep({ round: v.round, step: v.blur.step });
       sfx.play('vote');
       vibrate(15);
       const rect = el.getBoundingClientRect();
-      const color = players.get(id)?.color;
       burst({
-        particleCount: 28,
+        particleCount: 24,
         x: (rect.left + rect.width / 2) / window.innerWidth,
         y: (rect.top + rect.height / 2) / window.innerHeight,
-        colors: v.isMine ? ['#b388ff', '#ff8c42', '#fff8ec'] : [color ?? '#ffd23f', '#ffd23f', '#fff8ec'],
+        colors: v.isMine ? ['#f6a6c1', '#e3321f', '#fffdf6'] : ['#ffdf3d', '#e3321f', '#2344c8'],
       });
     },
-    [canVote, choose, players, v.isMine],
+    [canVote, choose, v.blur, v.round, v.isMine],
   );
 
   // Lightbox follows the photo: a new round closes it by itself.
@@ -144,103 +133,84 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     }
   };
 
-  const status: StatusKey = !started
-    ? 'waiting'
+  const note: Note = !started
+    ? { key: 'voting.status.waiting', tone: 'pen' }
     : timeUp
-      ? selected
-        ? 'locked'
-        : 'missed'
+      ? { key: selected ? 'voting.status.locked' : 'voting.status.missed', tone: 'pen' }
       : v.isMine
-        ? selected
-          ? 'bluff'
-          : 'minePick'
+        ? { key: selected ? 'voting.changeHint.bluff' : 'voting.status.minePick', tone: 'pen' }
         : selected
-          ? view.settings.voteSeconds > 0
-            ? 'changeTimer'
-            : 'changeNoTimer'
+          ? { key: view.settings.voteSeconds > 0 ? 'voting.changeHint.timer' : 'voting.changeHint.noTimer', tone: 'pen' }
           : urgent
-            ? 'hurry'
-            : 'pick';
+            ? { key: 'voting.status.hurry', tone: 'marker' }
+            : { key: 'voting.status.pick', tone: 'pen' };
 
-  // Keep French "?" / "!" glued to the previous word (no orphan punctuation on a new line).
-  const question = t(`common.whose.${v.photo.kind}`).replace(/ ([?!:;])/g, '\u00a0$1');
+  const question = t(`common.whose.${v.photo.kind}`);
+  const zoomable = !v.blur || v.blur.step >= v.blur.steps - 1;
 
   return (
     <div className="w-full overflow-x-clip">
-      <ScreenShell width="xl" className="pb-44!" style={{ paddingTop: 'calc(max(0.5rem, env(safe-area-inset-top)) + 4.25rem)' }}>
-        <VoteHeader v={v} players={view.players} meId={view.meId} started={started} />
+      <ScreenShell width="xl" className="pb-36! lg:pb-32!">
+        <VoteHeader v={v} />
 
         {/* Phone: question, photo, banner, candidates stacked. Desktop: photo | the rest. */}
-        <div className="mt-3 flex flex-col lg:mt-6 lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-x-12">
-          <PhotoStage
-            photo={v.photo}
-            round={v.round}
-            visible={photoVisible}
-            locked={timeUp}
-            compact={v.isMine}
-            onZoom={() => setZoomedId(v.photo.id)}
-            className="order-2 mt-1 lg:col-start-1 lg:row-start-1 lg:mt-0 lg:min-w-[min(46.4dvh,432px)]"
-          />
-
-          <div className="contents lg:col-start-2 lg:row-start-1 lg:flex lg:flex-col">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.h2
-                key={`${v.photo.id}-q`}
-                // Phone: shrink long questions ("C'est le ou la pote de qui ?") so they stay on one line.
-                style={{ '--q-em': question.length * 0.45 } as CSSProperties}
-                className="text-outline order-1 px-1 text-center font-display text-[length:clamp(1.25rem,min(8.4vw,calc((100vw_-_2.75rem)/var(--q-em))),2rem)] leading-[1.05] text-balance text-cream sm:text-4xl lg:text-5xl"
-                initial={{ scale: 0.7, opacity: 0, rotate: -3 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 18 }}
-              >
-                {question}
-              </motion.h2>
-            </AnimatePresence>
-
+        <div className="mt-2 flex flex-col lg:mt-4 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-center lg:gap-x-10">
+          <div className="order-2 lg:col-start-1 lg:row-span-3 lg:row-start-1">
+            <PhotoStage
+              photo={v.photo}
+              round={v.round}
+              visible={photoVisible}
+              locked={timeUp}
+              compact={v.isMine}
+              blur={v.blur}
+              keptBonus={keptBonus}
+              showBonus={!v.isMine}
+              onZoom={() => zoomable && setZoomedId(v.photo.id)}
+            />
             <AnimatePresence initial={false}>
               {v.isMine && photoVisible && (
                 <motion.div
                   key={`mine-${v.photo.id}`}
-                  className="relative z-10 order-3 -mt-9 px-1 lg:mt-6 lg:px-0"
+                  className={cn('relative z-10 ml-auto w-[min(100%,21rem)] pr-1 lg:mr-6', v.blur ? 'mt-1' : '-mt-6 lg:-mt-10')}
                   exit={{ opacity: 0, scale: 0.9 }}
                 >
                   <MineBanner kind={v.photo.kind} />
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
 
-            <div className={cn('relative order-4 lg:mt-7', v.isMine ? 'mt-4' : 'mt-5', timeUp && 'pointer-events-none')}>
-              <CandidateGrid
-                candidates={v.candidates}
-                players={players}
-                selected={selected}
-                enabled={canVote}
-                decoy={v.isMine}
-                onPick={onPick}
-              />
-            </div>
+          <AnimatePresence mode="wait" initial={false}>
+            <Question key={v.photo.id} kind={v.photo.kind} photoId={v.photo.id} className="order-1 mt-2 lg:col-start-2 lg:row-start-1 lg:mt-0" />
+          </AnimatePresence>
+
+          <div className={cn('relative order-4 lg:col-start-2 lg:row-start-2 lg:mt-6', v.isMine ? 'mt-4' : 'mt-3', timeUp && 'pointer-events-none')}>
+            <CandidateGrid candidates={v.candidates} players={players} selected={selected} enabled={canVote} decoy={v.isMine} onPick={onPick} />
+          </div>
+
+          <div className="order-5 mt-4 min-h-7 px-1 lg:col-start-2 lg:row-start-3 lg:mt-5">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={note.key}
+                className={cn(
+                  'leading-[1.05]',
+                  note.tone === 'marker' ? 'text-marker text-[1.45rem]' : 'text-pen text-[1.3rem] lg:text-[1.45rem]',
+                )}
+                initial={{ opacity: 0, x: -10, rotate: -2 }}
+                animate={{ opacity: 1, x: 0, rotate: -1 }}
+                exit={{ opacity: 0, transition: { duration: 0.12 } }}
+                transition={{ duration: 0.2 }}
+                aria-live="polite"
+              >
+                {t(note.key)}
+              </motion.p>
+            </AnimatePresence>
           </div>
         </div>
       </ScreenShell>
 
-      <BottomBar>
-        <div className="flex min-h-12 min-w-0 flex-1 items-center overflow-hidden rounded-2xl border-3 border-ink bg-cream py-1.5 pr-3.5 pl-2 text-ink shadow-pop-sm">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.p
-              key={status}
-              className={cn('flex min-w-0 items-center gap-2.5 text-sm leading-tight font-extrabold', status === 'hurry' && 'text-danger-dark')}
-              initial={{ y: 14, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -14, opacity: 0 }}
-              transition={{ duration: 0.16 }}
-              aria-live="polite"
-            >
-              <IconBadge name={STATUS_ICON[status].name} tone={STATUS_ICON[status].tone} size="xs" shadow={false} tilt={-4} />
-              <span className="min-w-0">{t(STATUS_KEYS[status])}</span>
-            </motion.p>
-          </AnimatePresence>
-        </div>
+      <BottomBar className="max-w-5xl">
+        <VotersStrip players={view.players} votedIds={v.votedIds} compact={isHost} className="flex-1" />
         {isHost && (
           <Button
             variant="secondary"
@@ -251,10 +221,10 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
             disabled={!started || timeUp}
             loading={skipping === v.round}
             onClick={skip}
-            className="shrink-0 px-4 max-[359px]:gap-0 max-[359px]:px-3"
+            className="shrink-0 px-4 max-[389px]:gap-0 max-[389px]:px-3"
           >
-            {/* Icon only on the narrowest phones, so the status line keeps room (the name stays). */}
-            <span className="max-[359px]:sr-only">{t('voting.skip')}</span>
+            {/* Icon only on narrow phones, so the voters strip keeps room (the name stays). */}
+            <span className="max-[389px]:sr-only">{t('voting.skip')}</span>
           </Button>
         )}
       </BottomBar>
@@ -270,6 +240,7 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
               totalRounds={v.totalRounds}
               voteSeconds={view.settings.voteSeconds}
               theme={view.settings.theme}
+              blur={view.settings.blur}
             />
           )}
           {inTransition && <RoundTransition key={`t-${v.round}`} round={v.round} total={v.totalRounds} kind={v.photo.kind} />}
@@ -277,7 +248,7 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
         document.body,
       )}
 
-      <Lightbox src={zoomedId === v.photo.id ? v.photo.url : null} onClose={closeZoom} caption={question} />
+      <Lightbox src={zoomedId === v.photo.id && zoomable ? v.photo.url : null} onClose={closeZoom} caption={question} />
     </div>
   );
 }
@@ -291,7 +262,7 @@ function getIntroStage(v: VotingView, now: number, sawIntro: boolean): IntroStag
   return null;
 }
 
-/** Red pulse around the screen during the last seconds when you still have not voted. */
+/** Red marker pulse around the screen during the last seconds when you still have not voted. */
 function UrgentVignette({ show }: { show: boolean }) {
   return (
     <AnimatePresence>
@@ -299,7 +270,7 @@ function UrgentVignette({ show }: { show: boolean }) {
         <motion.div
           aria-hidden
           className="pointer-events-none fixed inset-0 z-30"
-          style={{ boxShadow: 'inset 0 0 70px 10px rgb(255 93 93 / 0.55)' }}
+          style={{ boxShadow: 'inset 0 0 60px 8px rgb(227 50 31 / 0.4)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.35, 1, 0.35] }}
           exit={{ opacity: 0 }}

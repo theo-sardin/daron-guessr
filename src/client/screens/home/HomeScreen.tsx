@@ -1,10 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { isValidRoomCode, ROOM_CODE_LENGTH, sanitizeName, THEME_DEFAULT_PHOTOS, type RoomSetup, type Theme } from '../../../shared/protocol';
+import { isValidRoomCode, ROOM_CODE_LENGTH, sanitizeName, THEME_DEFAULT_BLUR, THEME_DEFAULT_PHOTOS, type RoomSetup, type Theme } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
-import { Card } from '../../components/Card';
-import { Icon } from '../../components/Icon';
-import { IconBadge } from '../../components/IconBadge';
 import { ScreenShell } from '../../components/Layout';
 import { ConfirmDialog } from '../../components/Modal';
 import { toast } from '../../components/Toast';
@@ -16,13 +13,13 @@ import { saveProfile } from '../../lib/session';
 import { sfx } from '../../lib/sfx';
 import { api, useStore } from '../../lib/store';
 import { cn, vibrate } from '../../lib/util';
-import { CodeInput } from './CodeInput';
-import { FieldError } from './FieldError';
 import { useDesktopAutoFocus, useFieldError, useProfileState, viewportOrigin, waitForConnection } from './helpers';
 import { Hero, HowItWorks } from './Hero';
+import { JoinCode } from './JoinCode';
 import { ModeConfirmBar, ModeStep } from './ModeStep';
 import { ProfileFields } from './ProfileFields';
 import { SeatedBanner } from './SeatedBanner';
+import { uploadStoredSelfie, useSelfie } from './selfie';
 
 type Action = 'create' | 'join';
 type Busy = Action | 'leave' | null;
@@ -43,14 +40,16 @@ const clearModeEntry = () => {
 };
 
 /**
- * Route "/": pick a name + avatar, then join a room with a code, or create one. Creating goes
- * through a mandatory second step where the host picks the game mode.
- * `initialStep` / `initialTheme` are for the dev previews.
+ * Route "/": the zine's cover (collage, logo, how it works), then pick a name + avatar (+ an
+ * optional selfie) and create a room or join one with a code. Creating goes through a mandatory
+ * second step where the host picks the game mode.
+ * `initialStep` / `initialTheme` / `initialCode` are for the dev previews.
  */
-export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep?: Step; initialTheme?: Theme } = {}) {
+export function HomeScreen({ initialStep = 'form', initialTheme, initialCode = '' }: { initialStep?: Step; initialTheme?: Theme; initialCode?: string } = {}) {
   const { t, tpick } = useI18n();
   const session = useStore((s) => s.session);
   const { name, setName, avatar, setAvatar } = useProfileState();
+  const selfie = useSelfie(t('home.selfie.unreadable'));
   const nameField = useFieldError<HTMLDivElement>();
   const codeField = useFieldError<HTMLDivElement>();
   const nameInput = useRef<HTMLInputElement>(null);
@@ -58,7 +57,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
   const createBtn = useRef<HTMLButtonElement>(null);
   const confirmBtn = useRef<HTMLButtonElement>(null);
   const joinBtn = useRef<HTMLButtonElement>(null);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode);
   const [busy, setBusy] = useState<Busy>(null);
   const busyRef = useRef(false);
   /** Action waiting for "leave your current room first?" confirmation. */
@@ -71,6 +70,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
   // Nothing preselected: picking a mode is the point of the step.
   const [theme, setTheme] = useState<Theme | null>(initialTheme ?? null);
   const [photos, setPhotos] = useState(initialTheme ? THEME_DEFAULT_PHOTOS[initialTheme] : 2);
+  const [blur, setBlur] = useState(initialTheme ? THEME_DEFAULT_BLUR[initialTheme] : false);
   // Returning to "/" while seated: the banner matters more than the form.
   useDesktopAutoFocus(nameInput, session === null);
 
@@ -147,8 +147,15 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
     sfx.play('pop');
     vibrate(12);
     setTheme(next);
-    // Every pick resets the photo count to the mode's default (still editable).
+    // Every pick resets the photo count and the blur to the mode's defaults (still editable).
     setPhotos(THEME_DEFAULT_PHOTOS[next]);
+    setBlur(THEME_DEFAULT_BLUR[next]);
+  };
+
+  const toggleBlur = (on: boolean) => {
+    sfx.play('pop');
+    vibrate(8);
+    setBlur(on);
   };
 
   const pickPhotos = (n: number) => {
@@ -169,7 +176,9 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
     if (res.ok) {
       // Stay "busy" until the route changes so nothing can fire twice.
       sfx.play('join');
-      burst({ ...viewportOrigin(action === 'create' ? confirmBtn.current : joinBtn.current), particleCount: 90 });
+      burst({ ...viewportOrigin(action === 'create' ? confirmBtn.current : (joinBtn.current ?? codeInput.current)), particleCount: 90 });
+      // The selfie follows in the background: the room never waits for it.
+      void uploadStoredSelfie(t('home.selfie.uploadFailed'));
       // The room takes the mode step's history entry: "back" from the room lands on the form.
       navigate(roomPath(res.session.code), { replace: isModeEntry() });
       return;
@@ -211,7 +220,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
       nameField.flag(tpick('home.profile.nameMissing', misses.current++));
       return;
     }
-    const setup: RoomSetup = { theme, photosPerPlayer: photos };
+    const setup: RoomSetup = { theme, photosPerPlayer: photos, blur };
     if (session) {
       setPending({ action: 'create', code: '', setup });
       return;
@@ -277,9 +286,9 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
       </AnimatePresence>
 
       {/* Both steps share one grid cell, so they slide across each other. */}
-      <div className="grid">
+      <div className="grid grid-cols-[minmax(0,1fr)]">
         <motion.div
-          className={cn('grid items-start gap-5 [grid-area:1/1] sm:gap-7 lg:grid-cols-2 lg:gap-14', formGone && 'hidden')}
+          className={cn('grid min-w-0 grid-cols-[minmax(0,1fr)] items-start gap-6 [grid-area:1/1] sm:gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14', formGone && 'hidden')}
           inert={!onForm}
           initial={false}
           animate={onForm ? { x: 0, opacity: 1 } : { x: -80, opacity: 0 }}
@@ -290,18 +299,21 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
             window.scrollTo(0, 0);
           }}
         >
-          <div className="flex flex-col gap-5 sm:gap-7 lg:sticky lg:top-24 lg:pt-4">
+          <div className="flex flex-col gap-7 lg:sticky lg:top-24 lg:pt-2">
             <Hero />
             <HowItWorks />
           </div>
 
-          <div className="mx-auto flex w-full max-w-md flex-col">
-            <Card
-              initial={{ opacity: 0, y: 40, rotate: 2 }}
-              animate={{ opacity: 1, y: 0, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.15 }}
+          <div className="mx-auto flex w-full max-w-md flex-col pt-1 lg:self-center lg:pt-0">
+            <motion.section
+              aria-labelledby="home-profile-title"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.25 }}
             >
-              <h2 className="mb-3 font-display text-2xl leading-none">{t('home.profile.title')}</h2>
+              <h2 id="home-profile-title" className="sr-only">
+                {t('home.profile.title')}
+              </h2>
               <ProfileFields
                 name={name}
                 onNameChange={(v) => {
@@ -310,79 +322,44 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
                 }}
                 avatar={avatar}
                 onAvatarChange={setAvatar}
+                selfie={selfie}
                 error={nameField.error}
                 shakeRef={nameField.scope}
                 inputRef={nameInput}
                 onEnter={onNameEnter}
               />
-            </Card>
+            </motion.section>
 
             <motion.div
-              className="mt-6"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 16, delay: 0.3 }}
+              className="mt-7"
+              initial={{ opacity: 0, scale: 0.85, rotate: 3 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 18, delay: 0.35 }}
             >
-              <Button
-                ref={createBtn}
-                variant="primary"
-                size="xl"
-                block
-                disabled={busy !== null}
-                sound={false}
-                onClick={() => submit('create')}
-                icon={<Icon name="plus" className="size-7" weight="bold" />}
-              >
+              <Button ref={createBtn} variant="primary" size="xl" block tape arrow disabled={busy !== null} sound={false} onClick={() => submit('create')}>
                 {t('home.actions.create')}
               </Button>
-              <p className="mt-2.5 text-center text-sm font-bold text-grape-200">{t('home.actions.createHint')}</p>
+              <p className="text-pen mt-3 text-center text-[1.1rem] leading-tight text-balance">{t('home.actions.createHint')}</p>
             </motion.div>
 
-            <div className="my-4 flex items-center gap-3" aria-hidden>
-              <span className="h-0.5 flex-1 rounded-full bg-white/15" />
-              <span className="label-mono text-grape-300">{t('home.actions.or')}</span>
-              <span className="h-0.5 flex-1 rounded-full bg-white/15" />
-            </div>
-
-            <Card
-              tone="lilac"
-              initial={{ opacity: 0, y: 40, rotate: -2 }}
-              animate={{ opacity: 1, y: 0, rotate: 0 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.4 }}
+            <motion.div
+              className="mt-5"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22, delay: 0.45 }}
             >
-              <div className="mb-3 flex items-center gap-3">
-                <IconBadge name="link" tone="cream" size="md" tilt={-6} />
-                <div className="min-w-0">
-                  <h2 className="font-display text-2xl leading-tight">{t('home.actions.joinTitle')}</h2>
-                  <p className="text-sm font-bold text-ink-soft">{t('home.actions.joinSub')}</p>
-                </div>
-              </div>
-              <div ref={codeField.scope}>
-                <CodeInput
-                  value={code}
-                  onChange={onCodeChange}
-                  onSubmit={() => submit('join')}
-                  label={t('home.actions.codeLabel')}
-                  invalid={Boolean(codeField.error)}
-                  inputRef={codeInput}
-                  describedBy={codeField.error ? 'home-code-error' : undefined}
-                />
-              </div>
-              <FieldError id="home-code-error" message={codeField.error} className="text-center" />
-              <Button
-                ref={joinBtn}
-                variant="sun"
-                size="lg"
-                block
-                className="mt-4"
+              <JoinCode
+                code={code}
+                onChange={onCodeChange}
+                onSubmit={() => submit('join')}
+                error={codeField.error}
+                shakeRef={codeField.scope}
+                inputRef={codeInput}
+                buttonRef={joinBtn}
                 loading={busy === 'join'}
                 disabled={busy !== null && busy !== 'join'}
-                onClick={() => submit('join')}
-                icon={<Icon name="arrow-right" className="size-6" weight="bold" />}
-              >
-                {t('home.actions.join')}
-              </Button>
-            </Card>
+              />
+            </motion.div>
           </div>
         </motion.div>
 
@@ -398,10 +375,13 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
               className="[grid-area:1/1]"
               name={sanitizeName(name) || name}
               avatar={avatar}
+              selfie={selfie.selfie}
               theme={theme}
               photos={photos}
+              blur={blur}
               onTheme={pickTheme}
               onPhotos={pickPhotos}
+              onBlur={toggleBlur}
               onBack={back}
               busy={busy !== null}
             />
@@ -415,6 +395,7 @@ export function HomeScreen({ initialStep = 'form', initialTheme }: { initialStep
             key="mode-bar"
             theme={theme}
             photos={photos}
+            blur={blur}
             loading={busy === 'create' || busy === 'leave'}
             onConfirm={confirmCreate}
             buttonRef={confirmBtn}

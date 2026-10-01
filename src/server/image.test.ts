@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_IMAGE_SIDE, inspectImage } from './image';
+import { MAX_IMAGE_SIDE, VARIANT_SIDE_TOLERANCE, inspectImage, inspectVariant } from './image';
 
 const u32be = (n: number) => {
   const b = Buffer.alloc(4);
@@ -80,5 +80,22 @@ describe('inspectImage', () => {
     expect(inspectImage(riff('ANIM', Buffer.alloc(10)))).toBeNull();
     expect(inspectImage(Buffer.from('GIF89a'))).toBeNull();
     expect(inspectImage(new Uint8Array(0))).toBeNull();
+  });
+});
+
+describe('inspectVariant', () => {
+  it('accepts any image whose longest edge fits the blur step width (with a little slack)', () => {
+    expect(inspectVariant(png(12, 9), 12)).toEqual({ mime: 'image/png', width: 12, height: 9 });
+    expect(inspectVariant(jpeg(18, 24), 24)).toEqual({ mime: 'image/jpeg', width: 18, height: 24 });
+    expect(inspectVariant(webpLossy(96 + VARIANT_SIDE_TOLERANCE, 40), 96)).toEqual({ mime: 'image/webp', width: 98, height: 40 });
+    expect(inspectVariant(png(1, 1), 48)).not.toBeNull();
+  });
+
+  it('rejects bigger images (a sharp photo passed off as a variant) and garbage', () => {
+    expect(inspectVariant(png(12 + VARIANT_SIDE_TOLERANCE + 1, 5), 12)).toBeNull();
+    expect(inspectVariant(jpeg(10, 200), 96)).toBeNull();
+    expect(inspectVariant(png(1080, 720), 96)).toBeNull();
+    expect(inspectVariant(Buffer.from('GIF89a'), 96)).toBeNull();
+    expect(inspectVariant(png(0, 10), 96)).toBeNull();
   });
 });

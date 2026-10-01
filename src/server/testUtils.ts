@@ -1,5 +1,5 @@
 /** Helpers shared by the server unit tests (engine and views). */
-import { defaultKindForSlot, type PhotoKind, type PhotoSlot } from '../shared/protocol';
+import { BLUR_VARIANT_WIDTHS, defaultKindForSlot, type PhotoKind, type PhotoSlot } from '../shared/protocol';
 import * as g from './game';
 
 /** Minimal PNG signature: enough for the engine, which never decodes images. */
@@ -47,15 +47,44 @@ export function newPhoto(room: g.Room, slot: PhotoSlot = 0, kind?: PhotoKind): g
   return { id, slot, kind: kind ?? defaultKindForSlot(room.settings.theme, slot), mime: 'image/png', data: PNG_BYTES };
 }
 
+let variantCounter = 0;
+
+/**
+ * Blur variants for a photo, one per BLUR_VARIANT_WIDTHS entry, with opaque ids unrelated to
+ * any photo id (so a test can look for a photo id in a view without matching a variant).
+ */
+export function newVariants(data: Buffer = PNG_BYTES): g.PhotoVariant[] {
+  return BLUR_VARIANT_WIDTHS.map(() => {
+    variantCounter += 1;
+    return { id: `variant${variantCounter.toString(16).padStart(6, '0')}`, mime: 'image/png', data };
+  });
+}
+
 /** Uploads a photo (see `newPhoto`). */
 export function addPhoto(room: g.Room, playerId: string, slot: PhotoSlot = 0, now = 0, kind?: PhotoKind): g.Photo {
   return unwrap(g.uploadPhoto(room, playerId, newPhoto(room, slot, kind), now));
 }
 
-/** `counts[i]` photos for the i-th player. */
-export function addPhotos(room: g.Room, counts: number[]): void {
+let selfieCounter = 0;
+
+/** A selfie with an opaque id (or the given one), PNG bytes by default. */
+export function newSelfie(id?: string, data: Buffer = PNG_BYTES): g.NewSelfie {
+  selfieCounter += 1;
+  return { id: id ?? `selfie${selfieCounter.toString(16).padStart(6, '0')}`, mime: 'image/png', data };
+}
+
+/** Sets a player's selfie (see `newSelfie`). */
+export function addSelfie(room: g.Room, playerId: string, id?: string, now = 0): g.Selfie {
+  return unwrap(g.setSelfie(room, playerId, newSelfie(id), now));
+}
+
+/** `counts[i]` photos for the i-th player, with blur variants when `withVariants`. */
+export function addPhotos(room: g.Room, counts: number[], withVariants = false): void {
   counts.forEach((count, i) => {
-    for (let slot = 0; slot < count; slot++) addPhoto(room, room.players[i].id, slot as PhotoSlot);
+    for (let slot = 0; slot < count; slot++) {
+      const photo = newPhoto(room, slot as PhotoSlot);
+      unwrap(g.uploadPhoto(room, room.players[i].id, withVariants ? { ...photo, variants: newVariants() } : photo, 0));
+    }
   });
 }
 

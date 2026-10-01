@@ -1,7 +1,7 @@
 /** In-memory room registry: room codes, ids / tokens, idle room cleanup. */
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, normalizeRoomCode, type RoomSetup } from '../shared/protocol';
-import { DEFAULT_TIMING, createRoom, type Player, type Result, type Room, type Timing } from './game';
+import { DEFAULT_TIMING, createRoom, roomImageBytes, type Player, type Result, type Room, type Timing } from './game';
 
 export const MAX_ROOMS = 2000;
 /** Rooms without any connected player for this long are deleted. */
@@ -13,7 +13,7 @@ const CODE_ATTEMPTS = 50;
 
 export const newPlayerId = (): string => randomUUID();
 export const newToken = (): string => randomBytes(24).toString('base64url');
-/** Random and unrelated to the owner, so a photo URL gives nothing away. */
+/** Random and unrelated to the owner, so a photo URL gives nothing away. Also used for selfies. */
 export const newPhotoId = (): string => randomBytes(16).toString('hex');
 export const newReactionId = (): string => randomBytes(8).toString('hex');
 
@@ -71,10 +71,10 @@ export class RoomRegistry {
     return this.rooms.delete(code);
   }
 
-  /** Total bytes of every photo held in memory. */
+  /** Total bytes of every image held in memory: game photos and selfies of every room. */
   photoBytes(): number {
     let total = 0;
-    for (const room of this.rooms.values()) for (const ph of room.photos) total += ph.data.byteLength;
+    for (const room of this.rooms.values()) total += roomImageBytes(room);
     return total;
   }
 

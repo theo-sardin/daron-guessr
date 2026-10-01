@@ -27,7 +27,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   const t = useT();
   const isHost = view.hostId === view.meId;
   const host = view.players.find((p) => p.id === view.hostId);
-  const { theme, photosPerPlayer } = view.settings;
+  const { theme, photosPerPlayer, blur } = view.settings;
 
   // The crown was handed over to us (not when the screen opens with it).
   const prevHost = useRef(view.hostId);
@@ -52,9 +52,11 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   return (
     <>
       <ScreenShell width="xl" className="pb-48!">
-        <ScreenTitle className="mb-4">{t('lobby.title')}</ScreenTitle>
+        <ScreenTitle className="mb-4" cutout cutoutSize="sm">
+          {t('lobby.title')}
+        </ScreenTitle>
         <motion.div {...card(0)}>
-          <ThemeBanner theme={theme} photosPerPlayer={photosPerPlayer} isHost={isHost} />
+          <ThemeBanner theme={theme} photosPerPlayer={photosPerPlayer} blur={blur} isHost={isHost} />
         </motion.div>
         <div className="grid items-start gap-5 md:grid-cols-2 md:gap-6">
           <div className="flex min-w-0 flex-col gap-5 md:gap-6">

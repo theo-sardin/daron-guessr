@@ -90,8 +90,8 @@ export function useRevealEffects(elapsed: number, fx: RevealFx) {
       sfx.play('reveal');
       buzz([25, 40, 25]);
       const { x, y } = originOf(f.anchor.current);
-      burst({ x, y, colors: [f.ownerColor, f.ownerColor, '#fff8ec', '#ffd23f'], particleCount: 130 });
-      if (f.outcome === 'everybody') sideCannons(1400, [f.ownerColor, '#ffd23f', '#fff8ec']);
+      burst({ x, y, colors: [f.ownerColor, '#e3321f', '#2344c8', '#ffdf3d', '#f6a6c1', '#9ed9c0'], particleCount: 130 });
+      if (f.outcome === 'everybody') sideCannons(1400, [f.ownerColor, '#ffdf3d', '#e3321f', '#2344c8']);
       // Emoji rain is a reaction (like the reaction tray), so it keeps its emoji.
       if (f.total > 0 && f.correct === 0) {
         timers.current.push(window.setTimeout(() => emojiRain('😂', 36), 350));

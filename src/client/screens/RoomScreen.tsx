@@ -2,14 +2,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Phase, RoomView } from '../../shared/protocol';
 import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import type { IconName } from '../components/Icon';
-import { IconBadge, type IconBadgeTone } from '../components/IconBadge';
+import { NotebookCard } from '../components/Paper';
 import { ReactionBar, ReactionsLayer } from '../components/Reactions';
+import { RubberStamp, type RubberStampTone } from '../components/RubberStamp';
 import { Spinner } from '../components/Spinner';
 import { toast } from '../components/Toast';
-import { Viewfinder } from '../components/Viewfinder';
-import { useT } from '../i18n';
+import { TornPaper } from '../components/TornPaper';
+import { useI18n, useT, type Lang } from '../i18n';
 import { errorText } from '../lib/errors';
 import { navigate } from '../lib/router';
 import { sfx } from '../lib/sfx';
@@ -87,11 +86,9 @@ export function RoomScreen({ code }: { code: string }) {
 
   if (stage === 'resuming' || (stage === 'in-room' && !view)) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-5 text-grape-200">
-        <Viewfinder color="var(--color-cream)" length={12} thickness={3} gap={14} hunt>
-          <Spinner className="size-10 text-sun" />
-        </Viewfinder>
-        <p className="font-bold">{status === 'connected' ? t('common.loading') : t('common.connecting')}</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
+        <Spinner className="size-12 text-blue" />
+        <p className="text-pen -rotate-2 text-[1.6rem]">{status === 'connected' ? t('common.loading') : t('common.connecting')}</p>
       </div>
     );
   }
@@ -150,57 +147,52 @@ function OfflineBanner({ show }: { show: boolean }) {
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_3.75rem)] z-[65] flex justify-center px-4"
-          initial={{ y: -30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+          className="fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.25rem)] z-[65] flex justify-center px-4"
+          initial={{ y: -30, opacity: 0, rotate: -6 }}
+          animate={{ y: 0, opacity: 1, rotate: -1.5 }}
           exit={{ y: -30, opacity: 0 }}
         >
-          <div className="flex items-center gap-2 rounded-full border-3 border-ink bg-danger px-4 py-2 font-bold text-white shadow-pop-sm">
-            <Spinner className="size-4" />
+          <TornPaper surface="red" edges="tblr" amp={2.5} lift className="flex items-center gap-2.5 px-5 py-2.5 font-bold text-white">
+            <Spinner className="size-5" />
             {t('common.offline')}
-          </div>
+          </TornPaper>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-/** Sticker + icon for each way out of a room. */
-const EXIT_LOOK: Record<Exclude<ExitReason, null>, { icon: IconName; tone: IconBadgeTone }> = {
-  kicked: { icon: 'leave', tone: 'danger' },
-  replaced: { icon: 'phone', tone: 'sky' },
-  'room-gone': { icon: 'ghost', tone: 'lilac' },
+/** The rubber stamp of each way out of a room (kept here: only this notice uses them). */
+const EXIT_STAMP: Record<Exclude<ExitReason, null>, { tone: RubberStampTone; text: Record<Lang, string> }> = {
+  kicked: { tone: 'red', text: { fr: 'Viré·e !', en: 'Kicked out' } },
+  replaced: { tone: 'blue', text: { fr: 'Ailleurs', en: 'Elsewhere' } },
+  'room-gone': { tone: 'ink', text: { fr: 'Fermé', en: 'Closed' } },
 };
 
 /** Exported for the dev gallery. */
 export function ExitNotice({ code, reason }: { code: string; reason: Exclude<ExitReason, null> }) {
-  const t = useT();
+  const { t, lang } = useI18n();
   const [busy, setBusy] = useState(false);
   const content = {
     kicked: { title: t('common.roomScreen.kickedTitle'), body: t('common.roomScreen.kickedBody', { code }) },
     replaced: { title: t('common.roomScreen.replacedTitle'), body: t('common.roomScreen.replacedBody') },
     'room-gone': { title: t('common.roomScreen.goneTitle'), body: t('common.roomScreen.goneBody', { code }) },
   }[reason];
-  const look = EXIT_LOOK[reason];
+  const stamp = EXIT_STAMP[reason];
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-4">
-      <Card className="w-full max-w-sm text-center" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-        <Viewfinder className="mx-auto mt-2 mb-5 w-fit" color="var(--color-ink)" length={14} thickness={3} gap={12} snap={0.1}>
-          <motion.span
-            className="flex"
-            initial={{ rotate: -16, scale: 0.6 }}
-            animate={{ rotate: -5, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 14 }}
-          >
-            <IconBadge name={look.icon} tone={look.tone} size="xl" />
-          </motion.span>
-        </Viewfinder>
-        <h1 className="font-display text-3xl leading-tight">{content.title}</h1>
-        <p className="mt-2 mb-5 text-ink-soft">{content.body}</p>
-        <div className="flex flex-col gap-3">
+    <div className="flex min-h-dvh items-center justify-center px-5 pt-20 pb-10">
+      <NotebookCard slap tilt={-1.5} tape="yellow" wrapperClassName="w-full max-w-sm" className="px-6 pt-9 pb-8 pl-10 text-center">
+        <RubberStamp tone={stamp.tone} size="md" tilt={-8} animate={0.25} className="mb-5">
+          {stamp.text[lang]}
+        </RubberStamp>
+        <h1 className="font-display text-[1.9rem] leading-[1.02]">{content.title}</h1>
+        <p className="mt-3 mb-7 font-medium text-ink-soft">{content.body}</p>
+        <div className="flex flex-col gap-4">
           {reason === 'replaced' && (
             <Button
+              size="md"
+              block
               loading={busy}
               onClick={async () => {
                 setBusy(true);
@@ -213,7 +205,9 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
             </Button>
           )}
           <Button
-            variant="secondary"
+            variant={reason === 'replaced' ? 'secondary' : 'primary'}
+            size="md"
+            block
             onClick={() => {
               api.clearExitReason();
               navigate('/');
@@ -222,7 +216,7 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
             {t('common.backHome')}
           </Button>
         </div>
-      </Card>
+      </NotebookCard>
     </div>
   );
 }

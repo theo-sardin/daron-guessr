@@ -5,8 +5,10 @@ import { fakePlayers, fakeView } from '../../dev/fixtures';
 import { useT } from '../../i18n';
 import { errorText } from '../../lib/errors';
 import { __devSetState } from '../../lib/store';
+import { HERO_PHOTOS } from './heroPhotos';
 import { HomeScreen } from './HomeScreen';
 import { JoinByLink } from './JoinByLink';
+import { saveSelfie } from './selfie';
 
 /** Dev-only preview variants for this screen (see src/client/dev/PreviewApp.tsx). */
 
@@ -20,6 +22,11 @@ function setProfile(profile: { name: string; avatar: string } | null) {
   } catch {
     // ignore
   }
+}
+
+/** A stored selfie for the previews (any image data URL works: the dad print of the hero). */
+function setSelfie(on: boolean) {
+  saveSelfie(on ? HERO_PHOTOS.dad : null);
 }
 
 const realFetch = typeof window === 'undefined' ? fetch : window.fetch.bind(window);
@@ -67,12 +74,14 @@ const previews: PreviewRegistry = {
   home: {
     render: () => {
       setProfile(null);
+      setSelfie(false);
       return <HomeScreen />;
     },
   },
   'home-filled': {
     render: () => {
       setProfile({ name: 'Théo', avatar: '🦊' });
+      setSelfie(false);
       return <HomeScreen />;
     },
   },
@@ -80,6 +89,21 @@ const previews: PreviewRegistry = {
     render: () => {
       setProfile({ name: 'Jean-Christophe!', avatar: '🦖' });
       return <HomeScreen />;
+    },
+  },
+  'home-selfie': {
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🦊' });
+      setSelfie(true);
+      return <HomeScreen />;
+    },
+  },
+  'home-code': {
+    // A code half typed: the Join button has unfolded under the kraft strip.
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🦊' });
+      setSelfie(false);
+      return <HomeScreen initialCode="BZ" />;
     },
   },
   'mode-step': {
@@ -92,6 +116,21 @@ const previews: PreviewRegistry = {
     render: () => {
       setProfile({ name: 'Théo', avatar: '🦊' });
       return <HomeScreen initialStep="mode" initialTheme="childhood" />;
+    },
+  },
+  'mode-whois': {
+    // "Who's that?" switches the blurry photos on by default.
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🦊' });
+      setSelfie(true);
+      return <HomeScreen initialStep="mode" initialTheme="whois" />;
+    },
+  },
+  'mode-body': {
+    render: () => {
+      setProfile({ name: 'Jean-Christophe!', avatar: '🦖' });
+      setSelfie(false);
+      return <HomeScreen initialStep="mode" initialTheme="body" />;
     },
   },
   'home-seated': {
@@ -112,6 +151,15 @@ const previews: PreviewRegistry = {
   join: {
     render: () => {
       setProfile(null);
+      setSelfie(false);
+      mockPeek(lobbyPeek());
+      return <JoinByLink code={CODE} />;
+    },
+  },
+  'join-selfie': {
+    render: () => {
+      setProfile({ name: 'Théo', avatar: '🐸' });
+      setSelfie(true);
       mockPeek(lobbyPeek());
       return <JoinByLink code={CODE} />;
     },
@@ -119,6 +167,7 @@ const previews: PreviewRegistry = {
   'join-filled': {
     render: () => {
       setProfile({ name: 'Théo', avatar: '🐸' });
+      setSelfie(false);
       mockPeek(lobbyPeek({ playerCount: 11, hostName: 'Jean-Christophe!', hostAvatar: '🦖' }));
       return <JoinByLink code={CODE} />;
     },

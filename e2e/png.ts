@@ -31,7 +31,9 @@ function chunk(type: string, data: Buffer): Buffer {
 
 type RGB = [number, number, number];
 
-export function makeFacePng(seed: number, size = 240): Buffer {
+/** An `edge` x `edge` face, the same drawing at any size (down to 1 px, e.g. for blur variants). */
+export function makeFacePng(seed: number, edge = 240): Buffer {
+  const size = Math.max(1, Math.round(edge));
   const hue = (seed * 67) % 360;
   const bg = hslToRgb(hue, 0.6, 0.75);
   const skin = hslToRgb(28 + (seed % 5) * 4, 0.55, 0.55 + (seed % 3) * 0.08);

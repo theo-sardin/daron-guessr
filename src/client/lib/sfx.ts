@@ -19,7 +19,11 @@ export type SfxName =
   | 'fanfare'
   | 'countdown'
   | 'go'
-  | 'shutter';
+  | 'shutter'
+  | 'tape'
+  | 'stamp'
+  | 'marker'
+  | 'paper';
 
 const MUTE_KEY = 'dg:muted';
 let muted = readMuted();
@@ -137,6 +141,28 @@ const SOUNDS: Record<SfxName, () => void> = {
     noise(0.07, 0.05, { gain: 0.35, filter: 2400 });
     tone(2600, 0.1, 0.35, { type: 'sine', gain: 0.05, slideTo: 5200, attack: 0.05 });
   },
+  /** Masking tape pulled off the roll: a few crackly bursts climbing in pitch. */
+  tape: () => {
+    noise(0, 0.05, { gain: 0.3, filter: 2200 });
+    noise(0.04, 0.06, { gain: 0.34, filter: 3400 });
+    noise(0.09, 0.05, { gain: 0.28, filter: 4600 });
+    noise(0.13, 0.08, { gain: 0.2, filter: 5800 });
+  },
+  /** A rubber stamp thumping down on the table. */
+  stamp: () => {
+    tone(110, 0, 0.2, { type: 'sine', gain: 0.7, slideTo: 48 });
+    noise(0, 0.05, { gain: 0.55, filter: 500 });
+    noise(0.015, 0.035, { gain: 0.22, filter: 2600 });
+  },
+  /** A marker squeaking across the paper. */
+  marker: () => {
+    noise(0, 0.09, { gain: 0.1, filter: 6200 });
+    tone(2100, 0, 0.09, { type: 'sawtooth', gain: 0.025, slideTo: 2600 });
+    noise(0.12, 0.12, { gain: 0.09, filter: 6800 });
+    tone(2400, 0.12, 0.12, { type: 'sawtooth', gain: 0.02, slideTo: 1900 });
+  },
+  /** A sheet of paper sliding on paper. */
+  paper: () => noise(0, 0.22, { gain: 0.2, filter: 1700 }),
 };
 
 export const sfx = {

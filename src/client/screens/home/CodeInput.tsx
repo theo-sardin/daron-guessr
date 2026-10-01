@@ -18,6 +18,8 @@ export function CodeInput({
   invalid,
   inputRef,
   describedBy,
+  size = 'lg',
+  className,
 }: {
   value: string;
   onChange: (code: string) => void;
@@ -26,13 +28,17 @@ export function CodeInput({
   invalid?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   describedBy?: string;
+  /** lg: four big tiles; sm: the little letter boxes drawn on the "I've got a code" kraft strip. */
+  size?: 'sm' | 'lg';
+  className?: string;
 }) {
+  const sm = size === 'sm';
   const [focused, setFocused] = useState(false);
   const active = Math.min(value.length, ROOM_CODE_LENGTH - 1);
 
   return (
-    <div className="relative">
-      <div className="grid grid-cols-4 gap-2 sm:gap-3" aria-hidden>
+    <div className={cn('relative', sm && 'shrink-0', className)}>
+      <div className={cn('grid grid-cols-4', sm ? 'gap-1.5' : 'gap-2 sm:gap-3')} aria-hidden>
         {Array.from({ length: ROOM_CODE_LENGTH }, (_, i) => {
           const ch = value[i] ?? '';
           const bad = ch !== '' && !ROOM_CODE_ALPHABET.includes(ch);
@@ -42,18 +48,18 @@ export function CodeInput({
               key={i}
               style={{ rotate: `${ch ? TILTS[i] : 0}deg` }}
               className={cn(
-                // Typed letters light up like the camera's date imprint: orange Space Mono on an ink plate.
-                'relative flex h-16 items-center justify-center rounded-2xl border-3 font-mono text-4xl font-bold transition-[background-color,border-color,rotate,box-shadow] duration-200',
+                // Letter boxes drawn on the kraft: a typed letter is a white paper tile in bold ink.
+                'relative flex items-center justify-center rounded-[4px] font-num leading-none transition-[background-color,border-color,rotate,box-shadow] duration-200',
+                sm ? 'h-11 w-[2.15rem] text-[1.45rem] max-[374px]:w-[1.9rem]' : 'h-14 text-[2.1rem] sm:h-16',
                 bad
-                  ? 'border-ink bg-danger text-white shadow-pop-sm'
+                  ? 'border-2 border-red-ink bg-red text-white shadow-paper-sm'
                   : ch
-                    ? 'text-stamp border-ink bg-ink shadow-pop-sm'
+                    ? 'border-2 border-transparent bg-sheet text-ink shadow-paper-sm'
                     : invalid
-                      ? 'border-danger bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]'
-                      : // Empty: an unlit slot pressed into the card, waiting for its letter.
-                        'border-ink/35 bg-ink/10 text-ink shadow-[inset_0_4px_0_rgb(27_16_54_/_0.12)]',
-                isActive && !ch && 'border-pink bg-white shadow-none',
-                isActive && 'ring-4 ring-pink/50',
+                      ? 'border-2 border-dashed border-red-ink bg-sheet/40 text-ink'
+                      : 'border-2 border-ink/70 bg-sheet/35 text-ink',
+                isActive && !ch && 'border-solid border-blue bg-sheet',
+                isActive && 'shadow-[0_0_0_3px_rgb(35_68_200_/_0.35)]',
               )}
             >
               <AnimatePresence mode="popLayout" initial={false}>
@@ -70,7 +76,7 @@ export function CodeInput({
                 ) : isActive ? (
                   <motion.span
                     key="caret"
-                    className="h-8 w-1 rounded-full bg-pink"
+                    className={cn('w-[3px] rounded-full bg-blue', sm ? 'h-6' : 'h-8')}
                     animate={{ opacity: [1, 0.15, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
                   />
@@ -112,7 +118,7 @@ export function CodeInput({
         autoCorrect="off"
         spellCheck={false}
         enterKeyHint="go"
-        className="absolute inset-0 h-full w-full cursor-text rounded-2xl border-0 bg-transparent text-transparent caret-transparent opacity-[0.01] outline-none selection:bg-transparent"
+        className="absolute inset-0 h-full w-full cursor-text rounded-[4px] border-0 bg-transparent text-transparent caret-transparent opacity-[0.01] outline-none selection:bg-transparent"
       />
     </div>
   );

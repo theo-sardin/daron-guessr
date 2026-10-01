@@ -1,14 +1,15 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { cn } from '../lib/util';
-import { Stamp } from './Stamp';
-import { Viewfinder } from './Viewfinder';
+import { PATTERN } from './CutoutText';
+import { DymoLabel } from './DymoLabel';
+import { useLetteringReady } from './paper/fonts';
+import { scissorClip } from './paper/geometry';
 
-const SIZES = {
-  sm: { text: 'text-[1.35rem]', stroke: 'text-outline-sm', bracket: { length: 8, thickness: 2.5, gap: 5 } },
-  md: { text: 'text-[3.4rem]', stroke: 'text-outline', bracket: { length: 16, thickness: 3.5, gap: 12 } },
-  lg: { text: 'text-[4.75rem] sm:text-[5.75rem]', stroke: 'text-outline', bracket: { length: 22, thickness: 4.5, gap: 14 } },
-} as const;
+/** Base letter size (px) of each logo size: the whole wordmark is laid out in em of it. */
+const UNIT = { sm: 24, md: 44, lg: 68 } as const;
+/** "GUESSR" never under 11px (the top bar's small logo must stay readable at 1x). */
+const dymoSize = (u: number) => Math.max(11, Math.round(u * 0.4 * 10) / 10);
 
 /*
  * Is a big (lg) logo on screen? The TopBar hides its small logo while one is, so Home never
@@ -36,39 +37,49 @@ export function useHeroLogoVisible(): boolean {
   );
 }
 
-/**
- * The flash-ready light of a disposable camera, lit in the viewfinder's info strip: it
- * charges, the flash fires (the bloom over the frame), it goes dark while it recharges,
- * then lights again. Runs once per `shot`.
- */
-function FlashReady({ shot, delay, className }: { shot: number; delay: number; className?: string }) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.svg
-      key={shot}
-      viewBox="0 0 12 16"
-      className={cn('text-stamp block h-[0.95em] w-auto overflow-visible', className)}
-      initial={reduce ? false : { opacity: 0.25 }}
-      animate={reduce ? undefined : { opacity: [0.25, 0.25, 1, 1, 0.2, 0.2, 1] }}
-      transition={reduce ? undefined : { duration: 1.75, times: [0, 0.12, 0.2, 0.3, 0.34, 0.88, 1], delay }}
-      style={{ filter: 'drop-shadow(0 0 2px rgb(255 122 26 / 0.7))' }}
-      aria-hidden
-    >
-      <path d="M7.4.6 1 9.2h4.3L4.4 15.4 11 6.6H6.6z" fill="currentColor" />
-    </motion.svg>
-  );
+interface LogoLetter {
+  char: string;
+  style: CSSProperties;
+  /** em of the unit. */
+  size: number;
+  rotate: number;
+  /** Vertical offset in em. */
+  y: number;
+  seed: number;
 }
 
+/** D A R O N, each cut from a different magazine (fixed: this is the brand). */
+const LETTERS: LogoLetter[] = [
+  { char: 'D', size: 1, rotate: -5, y: 0, seed: 11, style: { background: 'var(--color-sheet)', color: 'var(--color-ink)', fontFamily: 'var(--font-abril)', ...PATTERN.news } },
+  { char: 'A', size: 0.97, rotate: 4, y: -0.074, seed: 23, style: { background: 'var(--color-red)', color: '#fff', fontFamily: 'var(--font-anton)' } },
+  { char: 'R', size: 0.74, rotate: -3, y: 0.015, seed: 37, style: { backgroundColor: 'var(--color-yellow)', color: 'var(--color-ink)', fontFamily: 'var(--font-rubik)', ...PATTERN.half } },
+  { char: 'O', size: 1.06, rotate: 6, y: -0.03, seed: 41, style: { backgroundColor: '#fff', color: 'var(--color-blue)', fontFamily: 'var(--font-dmserif)', fontStyle: 'italic', ...PATTERN.lines } },
+  { char: 'N', size: 0.88, rotate: -4, y: -0.088, seed: 53, style: { background: 'var(--color-ink)', color: '#fff6e0', fontFamily: 'var(--font-alfa)' } },
+];
+
 /**
- * "DARON / GUESSR" wordmark in a camera viewfinder: the brackets snap into focus, the type
- * sharpens, the flash-ready light blinks and the flash fires once. Its info strip carries the
- * flash light and the orange '98 12 24 date imprint. Tap it to take the shot again.
+ * The wordmark: "DARON" in ransom-note letters, a blue ballpoint "ne" squeezed in with a
+ * proofreader's caret (the daron / daronne wink) and "GUESSR" on a red Dymo label.
+ * lg / md: the letters get slapped on, the pen writes "ne", the label is punched. Tap to replay.
  */
-export function Logo({ size = 'lg', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
+export function Logo({ size = 'lg', animate, className }: { size?: 'sm' | 'md' | 'lg'; animate?: boolean; className?: string }) {
   const reduce = useReducedMotion();
-  const s = SIZES[size];
-  const [shot, setShot] = useState(0);
+  const u = UNIT[size];
+  const [take, setTake] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const play = (animate ?? size !== 'sm') && !reduce;
+  // The letters wait for their faces (no slap in Georgia followed by a swap).
+  const fontsReady = useLetteringReady();
+  const holding = play && !fontsReady;
+  // The shadow filter goes on once the letters have landed (not re-rasterized while they fly).
+  const [settled, setSettled] = useState(!play);
+  useEffect(() => {
+    if (!play) return setSettled(true);
+    if (!fontsReady) return;
+    setSettled(false);
+    const id = window.setTimeout(() => setSettled(true), 900);
+    return () => window.clearTimeout(id);
+  }, [play, fontsReady, take]);
 
   useEffect(() => {
     const el = ref.current;
@@ -80,54 +91,84 @@ export function Logo({ size = 'lg', className }: { size?: 'sm' | 'md' | 'lg'; cl
       io.disconnect();
       setHeroVisible(id, false);
     };
-  }, [size]);
+    // The element remounts when its key changes (replay, fonts loaded): observe the new one.
+  }, [size, take, holding]);
 
-  if (size === 'sm') {
-    return (
-      <Viewfinder as="span" color="var(--color-cream)" {...s.bracket} radius={1.5} className={cn('select-none', className)}>
-        <span aria-label="Daron Guessr" className={cn('block font-display leading-none whitespace-nowrap', s.text)}>
-          <span className="text-cream">DARON</span> <span className="text-pink">GUESSR</span>
-        </span>
-      </Viewfinder>
-    );
-  }
-
-  const delay = shot === 0 ? 0.15 : 0;
+  const small = size === 'sm';
   return (
-    <div ref={ref} className={cn('inline-block', className)} onClick={() => !reduce && setShot((n) => n + 1)}>
-      <Viewfinder key={shot} color="var(--color-cream)" {...s.bracket} radius={3} snap={shot === 0 ? 0.05 : 0} shadow className="inline-block select-none">
-        <motion.div
-          role="img"
-          aria-label="Daron Guessr"
-          className={cn('flex flex-col items-center font-display leading-[0.8] tracking-[-0.025em] [font-stretch:78%]', s.text)}
-          style={{ filter: 'drop-shadow(0 5px 0 var(--color-ink))' }}
-          initial={reduce ? false : { filter: 'blur(10px) drop-shadow(0 5px 0 var(--color-ink))', scale: 1.08, opacity: 0.4 }}
-          animate={{ filter: 'blur(0px) drop-shadow(0 5px 0 var(--color-ink))', scale: 1, opacity: 1 }}
-          transition={{ duration: 0.55, ease: [0.2, 0.8, 0.2, 1], delay }}
+    <div
+      ref={ref}
+      key={`${take}${holding ? '-hold' : ''}`}
+      role="img"
+      aria-label="Daron Guessr"
+      className={cn('relative inline-flex flex-col items-center select-none', play && 'cursor-pointer', className)}
+      style={{ fontSize: u, lineHeight: 1, visibility: holding ? 'hidden' : undefined }}
+      onClick={play ? () => setTake((n) => n + 1) : undefined}
+    >
+      <div
+        aria-hidden
+        className="relative flex items-end"
+        style={{ gap: '0.03em', marginLeft: small ? '-0.5em' : '-0.65em', filter: settled ? 'drop-shadow(0 0.05em 0.06em rgb(40 25 10 / 0.3))' : 'none', transition: 'filter 0.25s' }}
+      >
+        {LETTERS.map((l, i) => {
+          const style: CSSProperties = {
+            ...l.style,
+            fontSize: `${l.size}em`,
+            lineHeight: 0.92,
+            padding: '0.09em 0.1em 0.05em',
+            clipPath: scissorClip(l.seed, 8),
+          };
+          return play ? (
+            <motion.span
+              key={l.char}
+              className="inline-block"
+              style={style}
+              initial={{ opacity: 0, scale: 1.8, rotate: l.rotate * 3 + (i % 2 ? 16 : -16), y: `${l.y}em` }}
+              animate={{ opacity: 1, scale: 1, rotate: l.rotate, y: `${l.y}em` }}
+              transition={{ type: 'spring', stiffness: 560, damping: 19, delay: 0.08 + i * 0.07, opacity: { duration: 0.08, delay: 0.08 + i * 0.07 } }}
+            >
+              {l.char}
+            </motion.span>
+          ) : (
+            <span key={l.char} className="inline-block" style={{ ...style, transform: `translateY(${l.y}em) rotate(${l.rotate}deg)` }}>
+              {l.char}
+            </span>
+          );
+        })}
+        {/* The ballpoint insertion: "ne" above the line, a caret on it. */}
+        <motion.span
+          className="text-pen absolute"
+          style={{ right: '-0.64em', top: '-0.1em', fontSize: '0.6em', rotate: -10, textShadow: '0 0 6px var(--color-paper), 0 0 2px var(--color-paper)', filter: 'none' }}
+          initial={play ? { clipPath: 'inset(-20% 100% -20% -10%)' } : false}
+          animate={{ clipPath: 'inset(-20% -10% -20% -10%)' }}
+          transition={{ duration: 0.45, delay: 0.62, ease: 'easeOut' }}
         >
-          <span className={cn('text-cream', s.stroke)} aria-hidden>
-            DARON
-          </span>
-          <span className={cn('text-pink', s.stroke)} aria-hidden>
-            GUESSR
-          </span>
-        </motion.div>
-        {/* The flash itself: a white bloom over the frame, once per shot. */}
-        {!reduce && (
-          <motion.span
-            className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-white mix-blend-soft-light"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.9, 0] }}
-            transition={{ duration: 0.5, times: [0, 0.15, 1], delay: delay + 0.47 }}
-            aria-hidden
+          ne
+        </motion.span>
+        <svg className="absolute overflow-visible" style={{ right: '-0.3em', bottom: '0.16em', width: '0.36em', height: '0.3em' }} viewBox="0 0 26 20">
+          <motion.path
+            d="M3 18 L13 3 L23 18"
+            stroke="var(--color-blue)"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={play ? { pathLength: 0 } : false}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.22, delay: 0.5 }}
           />
-        )}
-        {/* Viewfinder info strip: flash-ready light on the left, date imprint on the right. */}
-        <span className={cn('flex items-center justify-between px-0.5', size === 'lg' ? 'mt-2 text-sm' : 'mt-1.5 text-[0.75rem]')} aria-hidden>
-          <FlashReady shot={shot} delay={delay} />
-          <Stamp size={size === 'lg' ? 'sm' : 'xs'}>{"'98 12 24"}</Stamp>
-        </span>
-      </Viewfinder>
+        </svg>
+      </div>
+      <DymoLabel
+        text="GUESSR"
+        tone="red"
+        size={dymoSize(u)}
+        tilt={-3}
+        spacing={small ? 0.16 : 0.22}
+        animate={play ? 0.5 : false}
+        className="relative z-[1]"
+        style={{ marginTop: -u * 0.15, marginLeft: u * (small ? 1.05 : 1.62) }}
+      />
     </div>
   );
 }
