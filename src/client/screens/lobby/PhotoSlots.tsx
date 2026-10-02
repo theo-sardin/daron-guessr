@@ -11,17 +11,11 @@ import {
   type PhotoSlot,
   type Theme,
 } from '../../../shared/protocol';
-import { Icon } from '../../components/Icon';
-import { KindTag } from '../../components/KindTag';
+import { Card } from '../../components/Card';
 import { Lightbox } from '../../components/Lightbox';
-import { MarkerCheck } from '../../components/Marker';
-import { KraftCard, PostIt } from '../../components/Paper';
 import { Polaroid } from '../../components/Polaroid';
-import { RubberStamp } from '../../components/RubberStamp';
 import { Spinner } from '../../components/Spinner';
-import { Tape } from '../../components/Tape';
 import { toast } from '../../components/Toast';
-import { PaperStrip } from '../../components/TornPaper';
 import { useI18n } from '../../i18n';
 import { burst } from '../../lib/confetti';
 import { errorText } from '../../lib/errors';
@@ -31,6 +25,7 @@ import { api } from '../../lib/store';
 import { clamp, cn, hashString, vibrate } from '../../lib/util';
 import { CardTitle } from './CardTitle';
 import { KindPicker } from './KindPicker';
+import { glyphCount, kindChip, kindEmpty } from './look';
 
 type PerSlot<T> = Record<PhotoSlot, T>;
 const perSlot = <T,>(value: T): PerSlot<T> => ({ 0: value, 1: value, 2: value });
@@ -45,7 +40,7 @@ type Pending =
   | { stage: 'uploading'; kind: PhotoKind; preview: string }
   | { stage: 'landing'; kind: PhotoKind; preview: string; photoId: string };
 
-/** How the kind label behaves: one kind (fixed label), two (tap toggles), more (tap opens a picker). */
+/** How the kind chip behaves: one kind (fixed label), two (tap toggles), more (tap opens a picker). */
 type ChipMode = 'fixed' | 'toggle' | 'picker';
 
 /** Toast list for an upload: kid and pick photos get their own jokes whatever the theme. */
@@ -212,7 +207,7 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
         x: rect ? (rect.left + rect.width / 2) / window.innerWidth : 0.5,
         y: rect ? (rect.top + rect.height / 2) / window.innerHeight : 0.5,
       });
-      toast(tpick(`lobby.photos.uploaded.${toastGroup(theme, kind)}`, hashString(res.photo.id)), 'success', { icon: 'camera' });
+      toast(tpick(`lobby.photos.uploaded.${toastGroup(theme, kind)}`, hashString(res.photo.id)), 'success', { emoji: t(`common.kindEmoji.${kind}`) });
     } finally {
       busy.current[slot] = false;
     }
@@ -233,7 +228,7 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
     setRemoved((prev) => [...prev, photo.id]);
     // The emptied slot offers the same kind again.
     setChosen((c) => ({ ...c, [slot]: kindOf(photo) }));
-    toast(t('lobby.photos.removed'), 'info', { icon: 'trash' });
+    toast(t('lobby.photos.removed'), 'info', { emoji: '🗑️' });
   };
 
   /** Relabels a slot: the uploaded photo (server, optimistic) or the empty slot's next upload (local). */
@@ -269,144 +264,134 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
   const filledCount = active.filter((s) => photoIn(s) || pending[s]?.stage === 'landing').length;
   const benched = myPhotos.filter((p) => p.slot >= max && !removed.includes(p.id));
   const count = active.length;
-
   const isBody = theme === 'body';
-  const countLabel = t('lobby.photos.count', { count: filledCount, max: count });
 
   return (
-    <section className="@container relative">
-      <div className="mb-2 flex items-end justify-between gap-3">
-        <CardTitle>{t(`lobby.photos.title.${theme}.${count === 1 ? 'one' : 'many'}`)}</CardTitle>
-        {/* "1/2", big and bold, ticked in red marker once every slot has its photo. */}
+    <Card tone="white" className="@container p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <CardTitle emoji="📸">{t(`lobby.photos.title.${theme}.${count === 1 ? 'one' : 'many'}`)}</CardTitle>
         <motion.span
-          key={countLabel}
-          initial={{ scale: 1.5, rotate: -6 }}
-          animate={{ scale: 1, rotate: -2 }}
+          key={`${filledCount}/${count}`}
+          initial={{ scale: 1.5 }}
+          animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-          className="relative flex shrink-0 items-baseline font-num text-ink"
-          role="img"
-          aria-label={countLabel}
+          className={cn(
+            'shrink-0 rounded-full border-2 border-ink px-2.5 py-0.5 font-display text-sm',
+            filledCount === 0 ? 'bg-cream' : filledCount < count ? 'bg-sun' : 'bg-mint',
+          )}
         >
-          <span className="text-[2.1rem]">{filledCount}</span>
-          <span className="text-[1.25rem] text-ink-soft">/{count}</span>
-          {filledCount === count && <MarkerCheck className="absolute -top-3 -right-5 size-7" />}
+          {t('lobby.photos.count', { count: filledCount, max: count })}
         </motion.span>
       </div>
 
-      <div className="relative pt-4 pb-2">
-        <PaperStrip tone="blue" tilt={-2.5} seed={`slots-${count}`} className="absolute -inset-x-4 top-[22%] bottom-[30%] sm:-inset-x-6" />
-        <div
-          className={cn(
-            'relative grid gap-x-4 gap-y-5',
-            count === 1 && 'mx-auto w-full max-w-[13.5rem] grid-cols-1',
-            count === 2 && 'grid-cols-2 @sm:gap-x-6',
-            count === 3 && 'grid-cols-2 @sm:grid-cols-3 @sm:gap-x-3',
-          )}
-        >
-          {active.map((slot) => {
-            const photo = photoIn(slot);
-            const p = pending[slot];
-            const preview = p && 'preview' in p ? p.preview : null;
-            // A replacement in flight shows its local preview over the old photo.
-            const src = preview ?? photo?.url ?? null;
-            const kind = kindAt(slot);
-            const dense = count === 3;
-            const chip = (
-              <KindChip
-                kind={kind}
-                next={otherKind(kind)}
-                mode={mode}
-                dense={dense}
-                wide={count === 1}
-                disabled={Boolean(p) || (Boolean(src) && !photo)}
-                onClick={() => onChip(slot)}
+      <div
+        className={cn(
+          'grid gap-4',
+          count === 1 && 'mx-auto w-full max-w-[13rem] grid-cols-1',
+          count === 2 && 'grid-cols-2 @sm:gap-5',
+          count === 3 && 'grid-cols-2 @sm:grid-cols-3 @sm:gap-3',
+        )}
+      >
+        {active.map((slot) => {
+          const photo = photoIn(slot);
+          const p = pending[slot];
+          const preview = p && 'preview' in p ? p.preview : null;
+          // A replacement in flight shows its local preview over the old photo.
+          const src = preview ?? photo?.url ?? null;
+          const kind = kindAt(slot);
+          const dense = count === 3;
+          const chip = (
+            <KindChip
+              kind={kind}
+              next={otherKind(kind)}
+              mode={mode}
+              dense={dense}
+              wide={count === 1}
+              disabled={Boolean(p) || (Boolean(src) && !photo)}
+              onClick={() => onChip(slot)}
+            />
+          );
+          return (
+            <div
+              key={slot}
+              ref={(el) => void (slotEls.current[slot] = el)}
+              className={cn(
+                'min-w-0',
+                dense &&
+                  slot === 2 &&
+                  'col-span-2 w-[calc(50%-0.5rem)] justify-self-center @sm:col-span-1 @sm:w-auto @sm:justify-self-stretch',
+              )}
+            >
+              <input
+                ref={(el) => void (inputs.current[slot] = el)}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                tabIndex={-1}
+                aria-hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void upload(slot, file);
+                }}
               />
-            );
-            return (
-              <div
-                key={slot}
-                ref={(el) => void (slotEls.current[slot] = el)}
-                className={cn(
-                  'min-w-0',
-                  dense && slot === 2 && 'col-span-2 w-[calc(50%-0.5rem)] justify-self-center @sm:col-span-1 @sm:w-auto @sm:justify-self-stretch',
+              <AnimatePresence mode="wait" initial={false}>
+                {src ? (
+                  <FilledSlot
+                    key="filled"
+                    slot={slot}
+                    src={src}
+                    kind={kind}
+                    chip={chip}
+                    dense={dense}
+                    uploading={p?.stage === 'uploading'}
+                    removing={removing[slot]}
+                    locked={Boolean(p) || !photo}
+                    onOpen={() => setLightbox({ src, caption: `${t(`common.kindEmoji.${kind}`)} ${t(`common.kind.${kind}`)}` })}
+                    onReplace={() => pick(slot, kind)}
+                    onRemove={() => photo && void remove(slot, photo)}
+                  />
+                ) : (
+                  <EmptySlot
+                    key="empty"
+                    slot={slot}
+                    kind={kind}
+                    dense={dense}
+                    chip={mode === 'fixed' ? null : chip}
+                    processing={p?.stage === 'processing'}
+                    onPick={() => pick(slot, kind)}
+                  />
                 )}
-              >
-                <input
-                  ref={(el) => void (inputs.current[slot] = el)}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  tabIndex={-1}
-                  aria-hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (file) void upload(slot, file);
-                  }}
-                />
-                <AnimatePresence mode="wait" initial={false}>
-                  {src ? (
-                    <FilledSlot
-                      key="filled"
-                      slot={slot}
-                      src={src}
-                      kind={kind}
-                      chip={chip}
-                      dense={dense}
-                      wide={count === 1}
-                      uploading={p?.stage === 'uploading'}
-                      removing={removing[slot]}
-                      locked={Boolean(p) || !photo}
-                      onOpen={() => setLightbox({ src, caption: t(`common.kind.${kind}`) })}
-                      onReplace={() => pick(slot, kind)}
-                      onRemove={() => photo && void remove(slot, photo)}
-                    />
-                  ) : (
-                    <EmptySlot
-                      key="empty"
-                      slot={slot}
-                      kind={kind}
-                      dense={dense}
-                      chip={mode === 'fixed' ? null : chip}
-                      processing={p?.stage === 'processing'}
-                      onPick={() => pick(slot, kind)}
-                    />
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
+              </AnimatePresence>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Body parts: the one rule of the mode, stamped. */}
-      {isBody && (
-        <p className="mt-4 flex items-center gap-3">
-          <RubberStamp size="sm" tilt={-8} className="shrink-0">
-            {t('lobby.photos.sfwStamp')}
-          </RubberStamp>
-          <span className="text-pen min-w-0 text-[1.2rem] leading-[1.05]">{t('lobby.photos.sfw')}</span>
-        </p>
-      )}
+      {/* Body parts: the one rule of the mode. */}
+      {isBody && <SfwNote className="mt-4" />}
 
       <AnimatePresence initial={false}>
         {filledCount === 0 && !active.some((s) => pending[s]) && (
-          <motion.div
+          <motion.p
             key="nudge"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden px-1 pt-1 pb-2"
+            className="overflow-hidden"
           >
-            <PostIt color="pink" tilt={-1} className="mt-3 px-3 py-2.5 pb-3">
-              <p className="text-[0.95rem] leading-snug font-bold">{t(`lobby.photos.nudge.${theme}`)}</p>
-            </PostIt>
-          </motion.div>
+            <span className="mt-4 flex items-start gap-2 rounded-2xl border-2 border-ink bg-sun/70 px-3 py-2 text-sm font-bold">
+              <span className="text-lg leading-5" aria-hidden>
+                👀
+              </span>
+              {t(`lobby.photos.nudge.${theme}`)}
+            </span>
+          </motion.p>
         )}
       </AnimatePresence>
 
       {benched.length > 0 && (
-        <KraftCard tilt={0.6} className="mt-4 flex items-center gap-3 px-3 py-2.5 pb-3.5">
+        <p className="mt-4 flex items-center gap-2.5 rounded-2xl border-2 border-dashed border-ink/30 bg-cream px-3 py-2 text-sm leading-snug font-semibold text-ink-soft">
           <span className="flex shrink-0 -space-x-3" aria-hidden>
             {benched.map((b, i) => (
               <img
@@ -414,30 +399,32 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
                 src={b.url}
                 alt=""
                 draggable={false}
-                className="size-10 border-[3px] border-sheet bg-sheet object-cover opacity-80 shadow-paper-sm grayscale"
+                className="size-9 rounded-md border-2 border-ink bg-white object-cover opacity-70 grayscale"
                 style={{ rotate: `${i % 2 ? 6 : -6}deg` }}
               />
             ))}
           </span>
-          <span className="min-w-0 text-sm leading-snug font-semibold">
+          <span className="min-w-0">
+            <span aria-hidden>💤 </span>
             {benched.length === 1 ? t('lobby.photos.benchedOne', { max }) : t('lobby.photos.benchedMany', { count: benched.length, max })}
           </span>
-        </KraftCard>
+        </p>
       )}
 
-      {/* "TOP SECRET:" typed on the page, the theme's tip after it. */}
-      <p className="mt-4 text-sm leading-snug text-ink-soft">
-        <span className="mr-1.5 inline-flex -translate-y-px -rotate-2 items-center gap-1 bg-ink px-1.5 py-1 align-middle font-type text-[0.72rem] leading-none tracking-[0.04em] text-sheet uppercase">
-          <Icon name="lock" className="size-3.5" />
-          {t('lobby.photos.tipTitle')}
+      <p className="mt-3 flex items-start gap-2 text-sm leading-snug text-ink-soft">
+        <span className="text-lg leading-5" aria-hidden>
+          🤫
         </span>
-        {t(`lobby.photos.tip.${theme}`)}
+        <span>
+          <strong className="font-extrabold text-ink">{t('lobby.photos.tipTitle')}</strong> {t(`lobby.photos.tip.${theme}`)}
+        </span>
       </p>
 
       <KindPicker
         open={pickerSlot !== null}
         kinds={allowed}
         title={isBody ? t('lobby.photos.pickerTitleBody') : t('lobby.photos.pickerTitle')}
+        note={isBody ? <SfwNote /> : undefined}
         current={pickerSlot !== null ? kindAt(pickerSlot) : null}
         used={pickerSlot !== null ? settled.filter((s) => s !== pickerSlot).map(kindAt) : []}
         onPick={(k) => {
@@ -447,23 +434,11 @@ export function PhotoSlots({ myPhotos, theme, photosPerPlayer }: { myPhotos: MyP
         onClose={() => setPickerSlot(null)}
       />
       <Lightbox src={lightbox?.src ?? null} caption={lightbox?.caption} onClose={() => setLightbox(null)} />
-    </section>
+    </Card>
   );
 }
 
-const TAG_WRAP = 'h-auto! min-h-[22px] py-0.5 [&>span:last-child]:whitespace-normal [&>span:last-child]:leading-[1.15]';
-const TAG_TIGHT = `gap-1 pr-1.5! pl-1! [&>span:last-child]:tracking-[0.02em] ${TAG_WRAP}`;
-/** TAG_TIGHT (+ the small size's 11px type) only when the card is narrow. */
-const TAG_TIGHT_NARROW = [
-  '@max-[18rem]:min-h-[22px] @max-[18rem]:h-auto! @max-[18rem]:py-0.5 @max-[18rem]:gap-1 @max-[18rem]:pr-1.5! @max-[18rem]:pl-1!',
-  '@max-[18rem]:[&>span:last-child]:text-[11px] @max-[18rem]:[&>span:last-child]:tracking-[0.02em]',
-  '@max-[18rem]:[&>span:last-child]:whitespace-normal @max-[18rem]:[&>span:last-child]:leading-[1.15]',
-].join(' ');
-
-/**
- * "SISTER": what the photo is, typed on masking tape. Tapping it toggles (2 kinds) or opens the
- * picker (3+); a little swap / chevron in blue ballpoint after the label says so.
- */
+/** "👧 Sister ▾": what the photo is. Tapping it toggles (2 kinds) or opens the picker (3+). */
 function KindChip({
   kind,
   next,
@@ -477,7 +452,7 @@ function KindChip({
   /** Kind a tap switches to, in toggle mode. */
   next: PhotoKind;
   mode: ChipMode;
-  /** Three slots on the card: keep it small. */
+  /** Three slots side by side on a wide card: keep it small. */
   dense: boolean;
   /** Single slot: plenty of room. */
   wide: boolean;
@@ -486,21 +461,27 @@ function KindChip({
 }) {
   const t = useI18n().t;
   const label = t(`common.kind.${kind}`);
-  const tag = (
+  const cls = cn(
+    'inline-flex h-11 max-w-full items-center gap-1 rounded-full border-2 border-ink px-2 font-display text-sm shadow-pop-sm transition-colors',
+    wide ? 'text-base px-2.5' : dense ? '@sm:h-10 @sm:gap-0.5 @sm:px-1.5' : '@sm:text-base @sm:px-2.5',
+    kindChip(kind),
+  );
+  const content = (
     <AnimatePresence mode="popLayout" initial={false}>
       <motion.span
         key={kind}
-        className="inline-flex min-w-0"
+        className="inline-flex min-w-0 items-center gap-1"
         initial={{ rotateX: 90, opacity: 0 }}
         animate={{ rotateX: 0, opacity: 1 }}
         exit={{ rotateX: -90, opacity: 0 }}
         transition={{ duration: 0.18 }}
       >
-        <KindTag kind={kind} size={wide ? 'lg' : dense ? 'sm' : 'md'} tilt={-2} className={cn(dense ? TAG_TIGHT : !wide && TAG_TIGHT_NARROW)} />
+        <span aria-hidden>{t(`common.kindEmoji.${kind}`)}</span>
+        <span className="truncate">{label}</span>
       </motion.span>
     </AnimatePresence>
   );
-  if (mode === 'fixed') return <span className="inline-flex h-11 max-w-full items-center">{tag}</span>;
+  if (mode === 'fixed') return <span className={cls}>{content}</span>;
   const aria =
     mode === 'toggle' ? t('lobby.photos.switchKind', { kind: t(`common.kind.${next}`) }) : t('lobby.photos.chooseKind', { kind: label });
   return (
@@ -508,22 +489,20 @@ function KindChip({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      whileTap={{ scale: 0.92 }}
+      whileTap={{ scale: 0.9 }}
       aria-label={aria}
       title={aria}
       aria-haspopup={mode === 'picker' ? 'dialog' : undefined}
-      className="group relative inline-flex h-11 max-w-full items-center gap-0.5 font-sans text-blue disabled:opacity-60"
+      className={cn(cls, 'disabled:opacity-60')}
     >
-      {tag}
-      <Icon name={mode === 'toggle' ? 'swap' : 'chevron-down'} weight="bold" className={cn('shrink-0 transition-transform group-hover:scale-125', wide ? 'size-5' : 'size-4')} />
+      {content}
+      <span className={cn('shrink-0 opacity-70', mode === 'toggle' ? 'text-sm' : 'text-[0.6rem]', dense && '@sm:hidden')} aria-hidden>
+        {mode === 'toggle' ? '⇄' : '▼'}
+      </span>
     </motion.button>
   );
 }
 
-/** Polaroid frame classes (the white instant-print border), shared by empty and filled slots. */
-const FRAME = 'relative block w-full bg-[linear-gradient(160deg,#fffefa,#f5f1e6)] p-[9px] pb-1.5 text-ink shadow-paper';
-
-/** An empty print waiting for its photo: a dashed blank frame taped on the page, what to add handwritten underneath. */
 function EmptySlot({
   slot,
   kind,
@@ -535,16 +514,18 @@ function EmptySlot({
   slot: PhotoSlot;
   kind: PhotoKind;
   dense: boolean;
-  /** Kind label under the slot (none when the theme has a single kind). */
+  /** Kind chip under the slot (none when the theme has a single kind). */
   chip: ReactNode;
   processing: boolean;
   onPick: () => void;
 }) {
   const t = useI18n().t;
   const addLabel = t(`common.addKind.${kind}`);
+  // "Add the last photo in your camera roll" needs a smaller size than "Add your dad".
+  const long = glyphCount(addLabel) > 22;
   return (
     <motion.div
-      className="flex flex-col items-center gap-2"
+      className="flex flex-col items-center gap-3"
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.85 }}
@@ -556,44 +537,48 @@ function EmptySlot({
         disabled={processing}
         aria-busy={processing}
         aria-label={processing ? t('lobby.photos.processing') : addLabel}
-        style={{ rotate: TILT[slot] / 2 }}
-        animate={processing ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: TILT[slot] / 2 }}
+        animate={processing ? { rotate: [0, -3, 3, -2, 2, 0] } : { rotate: 0 }}
         transition={processing ? { rotate: { duration: 0.6, repeat: Infinity } } : { type: 'spring', stiffness: 400, damping: 22 }}
-        whileHover={processing ? undefined : { scale: 1.03, rotate: TILT[slot] }}
+        whileHover={processing ? undefined : { scale: 1.03, rotate: TILT[slot] / 2 }}
         whileTap={processing ? undefined : { scale: 0.95 }}
-        className={cn(FRAME, 'group')}
+        className={cn(
+          'group flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-3 border-dashed p-2 text-center text-ink transition-colors',
+          chip ? 'aspect-[4/4.9]' : 'aspect-[4/5.6] md:aspect-[4/4.6]',
+          kindEmpty(kind),
+        )}
       >
-        <Tape width={58} height={19} rotate={TILT[slot] > 0 ? -4 : 4} className="-top-2.5 left-1/2 z-10 -translate-x-1/2" />
-        {/* The blank print: dashed pencil outline, a camera doodle. */}
-        <span className="relative flex aspect-[4/5] w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-ink/35 bg-paper transition-colors group-hover:bg-yellow/25">
-          {processing ? (
-            <>
-              <Spinner className="size-10 text-ink" />
-              <span className="label-type">{t('lobby.photos.processing')}</span>
-            </>
-          ) : (
+        {processing ? (
+          <>
+            <Spinner className="size-10 text-ink" />
+            <span className="font-display text-base">{t('lobby.photos.processing')}</span>
+          </>
+        ) : (
+          <>
             <motion.span
-              className="relative text-ink"
-              animate={{ y: [0, -4, 0], rotate: [-4, slot % 2 ? 4 : -8, -4] }}
-              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: slot * 0.7 }}
+              className={cn('text-6xl leading-none drop-shadow-[0_3px_0_rgba(27,16,54,0.25)]', dense ? '@sm:text-5xl' : 'sm:text-7xl')}
+              animate={{ y: [0, -6, 0], rotate: [0, slot % 2 ? 6 : -6, 0] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut', delay: slot * 0.7 }}
+              aria-hidden
             >
-              <Icon name="camera" weight="light" className={cn('size-14', dense && '@max-sm:size-11')} />
-              <span className="absolute -right-2.5 -bottom-1.5 flex size-7 items-center justify-center rounded-full bg-red text-white shadow-paper-sm transition-transform group-hover:scale-110">
-                <Icon name="plus" weight="bold" className="size-4" />
-              </span>
+              {t(`common.kindEmoji.${kind}`)}
             </motion.span>
-          )}
-        </span>
-        {/* What to add, in ballpoint on the print's bottom margin. */}
-        <span
-          className={cn(
-            'text-pen flex min-h-11 items-center justify-center px-1 pt-1 text-center text-[1.35rem] leading-[0.95]',
-            dense && '@sm:text-[1.15rem]',
-            processing && 'opacity-50',
-          )}
-        >
-          {addLabel}
-        </span>
+            <span
+              className={cn(
+                'font-display leading-tight',
+                long ? 'text-base' : 'text-lg',
+                dense ? (long ? '@sm:text-sm' : '@sm:text-base') : long ? 'sm:text-lg' : 'sm:text-xl',
+              )}
+            >
+              {addLabel}
+            </span>
+            <span
+              className="flex size-9 shrink-0 items-center justify-center rounded-full border-3 border-ink bg-pink font-display text-2xl leading-none text-white shadow-pop-sm transition-transform group-hover:scale-110"
+              aria-hidden
+            >
+              +
+            </span>
+          </>
+        )}
       </motion.button>
       {chip}
     </motion.div>
@@ -606,7 +591,6 @@ function FilledSlot({
   kind,
   chip,
   dense,
-  wide,
   uploading,
   removing,
   locked,
@@ -619,8 +603,6 @@ function FilledSlot({
   kind: PhotoKind;
   chip: ReactNode;
   dense: boolean;
-  /** Single slot: room for the button labels even on tiny phones. */
-  wide: boolean;
   uploading: boolean;
   removing: boolean;
   /** Actions disabled while a local change is not confirmed yet. */
@@ -633,15 +615,15 @@ function FilledSlot({
   let overlay: ReactNode = null;
   if (uploading || removing) {
     overlay = (
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-ink/50 text-sheet backdrop-blur-[2px]">
-        <Spinner className="size-10 text-sheet" />
-        {uploading && <span className="font-type text-sm">{t('lobby.photos.uploading')}</span>}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-grape-950/55 text-cream backdrop-blur-[2px]">
+        <Spinner className="size-9 text-sun" />
+        {uploading && <span className="font-display text-sm">{t('lobby.photos.uploading')}</span>}
       </div>
     );
   }
   return (
     <motion.div
-      className="flex flex-col items-center gap-2.5"
+      className="flex flex-col items-center gap-3"
       initial={{ opacity: 0, y: -30, scale: 0.6, rotate: TILT[slot] * 4 }}
       animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
       exit={{ opacity: 0, scale: 0.6, rotate: -TILT[slot] * 4, y: 20 }}
@@ -655,15 +637,14 @@ function FilledSlot({
         <Polaroid
           src={src}
           alt={t(`common.kind.${kind}`)}
-          tape
-          className="w-full"
+          className={cn('w-full', dense && '@sm:p-2')}
           imageClassName="aspect-[4/5] w-full"
           overlay={overlay}
           onOpen={uploading ? undefined : onOpen}
-          caption={<span className="flex min-h-11 items-center justify-center">{chip}</span>}
+          caption={chip}
         />
       </motion.div>
-      <div className={cn('flex w-full items-center justify-center gap-2', dense && '@sm:gap-1.5')}>
+      <div className={cn('flex w-full gap-2', dense && '@sm:gap-1.5')}>
         <motion.button
           type="button"
           disabled={locked || removing}
@@ -674,10 +655,10 @@ function FilledSlot({
           whileTap={{ scale: 0.94, y: 2 }}
           aria-label={t('lobby.photos.replaceAria')}
           title={t('lobby.photos.replace')}
-          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full border-2 border-ink bg-sheet px-3 font-display text-sm text-ink transition-colors hover:bg-yellow disabled:opacity-50"
+          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-xl border-2 border-ink bg-cream px-2 font-display text-sm text-ink shadow-pop-sm disabled:opacity-50"
         >
-          <Icon name="refresh" className="size-4.5 shrink-0" />
-          <span className={cn('truncate', !wide && '@max-[19rem]:sr-only', dense && '@sm:sr-only')}>{t('lobby.photos.replace')}</span>
+          <span aria-hidden>🔄</span>
+          <span className={cn('truncate', dense && '@sm:sr-only')}>{t('lobby.photos.replace')}</span>
         </motion.button>
         <motion.button
           type="button"
@@ -689,11 +670,27 @@ function FilledSlot({
           whileTap={{ scale: 0.94, y: 2 }}
           aria-label={t('lobby.photos.removeAria')}
           title={t('lobby.photos.remove')}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-red bg-sheet text-red-ink transition-colors hover:bg-red hover:text-white disabled:opacity-50"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-danger text-lg shadow-pop-sm disabled:opacity-50"
         >
-          <Icon name="trash" className="size-5" />
+          <span aria-hidden>🗑️</span>
         </motion.button>
       </div>
     </motion.div>
+  );
+}
+
+/** Body parts mode: "SFW only" badge + "nothing you wouldn't show your grandma" (also in the picker). */
+export function SfwNote({ className }: { className?: string }) {
+  const t = useI18n().t;
+  return (
+    <p className={cn('flex items-center gap-2.5 rounded-2xl border-2 border-ink bg-sky/25 px-3 py-2 text-sm leading-snug font-bold', className)}>
+      <span className="inline-flex shrink-0 -rotate-6 items-center gap-1 rounded-full border-2 border-ink bg-danger px-2 py-0.5 font-display text-xs leading-4 whitespace-nowrap text-white shadow-pop-sm">
+        <span className="text-base leading-none" aria-hidden>
+          🙈
+        </span>
+        {t('lobby.photos.sfwTag')}
+      </span>
+      <span className="min-w-0">{t('lobby.photos.sfw')}</span>
+    </p>
   );
 }

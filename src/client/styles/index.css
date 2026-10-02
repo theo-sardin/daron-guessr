@@ -1,135 +1,53 @@
 @import 'tailwindcss';
-/* UI and numbers: one variable family (weight 100-900, width 62-125%) + its heavy cut. */
-@import '@fontsource-variable/archivo/wdth.css';
-@import '@fontsource/archivo-black/index.css';
-/* Red marker notes, blue ballpoint notes and captions. */
-@import '@fontsource/permanent-marker/index.css';
-@import '@fontsource-variable/caveat/wght.css';
-@import '@fontsource/caveat-brush/index.css';
-/* Typewriter micro-labels ("salon n°", "photo"). */
-@import '@fontsource/special-elite/index.css';
-@import '@fontsource/courier-prime/700.css';
-/* Ransom-note letters (cut out of magazines). */
-@import '@fontsource/abril-fatface/index.css';
-@import '@fontsource/anton/index.css';
-@import '@fontsource/alfa-slab-one/index.css';
-@import '@fontsource/rubik-mono-one/index.css';
-@import '@fontsource/dm-serif-display/index.css';
-@import '@fontsource/dm-serif-display/400-italic.css';
-@import '@fontsource/bungee/index.css';
+@import '@fontsource/lilita-one/latin-400.css';
+@import '@fontsource/lilita-one/latin-ext-400.css';
+@import '@fontsource-variable/nunito';
 
 /*
- * Design tokens. "Scrapbook / zine": the family album turned into a DIY fanzine. Everything
- * sits on cream paper with a subtle grain: polaroids pinned with masking tape, torn halftone
- * strips, notebook and kraft paper, post-its, a red Dymo label, rubber stamps and hand-drawn
- * marker circles. Ink on paper: text defaults to ink, surfaces are paper.
+ * Design tokens. The whole game sits on a deep grape night sky with bright "sticker"
+ * cards: cream surfaces, thick ink outlines and a hard drop shadow that buttons sink into.
  */
 @theme {
   /* Color emoji fonts come right after the web fonts so a system font's monochrome emoji never wins. */
-  --font-sans: 'Archivo Variable', 'Archivo', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Archivo Variable', 'Archivo', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;
-  /* Big bold numbers ("3/8", "14", "3 votes"). */
-  --font-heavy: 'Archivo Black', 'Archivo Variable', 'Arial Black', system-ui, sans-serif;
-  --font-marker: 'Permanent Marker', 'Marker Felt', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', cursive;
-  --font-hand: 'Caveat Variable', 'Bradley Hand', 'Segoe Print', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', cursive;
-  --font-brush: 'Caveat Brush', 'Caveat Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', cursive;
-  --font-type: 'Special Elite', 'Courier Prime', 'Courier New', ui-monospace, monospace;
-  --font-mono: 'Courier Prime', 'Courier New', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --font-emoji: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  /* Ransom-note faces. */
-  --font-abril: 'Abril Fatface', Georgia, serif;
-  --font-anton: 'Anton', Impact, sans-serif;
-  --font-alfa: 'Alfa Slab One', Rockwell, serif;
-  --font-rubik: 'Rubik Mono One', 'Arial Black', sans-serif;
-  --font-dmserif: 'DM Serif Display', Georgia, serif;
-  --font-bungee: 'Bungee', Impact, sans-serif;
+  --font-display: 'Lilita One', 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* Paper. */
-  --color-paper: #f3ebdc;
-  --color-paper-dark: #eadfcb;
-  --color-sheet: #fffdf6;
-  --color-kraft: #ddbd8f;
-  --color-kraft-dark: #b48c5c;
-  /* Ink and pens. */
-  --color-ink: #17130f;
-  --color-ink-soft: #4a4238;
-  /* Faint labels, inactive options: still 4.9:1 on paper, 5.7:1 on a sheet. */
-  --color-ink-faint: #6e6354;
-  --color-blue: #2344c8;
-  --color-blue-dark: #1d2f8a;
-  --color-red: #e3321f;
-  --color-red-dark: #b8200f;
-  /*
-   * Marker red for TEXT and for white-on-red fills: #E3321F is only 3.4:1 on yellow and 4.4:1
-   * under white text. This one is 4.6:1 on yellow, 5.2:1 on paper, 6.1:1 under white.
-   * Strokes, circles, stamps and big cut-out letters keep --color-red.
-   */
-  --color-red-ink: #bf2112;
-  --color-yellow: #ffdf3d;
-  /* Small touches. */
-  --color-pink: #f6a6c1;
-  --color-mint: #9ed9c0;
-  --color-lilac: #c9b8f0;
-  --color-sky: #a9c8f2;
-  --color-tangerine: #f7a866;
-  --color-tape: rgb(238 226 186 / 0.86);
+  --color-ink: #1b1036;
+  --color-ink-soft: #3a2a63;
+  --color-cream: #fff8ec;
+  --color-paper: #ffffff;
+  --color-grape-950: #120828;
+  --color-grape-900: #1b0f3b;
+  --color-grape-800: #2a1760;
+  --color-grape-700: #3d2388;
+  --color-grape-600: #5530b8;
+  --color-grape-300: #b9a6ff;
+  --color-grape-200: #d8ccff;
 
-  /*
-   * Legacy names from the dark "Photo lab" theme, repointed to the paper world so screens that
-   * still use them compile. Prefer the names above in new code. MIGRATION (screens):
-   *   text-cream / text-cream/NN on paper  → text-ink (or text-ink-soft / text-ink-faint)
-   *   text-cream on a dark panel (bg-ink)  → drop it: dark panels now default to cream text
-   *   text-sun (text, spinners)            → text-red-ink / text-blue / text-ink (yellow is a paper, never text on paper)
-   *   text-grape-200 / -300 (subtitles)    → text-ink-soft
-   *   bg-grape-* panels                    → a paper: paper-sheet-grain / paper-kraft / <Paper> / <NotebookCard>
-   *   text-outline(-sm) + text-cream titles → <CutoutText> or plain font-display ink (they print as plain ink meanwhile)
-   *   label-mono on a dark panel           → label-type (inherits the panel's text color now)
-   *   <Stamp variant="mono">{code}</Stamp>   → <DymoLabel text={code} />
-   *   <Viewfinder>, fakeDateStamp, Stamp pad, font-stamp7, DSEG nudges → remove
-   *   arrow-right <Icon> in a Button        → <Button arrow> (the hand-drawn arrow)
-   *   text-red for small text on light / yellow → text-red-ink (or .text-marker)
-   * In /__preview these legacy classes get a dashed magenta outline (dev only, ?lint=0 hides it).
-   */
-  --color-cream: #fffdf6;
-  --color-sun: #ffdf3d;
-  --color-sun-dark: #e8c21a;
-  --color-pink-dark: #e07ea3;
-  --color-mint-dark: #6fbf9f;
-  --color-sky-dark: #6f9ee0;
-  --color-danger: #e3321f;
-  --color-danger-dark: #b8200f;
-  --color-stamp: #e3321f;
-  --color-stamp-ink: #b8200f;
-  --color-safelight: #e3321f;
-  /* The old night: dark shades become ink, light ones (text on the night) become soft ink. */
-  --color-grape-950: #17130f;
-  --color-grape-900: #221c16;
-  --color-grape-800: #2e261e;
-  --color-grape-700: #3b3228;
-  --color-grape-600: #4a4238;
-  --color-grape-300: #5c5247;
-  --color-grape-200: #6b6155;
+  --color-pink: #ff4fa3;
+  --color-pink-dark: #d92f82;
+  --color-sun: #ffd23f;
+  --color-sun-dark: #e0b000;
+  --color-mint: #3ddc97;
+  --color-mint-dark: #1fb576;
+  --color-sky: #4cc9f0;
+  --color-sky-dark: #1ea5d0;
+  --color-tangerine: #ff8c42;
+  --color-lilac: #b388ff;
+  --color-danger: #ff5d5d;
+  --color-danger-dark: #d93a3a;
 
-  /* Paper lifted off the page: a contact shadow + a soft cast shadow (warm, never grey). */
-  --shadow-paper-sm: 0 1px 1px rgb(40 25 10 / 0.2), 0 4px 10px -4px rgb(40 25 10 / 0.38);
-  --shadow-paper: 0 1px 1px rgb(40 25 10 / 0.18), 0 10px 22px -8px rgb(40 25 10 / 0.45);
-  --shadow-paper-lg: 0 2px 2px rgb(40 25 10 / 0.16), 0 18px 34px -12px rgb(40 25 10 / 0.5);
-  /* Legacy "sticker" shadows, now paper shadows. */
-  --shadow-pop-sm: 0 1px 1px rgb(40 25 10 / 0.2), 0 4px 10px -4px rgb(40 25 10 / 0.38);
-  --shadow-pop: 0 1px 1px rgb(40 25 10 / 0.18), 0 10px 22px -8px rgb(40 25 10 / 0.45);
-  --shadow-pop-lg: 0 2px 2px rgb(40 25 10 / 0.16), 0 18px 34px -12px rgb(40 25 10 / 0.5);
-  --shadow-glow: 0 0 0 4px rgb(255 223 61 / 0.9), 0 6px 16px -4px rgb(40 25 10 / 0.35);
-  --shadow-flash: 0 0 0 3px var(--color-sheet), 0 10px 24px -6px rgb(40 25 10 / 0.45);
+  --shadow-pop: 0 5px 0 0 var(--color-ink);
+  --shadow-pop-sm: 0 3px 0 0 var(--color-ink);
+  --shadow-pop-lg: 0 8px 0 0 var(--color-ink);
+  --shadow-glow: 0 0 0 4px rgb(255 210 63 / 0.55), 0 0 32px 4px rgb(255 210 63 / 0.45);
 
-  --radius-blob: 0.375rem;
+  --radius-blob: 1.75rem;
 
   --animate-wiggle: wiggle 0.5s ease-in-out;
   --animate-float: float 6s ease-in-out infinite;
   --animate-shake: shake 0.35s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
-  --animate-scribble: scribble 1.5s cubic-bezier(0.55, 0.1, 0.45, 0.9) infinite;
-  --animate-jiggle: jiggle 2.6s ease-in-out infinite;
-  --animate-turn: turn 2.4s linear infinite;
 
   @keyframes wiggle {
     0%, 100% { transform: rotate(0deg); }
@@ -151,66 +69,27 @@
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.75; transform: scale(0.97); }
   }
-  /* The spinner: a pen stroke chasing round its loop, growing and shrinking (pathLength = 1): never under 35% of the loop. */
-  @keyframes scribble {
-    0% { stroke-dasharray: 0.35 0.65; stroke-dashoffset: 0; }
-    50% { stroke-dasharray: 0.8 0.2; stroke-dashoffset: -0.45; }
-    100% { stroke-dasharray: 0.35 0.65; stroke-dashoffset: -1; }
-  }
-  @keyframes turn {
-    to { transform: rotate(360deg); }
-  }
-  /* A sticker that barely moves (draws the eye without distracting). */
-  @keyframes jiggle {
-    0%, 100% { transform: rotate(0deg) scale(1); }
-    8% { transform: rotate(-4deg) scale(1.04); }
-    16% { transform: rotate(3deg) scale(1.02); }
-    24% { transform: rotate(0deg) scale(1); }
-  }
 }
 
 @layer base {
-  :root {
-    /* Fine paper grain and big soft blotches (grayscale noise, used with multiply). */
-    --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    --blotch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='b' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23b)'/%3E%3C/svg%3E");
-    /* Ink eaten by the paper: the mask of rubber stamps. */
-    --grunge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -3 2.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
-  }
-  /*
-   * The paper lives on the root (it paints the canvas, under <Background>'s fixed -z-10 grain).
-   * The body stays transparent: an in-flow body background would paint over the grain.
-   */
   html {
     -webkit-tap-highlight-color: transparent;
     -webkit-text-size-adjust: 100%;
-    background: var(--color-paper);
-    color-scheme: light;
+    background: var(--color-grape-900);
+    color-scheme: dark;
   }
   body {
     min-height: 100dvh;
     margin: 0;
     font-family: var(--font-sans);
-    font-stretch: 100%;
-    color: var(--color-ink);
-    background: transparent;
+    color: var(--color-cream);
+    /* No background here: the night sky is painted by <Background> (fixed, z -10), which a body
+       background would cover. html keeps a plain color for overscroll. */
     overscroll-behavior-y: none;
     -webkit-font-smoothing: antialiased;
   }
   #root {
     min-height: 100dvh;
-  }
-  /*
-   * The page never scrolls sideways: paper that bleeds past the window on purpose (torn strips,
-   * a sticker mid-slap at scale 1.35, a stamp thumping down) is clipped at the window's edge.
-   * `clip` is not a scroll container, so sticky / fixed children behave as usual. It also hides
-   * real overflow: QA should check the content, e.g. `#root > *` boxes against the viewport
-   * (see the foundation gallery's overflow check), not only documentElement.scrollWidth.
-   */
-  @supports (overflow: clip) {
-    #root {
-      overflow-x: clip;
-    }
   }
   button {
     cursor: pointer;
@@ -219,12 +98,8 @@
     cursor: not-allowed;
   }
   :focus-visible {
-    outline: 3px solid var(--color-blue);
+    outline: 3px solid var(--color-sun);
     outline-offset: 3px;
-  }
-  ::selection {
-    background: var(--color-yellow);
-    color: var(--color-ink);
   }
   img {
     -webkit-user-drag: none;
@@ -233,234 +108,21 @@
 }
 
 @layer components {
-  /* Headings and big UI type: Archivo at its heaviest, a bit wide. Utilities still win. */
-  .font-display {
-    font-weight: 900;
-    font-stretch: 108%;
-    letter-spacing: -0.015em;
+  /* Text with a chunky ink outline, for big titles on the dark background. */
+  .text-outline {
+    -webkit-text-stroke: 6px var(--color-ink);
+    paint-order: stroke fill;
   }
-  /* Wide caps (buttons, "LA DARONNE DE"). */
-  .font-wide {
-    font-weight: 900;
-    font-stretch: 118%;
-    letter-spacing: 0.01em;
+  .text-outline-sm {
+    -webkit-text-stroke: 4px var(--color-ink);
+    paint-order: stroke fill;
   }
-  /* Big numbers: Archivo Black, tight. */
-  .font-num {
-    font-family: var(--font-heavy);
-    font-weight: 400;
-    letter-spacing: -0.03em;
-    font-variant-numeric: tabular-nums;
-    line-height: 0.85;
-  }
-  /* Red marker note ("ces lunettes !!", "la bonne !"). */
-  .text-marker {
-    font-family: var(--font-marker);
-    font-weight: 400;
-    color: var(--color-red-ink);
-    letter-spacing: 0;
-    line-height: 1.02;
-  }
-  /* Blue ballpoint note / photo caption. */
-  .text-pen {
-    font-family: var(--font-hand);
-    font-weight: 700;
-    color: var(--color-blue);
-    letter-spacing: 0;
-    line-height: 1;
-  }
-  /* Blue ballpoint on kraft: the darker pen (4.3:1 → 6.8:1). TornPaper marks its content with data-surface. */
-  :is(.paper-kraft, [data-surface='kraft']) .text-pen,
-  .paper-kraft.text-pen {
-    color: var(--color-blue-dark);
-  }
-  /*
-   * Dark panels print in cream by default (legacy screens put stamps and labels on bg-ink
-   * without a text color). Any text-* utility still wins (utilities layer).
-   */
-  :where(.bg-ink, .bg-grape-950, .bg-grape-900, .bg-grape-800, .bg-grape-700) {
-    color: #fff6e0;
-  }
-  /* Handwriting in the current color. */
-  .text-hand {
-    font-family: var(--font-hand);
-    font-weight: 700;
-    letter-spacing: 0;
-    line-height: 1.05;
-  }
-  /* Typewriter micro-label ("salon n°", "photo", "les votes"). */
-  .label-type,
-  .label-mono {
-    font-family: var(--font-type);
-    font-weight: 400;
-    font-size: 0.75rem;
-    line-height: 1;
-    letter-spacing: 0.01em;
-    /* The surrounding ink, a bit faded: ink-ish on paper, cream-ish on a dark panel. */
-    color: color-mix(in srgb, currentColor 74%, transparent);
-  }
-  /*
-   * Legacy camera date stamp classes. `.text-stamp` was only ever used on dark surfaces (ink
-   * chips): highlighter yellow there. The "printed on paper" variants are plain ink.
-   */
-  .text-stamp {
-    color: var(--color-yellow);
-    text-shadow: none;
-  }
-  .text-stamp-flat,
-  .text-stamp-print {
-    color: var(--color-ink);
-    text-shadow: none;
-  }
-  /* White type burned on a photo: a dark halo keeps it legible on pale pictures. */
-  .stamp-on-photo {
-    color: var(--color-sheet);
-    text-shadow:
-      0 0 1px rgb(23 19 15 / 0.9),
-      0 1px 3px rgb(23 19 15 / 0.6);
-  }
-  /* <Icon>: inline by default; any display / size utility on it still wins (utilities layer). */
-  .icon {
-    display: inline-block;
-    flex-shrink: 0;
-    stroke-width: 2.25;
-  }
-  /*
-   * Legacy "sticker type" (cream text with a thick ink outline, the v1 look): it now prints as
-   * plain ink display type (see the utilities override at the end). Use <CutoutText> or
-   * font-display instead.
-   */
-  .emoji {
-    font-family: var(--font-emoji);
-    font-weight: 400;
-    font-style: normal;
-    letter-spacing: 0;
-  }
-
-  /* ---------- paper surfaces ---------- */
-  .paper-sheet {
-    background-color: var(--color-sheet);
-    color: var(--color-ink);
-  }
-  /* A white card with its own faint grain (a sheet from the pad, not a flat rectangle). */
-  .paper-sheet-grain {
-    background-color: var(--color-sheet);
-    background-image: linear-gradient(160deg, rgb(255 254 250 / 0.94), rgb(253 250 240 / 0.88)), var(--noise);
-    background-size: auto, 240px 240px;
-    color: var(--color-ink);
-  }
-  /*
-   * Notebook paper: blue rules + red margin. Set on the paper or any ancestor (they inherit):
-   * `--line` the rule pitch (default 24px = the body text's line height), `--margin` the red
-   * margin (default 22px), `--line-y` shifts the rules down (to put text baselines on them;
-   * <NotebookCard leading> does it for you).
-   */
-  .paper-notebook {
-    background-color: var(--color-sheet);
-    background-image:
-      linear-gradient(90deg, transparent var(--margin, 22px), rgb(227 50 31 / 0.45) var(--margin, 22px) calc(var(--margin, 22px) + 1.5px), transparent calc(var(--margin, 22px) + 1.5px)),
-      linear-gradient(180deg, transparent calc(var(--line, 24px) - 1px), rgb(35 68 200 / 0.22) calc(var(--line, 24px) - 1px));
-    background-size: auto, auto var(--line, 24px);
-    background-position: 0 0, 0 var(--line-y, 0px);
-    color: var(--color-ink);
-  }
-  .paper-grid {
-    background-color: var(--color-sheet);
-    background-image: linear-gradient(rgb(35 68 200 / 0.13) 1px, transparent 1px), linear-gradient(90deg, rgb(35 68 200 / 0.13) 1px, transparent 1px);
-    background-size: 14px 14px;
-    color: var(--color-ink);
-  }
-  .paper-kraft {
-    background-color: var(--color-kraft);
-    background-image: var(--blotch), var(--noise);
-    background-size: 600px 600px, 240px 240px;
-    background-blend-mode: multiply;
-    color: var(--color-ink);
-  }
-  .paper-postit {
-    background: linear-gradient(170deg, #ffe75c, #ffd93a 70%, #f5cb2a);
-    color: var(--color-ink);
-  }
-  .paper-pink {
-    background: linear-gradient(170deg, #f9b8cf, #f6a6c1 70%, #ee97b4);
-    color: var(--color-ink);
-  }
-  .paper-mint {
-    background: linear-gradient(170deg, #b0e3cd, #9ed9c0 70%, #8ccdb2);
-    color: var(--color-ink);
-  }
-  .paper-sky {
-    background: linear-gradient(170deg, #bcd5f6, #a9c8f2 70%, #97b9ea);
-    color: var(--color-ink);
-  }
-  .paper-lilac {
-    background: linear-gradient(170deg, #d7caf5, #c9b8f0 70%, #b9a6e8);
-    color: var(--color-ink);
-  }
-  .paper-ink {
-    background-color: var(--color-ink);
-    background-image: var(--noise);
-    background-size: 240px 240px;
-    background-blend-mode: soft-light;
-    color: #fff6e0;
-  }
-  /* Red paper under white text: the deeper red (6.1:1). */
-  .paper-red {
-    background-color: var(--color-red-ink);
-    color: #fff;
-  }
-  /* Halftone printing: dots on a flat color (strips behind photos, newsprint letters). */
-  .halftone-blue {
-    background-color: var(--color-blue);
-    background-image: radial-gradient(rgb(255 255 255 / 0.16) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  .halftone-yellow {
-    background-color: var(--color-yellow);
-    background-image: radial-gradient(rgb(23 19 15 / 0.13) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  .halftone-pink {
-    background-color: var(--color-pink);
-    background-image: radial-gradient(rgb(23 19 15 / 0.1) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  .halftone-red {
-    background-color: var(--color-red);
-    background-image: radial-gradient(rgb(255 255 255 / 0.18) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  .halftone-mint {
-    background-color: var(--color-mint);
-    background-image: radial-gradient(rgb(23 19 15 / 0.1) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  .halftone-ink {
-    background-color: var(--color-ink);
-    background-image: radial-gradient(rgb(255 255 255 / 0.14) 1.3px, transparent 1.6px);
-    background-size: 6px 6px;
-  }
-  /*
-   * Lifted paper for clipped shapes (clip-path eats box-shadows: a filter on a static wrapper).
-   * One drop-shadow each (cheaper to re-rasterize). Put it on a wrapper whose content does not
-   * animate, and prefer box-shadow (shadow-paper*) where nothing is clipped, especially on list
-   * items repeated more than ~8 times.
-   */
-  .lift {
-    filter: drop-shadow(0 4px 5px rgb(40 25 10 / 0.3));
-  }
-  .lift-sm {
-    filter: drop-shadow(0 2px 2.5px rgb(40 25 10 / 0.3));
-  }
-  .lift-lg {
-    filter: drop-shadow(0 9px 10px rgb(40 25 10 / 0.32));
-  }
-  /* A white card (legacy name, used by modals and older screens). */
   .sticker {
-    background-color: var(--color-sheet);
+    background: var(--color-cream);
     color: var(--color-ink);
-    border-radius: 3px;
-    box-shadow: var(--shadow-paper);
+    border: 3px solid var(--color-ink);
+    border-radius: var(--radius-blob);
+    box-shadow: var(--shadow-pop);
   }
   .safe-bottom {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -473,36 +135,6 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
-  }
-  /* Masking tape strip applied from left to right. */
-  .tape-in {
-    animation: tape-in 0.32s cubic-bezier(0.3, 0.7, 0.2, 1) both;
-    transform-origin: 0 50%;
-  }
-  @keyframes tape-in {
-    from {
-      transform: scaleX(0.05);
-      opacity: 0;
-    }
-    30% {
-      opacity: 1;
-    }
-    to {
-      transform: scaleX(1);
-      opacity: 1;
-    }
-  }
-}
-
-/*
- * Legacy outlined titles (`text-outline text-cream`): plain ink display type on paper, no
- * stroke. In the utilities layer, after Tailwind's, so it beats the text-cream next to it.
- */
-@layer utilities {
-  .text-outline,
-  .text-outline-sm {
-    -webkit-text-stroke: 0;
-    color: var(--color-ink);
   }
 }
 

@@ -2,13 +2,11 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Phase, RoomView } from '../../shared/protocol';
 import { Button } from '../components/Button';
-import { NotebookCard } from '../components/Paper';
+import { Card } from '../components/Card';
 import { ReactionBar, ReactionsLayer } from '../components/Reactions';
-import { RubberStamp, type RubberStampTone } from '../components/RubberStamp';
 import { Spinner } from '../components/Spinner';
 import { toast } from '../components/Toast';
-import { TornPaper } from '../components/TornPaper';
-import { useI18n, useT, type Lang } from '../i18n';
+import { useT } from '../i18n';
 import { errorText } from '../lib/errors';
 import { navigate } from '../lib/router';
 import { sfx } from '../lib/sfx';
@@ -78,7 +76,7 @@ export function RoomScreen({ code }: { code: string }) {
     if (status === 'disconnected') wasOffline.current = true;
     if (status === 'connected' && wasOffline.current) {
       wasOffline.current = false;
-      toast(t('common.reconnected'), 'success', { icon: 'wifi' });
+      toast(t('common.reconnected'), 'success', { emoji: '📶' });
     }
   }, [status, stage, t]);
 
@@ -86,9 +84,9 @@ export function RoomScreen({ code }: { code: string }) {
 
   if (stage === 'resuming' || (stage === 'in-room' && !view)) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
-        <Spinner className="size-12 text-blue" />
-        <p className="text-pen -rotate-2 text-[1.6rem]">{status === 'connected' ? t('common.loading') : t('common.connecting')}</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 text-grape-200">
+        <Spinner className="size-10 text-sun" />
+        <p className="font-bold">{status === 'connected' ? t('common.loading') : t('common.connecting')}</p>
       </div>
     );
   }
@@ -147,52 +145,39 @@ function OfflineBanner({ show }: { show: boolean }) {
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_4.25rem)] z-[65] flex justify-center px-4"
-          initial={{ y: -30, opacity: 0, rotate: -6 }}
-          animate={{ y: 0, opacity: 1, rotate: -1.5 }}
+          className="fixed inset-x-0 top-[calc(max(0.5rem,env(safe-area-inset-top))_+_4rem)] z-[65] flex justify-center px-4"
+          initial={{ y: -30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
           exit={{ y: -30, opacity: 0 }}
         >
-          <TornPaper surface="red" edges="tblr" amp={2.5} lift className="flex items-center gap-2.5 px-5 py-2.5 font-bold text-white">
-            <Spinner className="size-5" />
+          <div className="flex items-center gap-2 rounded-full border-3 border-ink bg-danger px-4 py-2 font-bold text-white shadow-pop-sm">
+            <Spinner className="size-4" />
             {t('common.offline')}
-          </TornPaper>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-/** The rubber stamp of each way out of a room (kept here: only this notice uses them). */
-const EXIT_STAMP: Record<Exclude<ExitReason, null>, { tone: RubberStampTone; text: Record<Lang, string> }> = {
-  kicked: { tone: 'red', text: { fr: 'Viré·e !', en: 'Kicked out' } },
-  replaced: { tone: 'blue', text: { fr: 'Ailleurs', en: 'Elsewhere' } },
-  'room-gone': { tone: 'ink', text: { fr: 'Fermé', en: 'Closed' } },
-};
-
-/** Exported for the dev gallery. */
-export function ExitNotice({ code, reason }: { code: string; reason: Exclude<ExitReason, null> }) {
-  const { t, lang } = useI18n();
+function ExitNotice({ code, reason }: { code: string; reason: Exclude<ExitReason, null> }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const content = {
-    kicked: { title: t('common.roomScreen.kickedTitle'), body: t('common.roomScreen.kickedBody', { code }) },
-    replaced: { title: t('common.roomScreen.replacedTitle'), body: t('common.roomScreen.replacedBody') },
-    'room-gone': { title: t('common.roomScreen.goneTitle'), body: t('common.roomScreen.goneBody', { code }) },
+    kicked: { emoji: '🥾', title: t('common.roomScreen.kickedTitle'), body: t('common.roomScreen.kickedBody', { code }) },
+    replaced: { emoji: '📱', title: t('common.roomScreen.replacedTitle'), body: t('common.roomScreen.replacedBody') },
+    'room-gone': { emoji: '🏚️', title: t('common.roomScreen.goneTitle'), body: t('common.roomScreen.goneBody', { code }) },
   }[reason];
-  const stamp = EXIT_STAMP[reason];
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-5 pt-20 pb-10">
-      <NotebookCard slap tilt={-1.5} tape="yellow" wrapperClassName="w-full max-w-sm" className="px-6 pt-9 pb-8 pl-10 text-center">
-        <RubberStamp tone={stamp.tone} size="md" tilt={-8} animate={0.25} className="mb-5">
-          {stamp.text[lang]}
-        </RubberStamp>
-        <h1 className="font-display text-[1.9rem] leading-[1.02]">{content.title}</h1>
-        <p className="mt-3 mb-7 font-medium text-ink-soft">{content.body}</p>
-        <div className="flex flex-col gap-4">
+    <div className="flex min-h-dvh items-center justify-center px-4">
+      <Card className="w-full max-w-sm text-center" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+        <div className="mb-2 text-6xl">{content.emoji}</div>
+        <h1 className="font-display text-3xl">{content.title}</h1>
+        <p className="mt-2 mb-5 text-ink-soft">{content.body}</p>
+        <div className="flex flex-col gap-3">
           {reason === 'replaced' && (
             <Button
-              size="md"
-              block
               loading={busy}
               onClick={async () => {
                 setBusy(true);
@@ -205,9 +190,7 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
             </Button>
           )}
           <Button
-            variant={reason === 'replaced' ? 'secondary' : 'primary'}
-            size="md"
-            block
+            variant="secondary"
             onClick={() => {
               api.clearExitReason();
               navigate('/');
@@ -216,7 +199,7 @@ export function ExitNotice({ code, reason }: { code: string; reason: Exclude<Exi
             {t('common.backHome')}
           </Button>
         </div>
-      </NotebookCard>
+      </Card>
     </div>
   );
 }

@@ -78,6 +78,12 @@ async function voteWhileVoting(page: Page, stop: () => boolean) {
   return voted;
 }
 
+/** Starts the game once the host's view says every player is ready (no "Start anyway?" dialog). */
+async function startGame(host: Page) {
+  await expect(host.getByText("Everyone's ready. Let's go!")).toBeVisible({ timeout: 15_000 });
+  await host.getByRole('button', { name: /Start the game/ }).click();
+}
+
 test('a full game with two browsers and two bots', async ({ browser, baseURL }) => {
   const host = await (await browser.newContext()).newPage();
   const friend = await (await browser.newContext()).newPage();
@@ -103,7 +109,7 @@ test('a full game with two browsers and two bots', async ({ browser, baseURL }) 
   await friend.screenshot({ path: `${SHOTS}/02-lobby-friend.png` });
 
   // Host starts.
-  await host.getByRole('button', { name: /Start the game/ }).click();
+  await startGame(host);
   await expect(host.getByRole('button', { name: /^Vote for / }).first()).toBeVisible({ timeout: 10_000 });
 
   // Both humans vote on every photo until the reveal starts.
@@ -232,7 +238,7 @@ test('a "Mini me" game: one childhood photo each', async ({ browser, baseURL }) 
   await expect(host.locator('img[src^="/photos/"]')).toHaveCount(1, { timeout: 15_000 });
   await host.screenshot({ path: `${SHOTS}/10-minime-lobby.png`, fullPage: true });
 
-  await host.getByRole('button', { name: /Start the game/ }).click();
+  await startGame(host);
   await expect(host.getByText('Who is this as a kid?').first()).toBeVisible({ timeout: 10_000 });
 
   let revealing = false;
@@ -271,10 +277,11 @@ test('a blurry "Who\'s that?" game with selfies: photos sharpen, early right gue
   const bots: Bot[] = [];
   for (let i = 0; i < 3; i++) bots.push(await spawnBot(baseURL!, code, i, { selfie: true }));
   await host.locator('input[type=file]').first().setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: makeFacePng(77) });
-  await expect(host.locator('img[src^="/photos/"]').first()).toBeVisible({ timeout: 15_000 });
+  // The bots' selfies are /photos/ images too: wait for the host's own photo (its "Replace" button).
+  await expect(host.getByRole('button', { name: 'Replace this photo', exact: true })).toBeVisible({ timeout: 15_000 });
   await host.screenshot({ path: `${SHOTS}/20-blur-lobby.png`, fullPage: true });
 
-  await host.getByRole('button', { name: /Start the game/ }).click();
+  await startGame(host);
   await expect(host.getByText('Who is this?').first()).toBeVisible({ timeout: 10_000 });
 
   // Let the first photo sharpen a bit before voting (bots have voted, the round waits for the host).

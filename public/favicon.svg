@@ -1,13 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- A red Dymo-ish tile, a cut-out newsprint scrap with a fat serif "D", a blue ballpoint caret. -->
-  <rect width="64" height="64" rx="13" fill="#e3321f"/>
-  <g transform="rotate(-6 32 32)">
-    <polygon points="11,9 53,7.5 55,52 12.5,55" fill="#17130f" opacity=".28" transform="translate(1.5 2.5)"/>
-    <polygon points="11,9 53,7.5 55,52 12.5,55" fill="#fffdf6"/>
-    <g stroke="#17130f" stroke-opacity=".1" stroke-width="1">
-      <path d="M12 16h42M12 21h42M12 26h42M12 31h42M12 36h42M12 41h42M12 46h42"/>
-    </g>
-    <path fill-rule="evenodd" fill="#17130f" d="M15 14.5h17.5C44 14.5 50 21.5 50 31.5S44 48.5 32.5 48.5H15v-3.6h3.6V18.1H15zM27 18.4v26.3h4.2c6.6 0 9.6-4.8 9.6-13.2s-3-13.1-9.6-13.1z"/>
-  </g>
-  <path d="M46 58 52 49 58 58" fill="none" stroke="#2344c8" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#ff4fa3"/><text x="32" y="44" font-size="36" text-anchor="middle">👨</text></svg>

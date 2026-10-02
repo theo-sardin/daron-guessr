@@ -1,39 +1,36 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { THEMES } from '../../../shared/protocol';
+import { THEMES, type Theme } from '../../../shared/protocol';
 import { Logo } from '../../components/Logo';
-import { Annotation, Highlight } from '../../components/Marker';
-import { KraftCard, NotebookCard, PostIt } from '../../components/Paper';
-import { Polaroid } from '../../components/Polaroid';
-import { StarBurst } from '../../components/StarBurst';
-import type { TapeTone } from '../../components/Tape';
-import { PaperStrip } from '../../components/TornPaper';
 import { useI18n } from '../../i18n';
 import { sfx } from '../../lib/sfx';
 import { cn, vibrate } from '../../lib/util';
-import { HERO_PHOTOS } from './heroPhotos';
+import { THEME_BG } from '../lobby/look';
+import { EMOJI_FONT } from './helpers';
 
-interface PrintSpec {
-  src: string;
-  /** Position + width classes inside the collage. */
-  className: string;
+interface MysterySpec {
+  silhouette: string;
   tilt: number;
-  tape: TapeTone;
+  /** Position classes around the logo. */
+  className: string;
+  bg: string;
   delay: number;
+  seed: number;
+  size: 'sm' | 'md';
 }
 
-/** The three family-album prints of the collage: baby (left), mom (middle, behind), dad (right). */
-const PRINTS: PrintSpec[] = [
-  { src: HERO_PHOTOS.baby, className: '-left-1 top-[1.9rem] z-[2] w-[32%]', tilt: -9, tape: 'cream', delay: 0.1 },
-  { src: HERO_PHOTOS.mom, className: 'left-[33.5%] top-2.5 z-[1] w-[33%]', tilt: 2.5, tape: 'yellow', delay: 0.2 },
-  { src: HERO_PHOTOS.dad, className: '-right-1 top-[2.1rem] z-[2] w-[31%]', tilt: 8, tape: 'cream', delay: 0.3 },
+const CARDS: MysterySpec[] = [
+  { silhouette: '👨', tilt: -12, className: 'left-0 top-0 sm:left-2', bg: 'from-sky to-grape-300', delay: 0.35, seed: 0, size: 'md' },
+  { silhouette: '🧒', tilt: 11, className: 'right-0 top-10 sm:right-2', bg: 'from-pink to-tangerine', delay: 0.5, seed: 1, size: 'md' },
+  { silhouette: '🐶', tilt: 8, className: 'hidden lg:flex -left-8 top-[9.5rem]', bg: 'from-mint to-sky', delay: 0.65, seed: 3, size: 'sm' },
+  { silhouette: '👵', tilt: -9, className: 'hidden lg:flex -right-6 top-[10.5rem]', bg: 'from-sun to-pink', delay: 0.8, seed: 2, size: 'sm' },
 ];
 
 /**
- * One print of the collage. Tapping it teases ("Nice try") instead of revealing anything: the
- * whole game in a nutshell.
+ * A mini instant photo whose subject (a dad, a kid, a pet…) is a black silhouette hidden behind a big "?".
+ * Tapping it teases ("Nice try 😏") instead of revealing anything: the whole game in a nutshell.
  */
-function MysteryPrint({ spec, index }: { spec: PrintSpec; index: number }) {
+function MysteryCard({ spec }: { spec: MysterySpec }) {
   const { t, tpick } = useI18n();
   const reduce = useReducedMotion();
   const [pokes, setPokes] = useState(0);
@@ -50,45 +47,63 @@ function MysteryPrint({ spec, index }: { spec: PrintSpec; index: number }) {
     timer.current = window.setTimeout(() => setTeasing(false), 1400);
   };
 
+  const box = spec.size === 'md' ? 'w-[4.5rem] sm:w-24' : 'w-[5.5rem]';
   return (
     <motion.div
-      className={cn('absolute', spec.className)}
-      initial={reduce ? false : { opacity: 0, scale: 1.4, rotate: spec.tilt * 3, y: -20 }}
-      animate={{ opacity: 1, scale: 1, rotate: spec.tilt, y: 0 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 20, delay: spec.delay }}
+      className={cn('absolute z-10 flex', spec.className)}
+      initial={{ opacity: 0, scale: 0.3, rotate: spec.tilt * 3 }}
+      animate={{ opacity: 1, scale: 1, rotate: spec.tilt }}
+      transition={{ type: 'spring', stiffness: 260, damping: 14, delay: spec.delay }}
     >
       <motion.button
         type="button"
         onClick={poke}
         aria-label={t('home.hero.mysteryLabel')}
-        className="block w-full"
-        whileHover={{ scale: 1.05, rotate: -spec.tilt / 3 }}
-        whileTap={{ scale: 0.94 }}
-        // A different keyframe list on every poke, so the wiggle replays (focus is kept).
-        animate={pokes > 0 ? { rotate: pokes % 2 ? [0, -6, 5, -3, 0] : [0, 6, -5, 3, 0] } : undefined}
-        transition={{ duration: 0.45 }}
+        className={cn('flex flex-col rounded-md border-3 border-ink bg-white p-1.5 pb-1 text-ink shadow-pop', box)}
+        animate={reduce ? undefined : { y: [0, -8, 0] }}
+        transition={{ duration: 3.2 + spec.seed * 0.4, repeat: Infinity, ease: 'easeInOut', delay: spec.delay }}
+        whileHover={{ scale: 1.08, rotate: -spec.tilt / 2 }}
+        whileTap={{ scale: 0.92 }}
       >
-        <Polaroid
-          src={spec.src}
-          tape={spec.tape}
-          className="block w-full p-[7px]! pb-1!"
-          captionClassName="text-[1.05rem] min-[375px]:text-[1.15rem] whitespace-nowrap"
-          caption={tpick('home.hero.captions', index)}
-        />
+        <motion.span
+          key={pokes}
+          className={cn('relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-sm bg-gradient-to-br', spec.bg)}
+          animate={pokes > 0 ? { rotate: [0, -10, 9, -6, 4, 0] } : undefined}
+          transition={{ duration: 0.5 }}
+        >
+          <span className="translate-y-2 text-5xl brightness-0 select-none sm:text-6xl" style={{ opacity: 0.8 }} aria-hidden>
+            {spec.silhouette}
+          </span>
+          <motion.span
+            className="text-outline-sm absolute font-display text-4xl text-cream sm:text-5xl"
+            animate={teasing ? { scale: [1, 1.5, 1.2], rotate: [0, 14, -8] } : { scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 12 }}
+            aria-hidden
+          >
+            ?
+          </motion.span>
+        </motion.span>
+        <span
+          className={cn('mt-0.5 block h-5 truncate text-center font-display leading-5', spec.size === 'md' ? 'text-[0.7rem] sm:text-sm' : 'text-xs')}
+          aria-hidden
+        >
+          {tpick('home.hero.mysteryCaption', spec.seed)}
+        </span>
       </motion.button>
       <AnimatePresence>
         {teasing && (
           <motion.span
             key={pokes}
-            className="pointer-events-none absolute top-[62%] left-1/2 z-20 rounded-[3px] bg-yellow px-2.5 py-1 font-display text-sm whitespace-nowrap text-ink shadow-paper-sm"
+            className="pointer-events-none absolute top-full left-1/2 z-20 mt-2 rounded-xl border-2 border-ink bg-white px-2.5 py-1 font-display text-sm whitespace-nowrap text-ink shadow-pop-sm"
             style={{ x: '-50%' }}
-            initial={{ opacity: 0, scale: 0.4, rotate: -spec.tilt }}
-            animate={{ opacity: 1, scale: 1, rotate: -spec.tilt / 2 - 4 }}
+            initial={{ opacity: 0, scale: 0.4, y: -8, rotate: -spec.tilt }}
+            animate={{ opacity: 1, scale: 1, y: 0, rotate: -spec.tilt / 2 }}
             exit={{ opacity: 0, scale: 0.6, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', stiffness: 600, damping: 18 }}
             aria-hidden
           >
-            {tpick('home.hero.peekTease', index + pokes)}
+            <span className="absolute -top-[7px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-t-2 border-l-2 border-ink bg-white" />
+            <span className="relative">{tpick('home.hero.peekTease', spec.seed + pokes)}</span>
           </motion.span>
         )}
       </AnimatePresence>
@@ -96,93 +111,139 @@ function MysteryPrint({ spec, index }: { spec: PrintSpec; index: number }) {
   );
 }
 
-/** Masthead, the polaroid collage on its torn halftone strip, the cut-out logo and the tagline. */
 export function Hero() {
   const t = useI18n().t;
   return (
-    <section className="relative mx-auto w-full max-w-md">
-      {/* The zine's masthead (leaves room for the star burst on the right). */}
-      <p className="mr-[5.5rem] flex items-baseline gap-2 border-t-[2.5px] border-b border-ink pt-1.5 pb-1 whitespace-nowrap">
-        <span className="font-wide text-[0.7rem] tracking-[0.06em]">{t('home.hero.issue')}</span>
-        <span className="truncate font-[family-name:var(--font-type)] text-[0.72rem]">{t('home.hero.masthead')}</span>
-      </p>
-      <StarBurst tone="yellow" size={84} tilt={12} animate={0.55} className="absolute! -top-3 -right-1 z-[9] sm:right-1">
-        <span className="text-[1.3rem] leading-[0.9]">{t('home.hero.burstTop')}</span>
-        <span className="mt-0.5 text-[0.62rem] tracking-[0.02em]">{t('home.hero.burstBottom')}</span>
-      </StarBurst>
-
-      <div className="relative h-[13.5rem] min-[375px]:h-[14.5rem] sm:h-[16rem]">
-        <PaperStrip tone="blue" tilt={-5} seed="home-hero" className="-inset-x-8 top-[3.4rem] h-[9.5rem] sm:h-[10.5rem]" />
-        {PRINTS.map((p, i) => (
-          <MysteryPrint key={i} spec={p} index={i} />
-        ))}
-        <Annotation font="marker" rotate={-8} size={17} delay={0.8} className="absolute top-0 left-2 z-[9] whitespace-nowrap">
-          {t('home.hero.note')}
-        </Annotation>
-      </div>
-
-      <div className="relative z-[8] -mt-14 flex justify-center min-[375px]:-mt-12">
-        <Logo size="lg" className="max-[374px]:text-[56px]" />
-      </div>
-
-      <motion.div className="mt-3 text-center leading-none" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-        <p className="text-[1.03rem] font-semibold tracking-[-0.005em] text-ink-soft">{t('home.hero.taglineLead')}</p>
-        <p className="mt-1.5 text-[1.55rem] font-black tracking-[-0.015em] text-balance min-[375px]:text-[1.7rem]" style={{ fontStretch: '112%' }}>
-          {t('home.hero.taglineStart')} <Highlight delay={0.7}>{t('home.hero.taglineHighlight')}</Highlight>
-        </p>
+    <section className="relative mx-auto w-full max-w-md pt-2">
+      {CARDS.map((c) => (
+        <MysteryCard key={c.seed} spec={c} />
+      ))}
+      <motion.div
+        className="relative z-0 flex justify-center pt-3"
+        initial={{ scale: 0.6, opacity: 0, y: -20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 14 }}
+      >
+        <Logo size="lg" />
       </motion.div>
+      <motion.p
+        className="mx-auto mt-3 max-w-[18rem] text-center text-lg leading-snug font-extrabold text-balance text-cream lg:max-w-[16rem]"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
+        {t('home.hero.tagline')}
+      </motion.p>
     </section>
   );
 }
 
 const STEPS = [
-  { title: 'home.how.step1', note: 'home.how.step1Note', num: 'text-red', tilt: -2.4, y: 0 },
-  { title: 'home.how.step2', note: 'home.how.step2Note', num: 'text-ink', tilt: 1.6, y: 4 },
-  { title: 'home.how.step3', note: 'home.how.step3Note', num: 'text-blue', tilt: -1.2, y: 0 },
+  { key: 'home.how.step1', emoji: '📸', bg: 'bg-sun text-ink', tilt: -3 },
+  { key: 'home.how.step2', emoji: '🕵️', bg: 'bg-sky text-ink', tilt: 2 },
+  { key: 'home.how.step3', emoji: '😂', bg: 'bg-pink text-white', tilt: -2 },
 ] as const;
 
-/** The three steps as scraps: a notebook page, a piece of kraft and a post-it. */
-export function HowItWorks({ className }: { className?: string }) {
+function ThemeChip({ theme, hidden }: { theme: Theme; hidden?: boolean }) {
   const t = useI18n().t;
   return (
+    <li
+      className={cn(
+        // A trailing margin (not a gap) keeps both copies exactly the same width: seamless loop.
+        'mr-2 flex shrink-0 items-center gap-1.5 rounded-full border-2 border-ink px-2.5 py-1 text-sm font-extrabold whitespace-nowrap text-ink shadow-pop-sm',
+        THEME_BG[theme],
+      )}
+      title={t(`common.theme.${theme}.desc`)}
+      aria-hidden={hidden || undefined}
+    >
+      <span className="leading-none" style={EMOJI_FONT} aria-hidden>
+        {t(`common.theme.${theme}.emoji`)}
+      </span>
+      {t(`common.theme.${theme}.name`)}
+    </li>
+  );
+}
+
+/**
+ * The game modes the host can pick, as an endless conveyor of chips (a plain scrollable row when
+ * motion is reduced), plus a teaser line: the game is not only about parents.
+ */
+function ThemeChips() {
+  const t = useI18n().t;
+  const reduce = useReducedMotion();
+  return (
+    <>
+      <div className="mt-4 flex items-center gap-2">
+        <span className="shrink-0 -rotate-3 rounded-lg border-2 border-ink bg-pink px-2 py-0.5 font-display text-sm tracking-wide text-white uppercase shadow-pop-sm">
+          {t('home.themes.label')}
+        </span>
+        <div
+          className={cn(
+            // `contain` keeps the (very wide) conveyor out of the page's intrinsic width.
+            'min-w-0 flex-1 pt-0.5 pb-1.5 [contain:inline-size] [mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%-1.25rem),transparent)]',
+            reduce ? 'overflow-x-auto' : 'overflow-hidden',
+          )}
+        >
+          <motion.ul
+            className={cn('flex w-max', reduce && 'pl-3')}
+            aria-label={t('home.themes.listLabel')}
+            animate={reduce ? undefined : { x: ['0%', '-50%'] }}
+            // ~5s per chip: the same pace whatever the number of modes.
+            transition={{ duration: THEMES.length * 5, ease: 'linear', repeat: Infinity }}
+          >
+            {THEMES.map((th) => (
+              <ThemeChip key={th} theme={th} />
+            ))}
+            {/* Second copy so the loop is seamless. */}
+            {!reduce && THEMES.map((th) => <ThemeChip key={`${th}-copy`} theme={th} hidden />)}
+          </motion.ul>
+        </div>
+      </div>
+      <p className="mt-1.5 text-center text-sm font-bold text-balance text-grape-200">{t('home.themes.teaser', { n: THEMES.length })}</p>
+    </>
+  );
+}
+
+export function HowItWorks({ className }: { className?: string }) {
+  const t = useI18n().t;
+  const reduce = useReducedMotion();
+  return (
     <section className={cn('mx-auto w-full max-w-md', className)} aria-label={t('home.how.title')}>
-      <ol className="grid grid-cols-3 gap-2 px-0.5 sm:gap-3">
-        {STEPS.map((s, i) => {
-          const body = (
-            <>
-              <span className={cn('font-num block text-[2.5rem]', s.num)} aria-hidden>
-                {i + 1}
-              </span>
-              <span className="mt-auto block text-[0.85rem] leading-[1.05] font-extrabold tracking-[-0.015em] text-ink min-[375px]:text-[0.92rem]">{t(s.title)}</span>
-              <span className="text-pen mt-1 block text-[0.95rem] leading-none">{t(s.note)}</span>
-            </>
-          );
-          const common = { tilt: s.tilt, slap: 0.5 + i * 0.12, className: 'flex h-[7.4rem] flex-col', tape: true as const };
-          return (
-            <li key={s.title} style={{ translate: `0 ${s.y}px` }} className="min-w-0">
-              <span className="sr-only">{i + 1}. </span>
-              {i === 0 ? (
-                <NotebookCard {...common} margin={12} className={cn(common.className, 'pt-2.5 pr-2 pb-2.5')}>
-                  {body}
-                </NotebookCard>
-              ) : i === 1 ? (
-                <KraftCard {...common} className={cn(common.className, 'px-2.5 pt-2.5 pb-2.5')}>
-                  {body}
-                </KraftCard>
-              ) : (
-                <PostIt {...common} className={cn(common.className, 'px-2.5 pt-2.5 pb-2.5')}>
-                  {body}
-                </PostIt>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <p className="mt-4 text-center">
-        <Annotation font="pen" rotate={-1.5} size={19} delay={1} className="text-balance">
-          {t('home.themes.teaser', { n: THEMES.length })}
-        </Annotation>
-      </p>
+      <h2 className="mb-2 text-center font-display text-sm tracking-[0.2em] text-grape-200 uppercase">{t('home.how.title')}</h2>
+      <motion.ol
+        className="grid grid-cols-3 gap-2.5 sm:gap-3"
+        initial="hidden"
+        animate="shown"
+        variants={{ shown: { transition: { staggerChildren: 0.14, delayChildren: 0.45 } } }}
+      >
+        {STEPS.map((s, i) => (
+          <motion.li
+            key={s.key}
+            variants={{
+              hidden: { opacity: 0, scale: 0.4, y: 24, rotate: s.tilt * 4 },
+              shown: { opacity: 1, scale: 1, y: 0, rotate: s.tilt, transition: { type: 'spring', stiffness: 420, damping: 15 } },
+            }}
+            className={cn('relative flex flex-col items-center rounded-2xl border-3 border-ink px-1.5 pt-3 pb-2.5 text-center shadow-pop-sm', s.bg)}
+          >
+            <span className="absolute -top-2.5 -left-2 flex size-7 items-center justify-center rounded-full border-2 border-ink bg-cream font-display text-sm text-ink">
+              {i + 1}
+            </span>
+            <motion.span
+              className="text-3xl leading-none sm:text-4xl"
+              animate={reduce ? undefined : { y: [0, -4, 0], rotate: [0, i % 2 ? 8 : -8, 0] }}
+              transition={{ duration: 2.2, repeat: Infinity, delay: 1 + i * 0.35, ease: 'easeInOut' }}
+              style={EMOJI_FONT}
+              aria-hidden
+            >
+              {s.emoji}
+            </motion.span>
+            <span className="mt-1.5 text-[0.8rem] leading-tight font-extrabold text-balance sm:text-sm">{t(s.key)}</span>
+          </motion.li>
+        ))}
+      </motion.ol>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1, type: 'spring', stiffness: 300, damping: 20 }}>
+        <ThemeChips />
+      </motion.div>
     </section>
   );
 }

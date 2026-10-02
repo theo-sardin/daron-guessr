@@ -1,7 +1,6 @@
 import { MotionConfig } from 'motion/react';
 import { lazy, Suspense, useEffect } from 'react';
 import { Background } from './components/Background';
-import { ScreenFlash } from './components/Flash';
 import { Toaster } from './components/Toast';
 import { TopBar } from './components/TopBar';
 import { useI18n } from './i18n';
@@ -26,7 +25,6 @@ export function App() {
       <Background />
       <TopBar />
       <Toaster />
-      <ScreenFlash />
       {isPreview() && PreviewApp ? (
         <Suspense fallback={null}>
           <PreviewApp />

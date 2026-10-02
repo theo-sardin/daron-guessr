@@ -4,7 +4,6 @@ import { MIN_PHOTO_OWNERS, type PublicPlayer, type RoomView } from '../../../sha
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { BottomBar } from '../../components/Layout';
-import { MarkerCheck } from '../../components/Marker';
 import { ConfirmDialog } from '../../components/Modal';
 import { toast } from '../../components/Toast';
 import { useI18n } from '../../i18n';
@@ -50,10 +49,11 @@ function HostStart({ view }: { view: RoomView }) {
     wasStartable.current = canStart;
   }, [canStart]);
 
-  // Someone removed their photos while the confirmation was open.
+  // Someone removed their photos while the confirmation was open, or the last players got
+  // ready (nothing left to confirm: the host just presses Start again).
   useEffect(() => {
-    if (!canStart) setConfirmOpen(false);
-  }, [canStart]);
+    if (!canStart || notReady.length === 0) setConfirmOpen(false);
+  }, [canStart, notReady.length]);
 
   // Safety net: if the phase never switches after a successful start, unlock the button.
   useEffect(() => {
@@ -100,25 +100,23 @@ function HostStart({ view }: { view: RoomView }) {
 
   return (
     <>
-      {/* Keeps clear of the floating reaction button (bottom-right) on narrow screens. */}
-      <div className="flex w-full justify-center pr-[72px] md:pr-0">
-        <div className="paper-sheet flex max-w-full -rotate-1 items-center gap-2 py-1.5 pr-3 pl-2 shadow-paper-sm">
-          {/* One little frame per player needed: exposed (mint, checked) once someone brought a photo. */}
+      {/* The BottomBar already keeps clear of the floating reaction button on phones. */}
+      <div className="flex w-full justify-center">
+        <div className="flex max-w-full items-center gap-2 rounded-2xl border-2 border-white/15 bg-grape-950/75 py-1 pr-3 pl-1.5 backdrop-blur">
           <span className="flex gap-1" aria-hidden>
             {Array.from({ length: MIN_PHOTO_OWNERS }, (_, i) => {
               const filled = i < readyCount;
               return (
                 <motion.span
-                  key={`${i}${filled}`}
+                  key={i}
                   className={cn(
-                    'relative flex size-6 shrink-0 items-center justify-center',
-                    filled ? 'bg-mint shadow-paper-sm' : 'border-2 border-dashed border-ink/40',
+                    'flex size-6 shrink-0 items-center justify-center rounded-full border-2 text-xs',
+                    filled ? 'border-ink bg-mint' : 'border-white/30 border-dashed bg-white/5',
                   )}
-                  initial={filled ? { scale: 1.5, rotate: -12 } : false}
-                  animate={{ scale: 1, rotate: filled ? (i % 2 ? 4 : -4) : 0 }}
+                  animate={filled ? { scale: [1.4, 1] } : { scale: 1 }}
                   transition={{ type: 'spring', stiffness: 500, damping: 12 }}
                 >
-                  {filled && <MarkerCheck className="absolute -top-1 -right-1 size-6" />}
+                  {filled ? '📸' : ''}
                 </motion.span>
               );
             })}
@@ -126,7 +124,7 @@ function HostStart({ view }: { view: RoomView }) {
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={helper}
-              className={cn('min-w-0 font-display text-xs leading-tight sm:text-sm', canStart ? 'text-ink' : 'text-ink-soft')}
+              className={cn('min-w-0 text-xs leading-tight font-extrabold sm:text-sm', canStart ? 'text-mint' : 'text-grape-200')}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -151,8 +149,8 @@ function HostStart({ view }: { view: RoomView }) {
           loading={starting}
           disabled={!canStart}
           onClick={onStartClick}
-          arrow
-          tape={canStart}
+          icon={starting ? undefined : <span aria-hidden>🚀</span>}
+          className={cn(canStart && !starting && 'shadow-[0_8px_0_0_var(--color-ink),0_0_30px_6px_rgb(255_79_163/0.45)]')}
         >
           {t('lobby.start.button')}
         </Button>
@@ -165,7 +163,7 @@ function HostStart({ view }: { view: RoomView }) {
           <span className="flex items-start gap-3">
             <span className="flex shrink-0 -space-x-2" aria-hidden>
               {notReady.slice(0, 3).map((p) => (
-                <Avatar key={p.id} player={p} size="sm" crown={false} />
+                <Avatar key={p.id} player={p} size="sm" crown={false} selfie />
               ))}
             </span>
             <span>{t(notReady.length === 1 ? 'lobby.start.confirmBodyOne' : 'lobby.start.confirmBodyMany', { names })}</span>
@@ -183,9 +181,10 @@ function WaitingPill({ host }: { host: PublicPlayer | null }) {
   const { t } = useI18n();
   return (
     <div className="flex w-full justify-center">
-      <div className="paper-sheet flex min-h-14 max-w-full -rotate-1 items-center gap-2.5 py-1.5 pr-4 pl-2 text-ink shadow-paper">
+      <div className="flex min-h-14 max-w-full animate-pulse-soft items-center gap-2.5 rounded-full border-3 border-ink bg-cream py-1 pr-5 pl-1.5 text-ink shadow-pop">
         {host && <Avatar player={host} size="sm" crown={false} selfie />}
-        <span className="text-pen line-clamp-2 min-w-0 text-[1.25rem] leading-[0.95]">
+        {/* Two lines rather than a truncated name. */}
+        <span className="line-clamp-2 min-w-0 font-display text-base leading-tight sm:text-lg">
           {t('lobby.start.waiting', { name: host?.name ?? t('common.host') })}
         </span>
         <span className="flex shrink-0 gap-0.5" aria-hidden>

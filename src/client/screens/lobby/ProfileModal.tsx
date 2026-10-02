@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { MAX_NAME_LENGTH, sanitizeName, type PublicPlayer } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
 import { AvatarPicker } from '../../components/AvatarPicker';
 import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
 import { Modal } from '../../components/Modal';
 import { Spinner } from '../../components/Spinner';
 import { toast } from '../../components/Toast';
@@ -28,6 +27,7 @@ export function ProfileModal({ open, me, onClose }: { open: boolean; me: PublicP
   const savingRef = useRef(false);
   const selfie = useSelfie();
   const hasSelfie = Boolean(me.selfieUrl);
+  const selfieTitleId = useId();
 
   // Start from the current identity every time the modal opens.
   useEffect(() => {
@@ -77,26 +77,25 @@ export function ProfileModal({ open, me, onClose }: { open: boolean; me: PublicP
           e.preventDefault();
           void save();
         }}
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-4"
       >
         <div className="flex items-center gap-3">
           <motion.span
             key={`${avatar}${me.selfieUrl ?? ''}`}
             className="relative"
             initial={{ scale: 0.6, rotate: -15 }}
-            animate={{ scale: 1, rotate: -3 }}
+            animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 500, damping: 14 }}
           >
             <Avatar player={{ ...me, avatar, name }} size="lg" crown={false} dimOffline={false} selfie />
             {selfie.busy && (
-              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-ink/45" aria-hidden>
-                <Spinner className="size-7 text-sheet" />
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-grape-950/55" aria-hidden>
+                <Spinner className="size-7 text-sun" />
               </span>
             )}
           </motion.span>
-          {/* A "HELLO my name is" sticker: red paper, the name written on the white band. */}
-          <label className="paper-red flex min-w-0 flex-1 -rotate-1 flex-col gap-1 rounded-[3px] px-2 pt-1.5 pb-2 shadow-paper-sm">
-            <span className="font-wide text-[0.8rem] tracking-[0.06em] text-white uppercase">{t('lobby.profile.name')}</span>
+          <label className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className="text-sm font-extrabold text-ink-soft">{t('lobby.profile.name')}</span>
             <motion.input
               key={shake}
               animate={shake ? { x: [0, -8, 8, -5, 5, 0] } : undefined}
@@ -107,77 +106,73 @@ export function ProfileModal({ open, me, onClose }: { open: boolean; me: PublicP
               placeholder={t('lobby.profile.namePlaceholder')}
               autoComplete="nickname"
               enterKeyHint="done"
-              className="h-12 w-full min-w-0 rounded-[2px] bg-sheet px-3 font-marker text-[1.35rem] text-ink outline-none placeholder:text-ink-faint focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-yellow"
+              className="h-12 w-full min-w-0 rounded-2xl border-3 border-ink bg-white px-3 text-lg font-extrabold text-ink shadow-pop-sm outline-none placeholder:text-ink/35 focus:border-pink"
             />
           </label>
         </div>
-
         {/* Selfie: the face shown next to the photos, so people can compare. */}
-        <section className="paper-notebook relative -mx-1 rounded-[2px] pt-2.5 pr-3 pb-3 pl-[35px] shadow-paper-sm" aria-labelledby="lobby-selfie-title">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p id="lobby-selfie-title" className="font-heavy text-lg leading-tight">
-                {t('lobby.profile.selfie')}
-                {!hasSelfie && <span className="text-pen ml-2 text-base font-bold">{t('lobby.profile.noSelfie')}</span>}
-              </p>
-              <p className="mt-0.5 text-sm leading-snug text-ink-soft">{t('lobby.profile.selfieHelp')}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <AnimatePresence mode="popLayout" initial={false}>
-              {hasSelfie ? (
-                <motion.span key="has" className="flex flex-wrap gap-2" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                  <Button
-                    size="sm"
-                    variant="sun"
-                    loading={selfie.busy === 'upload'}
-                    disabled={selfie.busy !== null}
-                    icon={<Icon name="camera" className="size-4.5" />}
-                    onClick={selfie.take}
-                  >
-                    {t('lobby.profile.changeSelfie')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    loading={selfie.busy === 'remove'}
-                    disabled={selfie.busy !== null}
-                    icon={<Icon name="trash" className="size-4.5" />}
-                    onClick={() => void selfie.remove()}
-                    className="text-red-ink"
-                  >
-                    {t('lobby.profile.removeSelfie')}
-                  </Button>
-                </motion.span>
-              ) : (
-                <motion.span key="none" className="flex flex-wrap items-center gap-x-2 gap-y-1" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                  <Button
-                    size="sm"
-                    variant="sun"
-                    loading={selfie.busy === 'upload'}
-                    disabled={selfie.busy !== null}
-                    icon={<Icon name="camera" className="size-4.5" />}
-                    onClick={selfie.take}
-                    aria-label={t('lobby.profile.addSelfie')}
-                  >
-                    {t('lobby.profile.takeSelfie')}
-                  </Button>
-                  <button
-                    type="button"
-                    onClick={selfie.pick}
-                    disabled={selfie.busy !== null}
-                    className="text-pen h-11 px-1 text-[1.15rem] underline decoration-2 underline-offset-4 hover:decoration-wavy disabled:opacity-50"
-                  >
-                    {t('lobby.profile.pickSelfie')}
-                  </button>
-                </motion.span>
+        <section className="rounded-2xl border-2 border-ink bg-white p-3" aria-labelledby={selfieTitleId}>
+          <p id={selfieTitleId} className="flex flex-wrap items-center gap-x-2 gap-y-1 font-display text-lg leading-tight">
+            <span>
+              <span aria-hidden>🤳 </span>
+              {t('lobby.profile.selfie')}
+            </span>
+            {!hasSelfie && (
+              <span className="rounded-full border-2 border-ink/25 bg-cream px-2 py-px font-sans text-xs font-extrabold text-ink-soft">
+                {t('lobby.profile.noSelfie')}
+              </span>
+            )}
+          </p>
+          <p className="mt-1 text-sm leading-snug text-ink-soft">{t('lobby.profile.selfieHelp')}</p>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={hasSelfie ? 'has' : 'none'}
+              className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >
+              <Button
+                size="sm"
+                variant="sun"
+                loading={selfie.busy === 'upload'}
+                disabled={selfie.busy !== null}
+                icon={<span aria-hidden>📸</span>}
+                onClick={selfie.take}
+                aria-label={hasSelfie ? undefined : t('lobby.profile.addSelfie')}
+              >
+                {hasSelfie ? t('lobby.profile.changeSelfie') : t('lobby.profile.takeSelfie')}
+              </Button>
+              {hasSelfie && (
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    sfx.play('click');
+                    void selfie.remove();
+                  }}
+                  disabled={selfie.busy !== null}
+                  whileTap={{ scale: 0.94, y: 2 }}
+                  aria-label={t('lobby.profile.removeSelfie')}
+                  title={t('lobby.profile.removeSelfie')}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-danger shadow-pop-sm disabled:opacity-50"
+                >
+                  {selfie.busy === 'remove' ? <Spinner className="size-4 text-white" /> : <span aria-hidden>🗑️</span>}
+                </motion.button>
               )}
-            </AnimatePresence>
-          </div>
+              <button
+                type="button"
+                onClick={selfie.pick}
+                disabled={selfie.busy !== null}
+                className="h-11 px-1.5 text-sm font-extrabold text-ink-soft underline decoration-2 underline-offset-4 transition-colors hover:text-ink disabled:opacity-50"
+              >
+                {t('lobby.profile.pickSelfie')}
+              </button>
+            </motion.div>
+          </AnimatePresence>
         </section>
 
         <div>
-          <p className="label-type mb-2 text-sm">{t('lobby.profile.avatar')}</p>
+          <p className="mb-2 text-sm font-extrabold text-ink-soft">{t('lobby.profile.avatar')}</p>
           <AvatarPicker value={avatar} onChange={setAvatar} color={me.color} />
         </div>
         <div className="flex gap-3">

@@ -1,5 +1,4 @@
 import { BODY_PARTS, type Award, type AwardId, type PhotoKind, type PhotoResult, type PublicPlayer, type RankingEntry, type ResultsView, type Theme } from '../../../shared/protocol';
-import type { IconName } from '../../components/Icon';
 import { hashString } from '../../lib/util';
 
 /** A podium step: every player sharing one rank (ties stand together). */
@@ -64,6 +63,17 @@ export function markCelebrated(key: string) {
   }
 }
 
+export const AWARD_EMOJI: Record<AwardId, string> = {
+  sherlock: '🕵️',
+  needsGlasses: '👓',
+  carbonCopy: '🧬',
+  masterOfDisguise: '🥸',
+  doppelganger: '👯',
+  mostConfusing: '🌀',
+  biggestMixup: '🔀',
+  eagleEye: '🦅',
+};
+
 /**
  * Which set of copy fits the photos being talked about (see i18n/strings/results.ts): one per
  * mode — `parents` (only dads & moms), `childhood` (players as kids), `pick` (picked pictures),
@@ -110,41 +120,47 @@ export function awardFlavor(award: Award, photos: readonly PhotoResult[], game: 
   );
 }
 
-/** Icon of an award (a scrap on its clipping), with a few flavor-specific twists. */
-export function awardIcon(id: AwardId, flavor: Flavor): IconName {
-  switch (id) {
-    case 'sherlock':
-      return flavor === 'pick' || flavor === 'roll' ? 'eye' : 'zoom';
-    case 'needsGlasses':
-      return 'eye-off';
-    case 'carbonCopy':
-      return 'copy';
-    case 'masterOfDisguise':
-      // "Glow-up of the year": the flash burst.
-      return flavor === 'childhood' || flavor === 'whois' ? 'sparkle' : flavor === 'crush' ? 'heart' : 'mask';
-    case 'doppelganger':
-      // "Usual suspect": always in the crosshairs.
-      return flavor === 'pick' || flavor === 'roll' ? 'target' : 'users';
-    case 'mostConfusing':
-      return 'shuffle';
-    case 'biggestMixup':
-      return 'swap';
-    case 'eagleEye':
-      return 'flash';
-  }
+/** Flavor-specific twists on the award emojis (the title changes with the flavor, so does the emoji). */
+const FLAVOR_EMOJI: Partial<Record<Flavor, Partial<Record<AwardId, string>>>> = {
+  childhood: { carbonCopy: '👶', masterOfDisguise: '🦋' },
+  pick: { sherlock: '🔮', carbonCopy: '📖', masterOfDisguise: '🃏' },
+  roll: { sherlock: '📱', carbonCopy: '📖', masterOfDisguise: '🃏' },
+  crush: { sherlock: '💘', needsGlasses: '🙈', carbonCopy: '💌', masterOfDisguise: '🤫', doppelganger: '💞' },
+  whois: { sherlock: '🧐', carbonCopy: '🎯', masterOfDisguise: '🦋' },
+  body: { sherlock: '🔬', carbonCopy: '🦄', masterOfDisguise: '🕶️', doppelganger: '🧍' },
+};
+
+/** Emoji of an award, with a few flavor-specific twists. */
+export function awardEmoji(id: AwardId, flavor: Flavor): string {
+  return FLAVOR_EMOJI[flavor]?.[id] ?? AWARD_EMOJI[id];
 }
 
-/** The paper each award clipping is cut from, and the ink of its rubber stamp. */
-export const AWARD_PAPER: Record<AwardId, { paper: 'notebook' | 'postit' | 'kraft' | 'pink' | 'mint' | 'sky' | 'lilac' | 'sheet'; stamp: 'red' | 'blue' | 'ink'; tape: 'cream' | 'yellow' | 'pink' | 'mint' | 'blue' | 'red' }> = {
-  sherlock: { paper: 'notebook', stamp: 'blue', tape: 'yellow' },
-  needsGlasses: { paper: 'postit', stamp: 'red', tape: 'cream' },
-  carbonCopy: { paper: 'mint', stamp: 'ink', tape: 'cream' },
-  masterOfDisguise: { paper: 'kraft', stamp: 'red', tape: 'pink' },
-  doppelganger: { paper: 'pink', stamp: 'ink', tape: 'cream' },
-  mostConfusing: { paper: 'sheet', stamp: 'red', tape: 'blue' },
-  biggestMixup: { paper: 'sky', stamp: 'red', tape: 'cream' },
-  eagleEye: { paper: 'lilac', stamp: 'blue', tape: 'yellow' },
+export type AwardTone = 'sun' | 'sky' | 'mint' | 'lilac' | 'pink' | 'cream' | 'white' | 'tangerine';
+
+export const AWARD_TONE: Record<AwardId, AwardTone> = {
+  sherlock: 'sun',
+  needsGlasses: 'sky',
+  carbonCopy: 'mint',
+  masterOfDisguise: 'lilac',
+  doppelganger: 'pink',
+  mostConfusing: 'white',
+  biggestMixup: 'cream',
+  eagleEye: 'tangerine',
 };
+
+/** Share of correct votes, 0..1 (0 when nobody voted). */
+export function correctShare(p: Pick<PhotoResult, 'correctVotes' | 'totalVotes'>): number {
+  return p.totalVotes > 0 ? p.correctVotes / p.totalVotes : 0;
+}
+
+/** Badge color for a photo depending on how many people found it. */
+export function shareTone(p: Pick<PhotoResult, 'correctVotes' | 'totalVotes'>): string {
+  if (p.totalVotes === 0) return 'bg-grape-200 text-ink';
+  const s = correctShare(p);
+  if (s >= 0.5) return 'bg-mint text-ink';
+  if (s > 0) return 'bg-sun text-ink';
+  return 'bg-danger text-white';
+}
 
 /** "paul's mom" → "Paul's mom" (sentence start). */
 export function capitalize(text: string): string {
@@ -158,6 +174,11 @@ export function shameOf(ranking: RankingEntry[]): string | null {
   const before = ranking[ranking.length - 2];
   if (last.rank === 1 || before.rank === last.rank) return null;
   return last.playerId;
+}
+
+/** Blur game: the speed bonus shows next to the scores (it is part of them). */
+export function showsBonus(ranking: readonly RankingEntry[], blur: boolean): boolean {
+  return blur || ranking.some((r) => r.bonus > 0);
 }
 
 /** Player lookup that never crashes on a player that left: falls back to a neutral ghost. */

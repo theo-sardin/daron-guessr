@@ -1,59 +1,61 @@
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import type { CSSProperties } from 'react';
-import { cn } from '../lib/util';
+import { motion, useReducedMotion } from 'motion/react';
+import { useMemo } from 'react';
+import { seeded } from '../lib/util';
+
+const DOODLES = ['👨', '👩', '🥸', '👴', '👵', '📸', '❓', '🧔', '👱‍♀️', '🕵️'];
 
 /**
- * The paper itself: cream stock, big soft blotches and a fine grain (both multiplied, so the
- * paper only ever gets darker, like real pulp). Every use is viewport-anchored (the fixed
- * background, the fixed top and bottom bars), so the tiles line up without
- * background-attachment: fixed (which iOS ignores and which can cost Chrome its composited
- * scrolling).
+ * Decorative animated backdrop: the grape night sky, soft color blobs and a few drifting
+ * emoji doodles. Fixed behind everything (the body has no background of its own, so this
+ * layer shows) and ignored by assistive tech.
  */
-export function PaperTexture({ className, style }: { className?: string; style?: CSSProperties }) {
-  return (
-    <div className={cn('pointer-events-none overflow-hidden bg-paper', !/\b(absolute|fixed)\b/.test(className ?? '') && 'relative', className)} style={style} aria-hidden>
-      <div className="absolute inset-0 opacity-[0.16] mix-blend-multiply" style={{ backgroundImage: 'var(--blotch)', backgroundSize: '600px 600px' }} />
-      <div className="absolute inset-0 opacity-[0.17] mix-blend-multiply" style={{ backgroundImage: 'var(--noise)', backgroundSize: '240px 240px' }} />
-    </div>
-  );
-}
-
-/** Decorative backdrop of every screen: the paper, fixed behind everything, ignored by assistive tech. */
 export function Background() {
-  return <PaperTexture className="fixed inset-0 -z-10" />;
-}
-
-/**
- * A warm stain of sunlight on the page (an old print left by the window): orange and red
- * blotches multiplied onto the paper. It is an event, not a filter: turn it on for a moment
- * (the reveal drum roll) and off again. By default it is fixed, full screen and behind the
- * content; `className` replaces that placement (e.g. "absolute inset-0 z-10" inside a print).
- */
-export function LightLeak({ active, className }: { active: boolean; className?: string }) {
   const reduce = useReducedMotion();
+  const doodles = useMemo(() => {
+    const rand = seeded(7);
+    return Array.from({ length: 12 }, (_, i) => ({
+      emoji: DOODLES[i % DOODLES.length],
+      left: `${Math.round(rand() * 92)}%`,
+      top: `${Math.round(rand() * 92)}%`,
+      size: 22 + Math.round(rand() * 26),
+      delay: rand() * 4,
+      duration: 7 + rand() * 6,
+      rotate: Math.round(rand() * 40 - 20),
+    }));
+  }, []);
+
   return (
-    <AnimatePresence>
-      {active && (
-        <motion.div
-          className={cn('pointer-events-none overflow-hidden mix-blend-multiply', className ?? 'fixed inset-0 -z-[5]')}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          aria-hidden
+    <div
+      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
+      style={{ background: 'radial-gradient(120% 80% at 50% 0%, var(--color-grape-700) 0%, var(--color-grape-900) 55%, var(--color-grape-950) 100%)' }}
+      aria-hidden
+    >
+      <motion.div
+        className="absolute -top-32 -left-24 size-[28rem] rounded-full bg-pink/20 blur-3xl"
+        animate={reduce ? undefined : { x: [0, 60, 0], y: [0, 40, 0] }}
+        transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute top-1/3 -right-32 size-[26rem] rounded-full bg-sky/15 blur-3xl"
+        animate={reduce ? undefined : { x: [0, -50, 0], y: [0, 60, 0] }}
+        transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute -bottom-40 left-1/4 size-[30rem] rounded-full bg-sun/10 blur-3xl"
+        animate={reduce ? undefined : { x: [0, 40, 0], y: [0, -40, 0] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      {doodles.map((d, i) => (
+        <motion.span
+          key={i}
+          className="absolute opacity-[0.08] grayscale-[30%]"
+          style={{ left: d.left, top: d.top, fontSize: d.size, rotate: d.rotate }}
+          animate={reduce ? undefined : { y: [0, -18, 0], rotate: [d.rotate, d.rotate + 8, d.rotate] }}
+          transition={{ duration: d.duration, delay: d.delay, repeat: Infinity, ease: 'easeInOut' }}
         >
-          <motion.div
-            className="absolute -top-1/4 -right-1/3 h-[80%] w-[90%] rounded-full bg-[#f7a866]/45 blur-3xl"
-            animate={reduce ? undefined : { x: [0, -30, 10, 0], opacity: [0.7, 1, 0.8, 0.7] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute -bottom-1/4 -left-1/3 h-[70%] w-[80%] rounded-full bg-red/25 blur-3xl"
-            animate={reduce ? undefined : { x: [0, 30, -10, 0], opacity: [0.8, 0.6, 1, 0.8] }}
-            transition={{ duration: 4.1, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        </motion.div>
-      )}
-    </AnimatePresence>
+          {d.emoji}
+        </motion.span>
+      ))}
+    </div>
   );
 }

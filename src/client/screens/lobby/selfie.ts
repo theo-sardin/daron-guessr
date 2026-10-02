@@ -92,7 +92,7 @@ export function useSelfie() {
       }
       sfx.play('success');
       vibrate([12, 40, 12]);
-      toast(t('lobby.profile.selfieSaved'), 'success', { icon: 'camera' });
+      toast(t('lobby.profile.selfieSaved'), 'success', { emoji: '🤳' });
     } finally {
       busyRef.current = false;
       setBusy(null);
@@ -111,7 +111,7 @@ export function useSelfie() {
       return;
     }
     sfx.play('whoosh');
-    toast(t('lobby.profile.selfieRemoved'), 'info', { icon: 'trash' });
+    toast(t('lobby.profile.selfieRemoved'), 'info', { emoji: '🗑️' });
   };
 
   return {

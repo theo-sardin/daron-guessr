@@ -21,7 +21,7 @@ const card = (i: number) => ({
 
 /**
  * Lobby: see this game's theme, invite friends (code / link / QR), upload your photos, see
- * who's here and ready, tweak the settings (host) and start the game.
+ * who's here and ready (and their selfies), tweak the settings (host) and start the game.
  */
 export function LobbyScreen({ view }: { view: RoomView }) {
   const t = useT();
@@ -34,7 +34,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   useEffect(() => {
     if (prevHost.current !== view.hostId && view.hostId === view.meId) {
       sfx.play('success');
-      toast(t('lobby.players.youAreHost'), 'success', { icon: 'crown' });
+      toast(t('lobby.players.youAreHost'), 'success', { emoji: '👑' });
     }
     prevHost.current = view.hostId;
   }, [view.hostId, view.meId, t]);
@@ -44,7 +44,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   useEffect(() => {
     if (prevTheme.current !== theme && !isHost) {
       sfx.play('pop');
-      toast(t('lobby.banner.changed', { theme: t(`common.theme.${theme}.name`) }), 'info', { icon: 'images' });
+      toast(t('lobby.banner.changed', { theme: t(`common.theme.${theme}.name`) }), 'info', { emoji: t(`common.theme.${theme}.emoji`) });
     }
     prevTheme.current = theme;
   }, [theme, isHost, t]);
@@ -52,9 +52,7 @@ export function LobbyScreen({ view }: { view: RoomView }) {
   return (
     <>
       <ScreenShell width="xl" className="pb-48!">
-        <ScreenTitle className="mb-4" cutout cutoutSize="sm">
-          {t('lobby.title')}
-        </ScreenTitle>
+        <ScreenTitle className="mb-4">{t('lobby.title')}</ScreenTitle>
         <motion.div {...card(0)}>
           <ThemeBanner theme={theme} photosPerPlayer={photosPerPlayer} blur={blur} isHost={isHost} />
         </motion.div>
