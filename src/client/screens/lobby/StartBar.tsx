@@ -49,10 +49,11 @@ function HostStart({ view }: { view: RoomView }) {
     wasStartable.current = canStart;
   }, [canStart]);
 
-  // Someone removed their photos while the confirmation was open.
+  // Someone removed their photos while the confirmation was open, or the last players got
+  // ready (nothing left to confirm: the host just presses Start again).
   useEffect(() => {
-    if (!canStart) setConfirmOpen(false);
-  }, [canStart]);
+    if (!canStart || notReady.length === 0) setConfirmOpen(false);
+  }, [canStart, notReady.length]);
 
   // Safety net: if the phase never switches after a successful start, unlock the button.
   useEffect(() => {

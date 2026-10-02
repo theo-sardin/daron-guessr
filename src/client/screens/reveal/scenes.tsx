@@ -10,12 +10,12 @@ import { cn } from '../../lib/util';
  * language as the rest of the game: bright shapes, thick ink outlines, hard shadows, emojis,
  * springs. One signature element per scene, kept away from the photo itself.
  *
- * PhotoCard positions them: the companion (the owner's face) and the scene's sticker hang on
- * the photo's right edge (`SIDE`), the board's suspects and the hearts on the whole stage.
+ * The companion (the owner's face) and the scene's sticker hang on the right edge of the
+ * photo's box (`SIDE`); the board's suspects and the hearts are placed on PhotoCard's whole stage.
  */
 
 /** Right of the photo, overlapping its edge a little: the owner's face and, above it, the scene's sticker. */
-export const SIDE = 'absolute left-[calc(100%-0.75rem)] w-[7.5rem] md:left-[calc(100%-1rem)] md:w-[9.5rem]';
+const SIDE = 'absolute left-[calc(100%-0.75rem)] w-[7.5rem] md:left-[calc(100%-1rem)] md:w-[8rem] lg:w-[9.5rem]';
 
 /* ------------------------------------------------------------------ the owner's face */
 
@@ -90,23 +90,13 @@ export function Companion({ owner, label, lens, delay = 0.3 }: { owner: PublicPl
 }
 
 /** A small Lilita sticker (then / now labels). */
-export function SceneTag({
-  children,
-  tone = 'sun',
-  tilt = -6,
-  delay = 0,
-  className,
-}: {
-  children: ReactNode;
-  tone?: 'sun' | 'mint' | 'pink' | 'sky';
-  tilt?: number;
-  delay?: number;
-  className?: string;
-}) {
-  const bg = { sun: 'bg-sun text-ink', mint: 'bg-mint text-ink', pink: 'bg-pink text-white', sky: 'bg-sky text-ink' }[tone];
+export function SceneTag({ children, tone = 'sun', tilt = -6, delay = 0 }: { children: ReactNode; tone?: 'sun' | 'mint'; tilt?: number; delay?: number }) {
   return (
     <motion.span
-      className={cn('inline-block rounded-lg border-2 border-ink px-1.5 py-0.5 font-display text-sm leading-none whitespace-nowrap uppercase shadow-pop-sm', bg, className)}
+      className={cn(
+        'inline-block rounded-lg border-2 border-ink px-1.5 py-0.5 font-display text-sm leading-none whitespace-nowrap text-ink uppercase shadow-pop-sm md:text-base',
+        tone === 'sun' ? 'bg-sun' : 'bg-mint',
+      )}
       initial={{ scale: 0, rotate: tilt - 30 }}
       animate={{ scale: 1, rotate: tilt }}
       transition={{ type: 'spring', stiffness: 520, damping: 15, delay }}
@@ -239,7 +229,6 @@ const HEARTS: Array<{ cls: string; emoji: string; size: string; rotate: number }
   { cls: 'top-[68%] left-[1%]', emoji: '💘', size: 'text-2xl', rotate: 12 },
   { cls: 'bottom-[-6%] left-[22%]', emoji: '💕', size: 'text-2xl', rotate: -8 },
   { cls: 'top-[30%] right-[-2%]', emoji: '💗', size: 'text-2xl', rotate: 14 },
-  { cls: 'bottom-[-4%] right-[8%]', emoji: '💖', size: 'text-3xl', rotate: -12 },
 ];
 
 /** Hearts popping around the poster, then beating softly. */
@@ -274,7 +263,6 @@ const LENS_SHADOW = 'drop-shadow-[0_4px_0_rgba(27,16,54,0.7)]';
 export function PhotoLens({ zoom, drumrollS }: { zoom: boolean; drumrollS: number }) {
   return (
     <motion.span
-      key="lens"
       aria-hidden
       className={cn('pointer-events-none absolute -right-3 bottom-[18%] z-[5] text-5xl leading-none md:text-6xl', LENS_SHADOW)}
       initial={{ opacity: 0, scale: 0.4, rotate: 40 }}

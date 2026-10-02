@@ -74,8 +74,8 @@ export function PhotoCard(p: PhotoCardProps) {
     // The stage: room on the right for the owner's face (the photo slides over), or around for the suspects.
     <div
       className={cn(
-        'relative mx-auto flex w-full max-w-[24rem] shrink-0 md:w-[28rem] md:max-w-none',
-        side && 'pr-[6.75rem] md:pr-[8.5rem]',
+        'relative mx-auto flex w-full max-w-[24rem] shrink-0 md:w-[24rem] md:max-w-none lg:w-[28rem]',
+        side && 'pr-[6.75rem] md:pr-[7rem] lg:pr-[8.5rem]',
       )}
     >
       {board && reached(stage, 'bars') && <SuspectBoard suspects={p.suspects} culpritId={owner?.id ?? null} />}
@@ -84,7 +84,7 @@ export function PhotoCard(p: PhotoCardProps) {
         ref={p.anchorRef}
         layout
         transition={{ layout: { type: 'spring', stiffness: 220, damping: 26 } }}
-        className={cn('relative z-[2] mx-auto shrink-0', big ? 'w-[min(78vw,19rem)]' : 'w-[min(50vw,12.5rem)]', 'md:w-[19rem]')}
+        className={cn('relative z-[2] mx-auto shrink-0', big ? 'w-[min(78vw,19rem)]' : 'w-[min(50vw,12.5rem)]', 'md:w-[16rem] lg:w-[19rem]')}
       >
         <div className={cn(stage === 'drumroll' && 'animate-shake')}>
           <Polaroid
@@ -162,7 +162,7 @@ export function PhotoCard(p: PhotoCardProps) {
         )}
 
         {/* Body parts: the 🔍 rests on the print until the reveal. */}
-        <AnimatePresence>{scene === 'lens' && !revealed && <PhotoLens zoom={lensZoom} drumrollS={DRUMROLL_S} />}</AnimatePresence>
+        <AnimatePresence>{scene === 'lens' && !revealed && <PhotoLens key="lens" zoom={lensZoom} drumrollS={DRUMROLL_S} />}</AnimatePresence>
 
         {owner && side && (
           <>

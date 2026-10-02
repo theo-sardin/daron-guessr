@@ -290,7 +290,7 @@ const previews: PreviewRegistry = {
     view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, kind: 'me', theme: 'whois', blur: true, points: 175, selfies: true }),
     render,
   },
-  /** Speed bonus with public votes: the score strip adds the viewer's 175 points. */
+  /** Speed bonus with public votes: the score strip adds the viewer's 150 points (100 + 50 bonus). */
   'blur-bonus-scores': {
     view: () =>
       reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, kind: 'daronne', blur: true, points: 150, anonymous: false, scores: SCORES }),

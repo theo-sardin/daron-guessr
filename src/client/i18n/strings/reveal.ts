@@ -271,7 +271,7 @@ const en = {
     },
   } satisfies Record<Outcome, PerGroup>,
   me: {
-    rightTitle: ['You got it! 🎯', 'Nailed it! 🎯', 'Eagle eye! 🎯'],
+    rightTitle: ['You got it! 🎯', 'Nailed it! 🎯', 'Spot on! 🎯'],
     rightSub: 'Straight into your score',
     /** Right answer in a blur game: "100 + 75 ⚡ speed bonus". */
     bonus: '{base} + {bonus} ⚡ speed bonus',
@@ -657,7 +657,7 @@ const fr: typeof en = {
     },
   },
   me: {
-    rightTitle: ['Bien vu ! 🎯', 'Dans le mille ! 🎯', 'Œil de lynx ! 🎯'],
+    rightTitle: ['Bien vu ! 🎯', 'Dans le mille ! 🎯', 'Pile-poil ! 🎯'],
     rightSub: 'Direct dans ton score',
     bonus: '{base} + {bonus} ⚡ bonus rapidité',
     wrongTitle: 'T’as dit {name} ❌',

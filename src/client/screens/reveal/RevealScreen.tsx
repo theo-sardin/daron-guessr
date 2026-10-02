@@ -212,7 +212,7 @@ const RoundBody = memo(function RoundBody({ view, reveal, model, stage, introLef
 
               <Headline stage={stage} kind={kind} index={reveal.index} owner={owner} caption={caption} />
 
-              <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-center md:gap-10">
+              <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:justify-center md:gap-8 lg:gap-10">
                 <PhotoCard
                   src={cur.photo.url}
                   alt={photoLabel}
