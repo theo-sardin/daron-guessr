@@ -19,7 +19,7 @@ const en = {
   themes: {
     label: 'Modes',
     listLabel: 'Game modes the host can pick',
-    teaser: '+ teen crush, camera roll, body parts… {n} modes in all! 🤯',
+    teaser: '{n} modes in all: the host picks one when creating the room 🤯',
   },
   profile: {
     title: 'Who are you?',
@@ -142,7 +142,7 @@ const fr: typeof en = {
   themes: {
     label: 'Modes',
     listLabel: 'Modes de jeu au choix de l’hôte',
-    teaser: '+ crush d’ado, pellicule, morceaux choisis… {n} modes en tout ! 🤯',
+    teaser: '{n} modes en tout : l’hôte en choisit un en créant la salle 🤯',
   },
   profile: {
     title: "T'es qui, toi ?",
