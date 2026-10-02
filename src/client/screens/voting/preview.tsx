@@ -290,6 +290,11 @@ const previews: PreviewRegistry = {
   'blur-full': { view: () => makeView({ round: 2, endsIn: 20_000, voteSeconds: 30, kind: 'daronne', blur: 0, fullBlur: true }), render },
   /** Owner's view of a blurred photo (no bonus note). */
   'blur-mine': { view: () => makeView({ round: 2, endsIn: 18_000, voteSeconds: 30, kind: 'me', blur: 1, isMine: true }), render },
+  /** "Who's that?" for real: blurred photo of a face, selfies on the buttons, host view. */
+  'blur-selfies': {
+    view: () => makeView({ me: 0, round: 0, total: 5, endsIn: 16_000, voteSeconds: 30, voted: [2], kind: 'me', blur: 1, selfies: [0, 1, 2, 3, 4] }),
+    render,
+  },
   /** Playable loop with blur stepping. */
   'sim-blur': {
     view: () => makeView({ me: 0, round: 0, total: 5, startsIn: 4000, voteSeconds: SIM_SECONDS, kind: 'me', blur: 0 }),

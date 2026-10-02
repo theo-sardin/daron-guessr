@@ -3,6 +3,7 @@ import {
   AVATARS,
   DEFAULT_SETTINGS,
   PLAYER_COLORS,
+  THEME_KINDS,
   type MyPhoto,
   type PhotoSlot,
   type PublicPlayer,
@@ -11,8 +12,11 @@ import {
 } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
 import { fakePhoto, fakePlayers, fakePortrait, fakeView } from '../../dev/fixtures';
+import { useT } from '../../i18n';
 import { __devSetState } from '../../lib/store';
+import { KindPicker } from './KindPicker';
 import { LobbyScreen } from './LobbyScreen';
+import { SfwNote } from './PhotoSlots';
 import { ProfileModal } from './ProfileModal';
 
 /** Dev-only preview variants for this screen (see src/client/dev/PreviewApp.tsx). */
@@ -51,6 +55,29 @@ const withProfile = (view: RoomView | null) => {
     </>
   ) : null;
 };
+
+/** The lobby with the kind picker open on the first slot (the second kind picked, the first one used elsewhere). */
+function WithPicker({ view }: { view: RoomView }) {
+  const t = useT();
+  const kinds = THEME_KINDS[view.settings.theme];
+  const body = view.settings.theme === 'body';
+  return (
+    <>
+      <LobbyScreen view={view} />
+      <KindPicker
+        open
+        kinds={kinds}
+        current={kinds[1]}
+        used={[kinds[0]]}
+        title={body ? t('lobby.photos.pickerTitleBody') : t('lobby.photos.pickerTitle')}
+        note={body ? <SfwNote /> : undefined}
+        onPick={() => undefined}
+        onClose={() => undefined}
+      />
+    </>
+  );
+}
+const withPicker = (view: RoomView | null) => (view ? <WithPicker view={view} /> : null);
 
 type Step = (v: RoomView) => RoomView;
 
@@ -295,6 +322,30 @@ const previews: PreviewRegistry = {
         settings: settings({ theme: 'body', photosPerPlayer: 3 }),
       }),
     render,
+  },
+  'body-picker': {
+    view: () =>
+      fakeView(fakePlayers(4, { notReady: [2] }), 0, {
+        settings: settings({ theme: 'body', photosPerPlayer: 2 }),
+        myPhotos: [myPhoto(30, 0, 'hand')],
+      }),
+    render: withPicker,
+  },
+  'family-picker': {
+    view: () =>
+      fakeView(fakePlayers(4, { notReady: [2] }), 0, {
+        settings: settings({ theme: 'family', photosPerPlayer: 2 }),
+        myPhotos: [myPhoto(11, 0, 'sister')],
+      }),
+    render: withPicker,
+  },
+  'mix-picker': {
+    view: () =>
+      fakeView(fakePlayers(4, { notReady: [2] }), 0, {
+        settings: settings({ theme: 'mix', photosPerPlayer: 2 }),
+        myPhotos: [myPhoto(17, 0, 'daron')],
+      }),
+    render: withPicker,
   },
   'whois-blur': {
     view: () =>

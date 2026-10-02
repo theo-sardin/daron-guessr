@@ -1,11 +1,10 @@
 import { useEffect } from 'react';
 import type { RoomPeek } from '../../../shared/protocol';
 import type { PreviewRegistry } from '../../dev/PreviewApp';
-import { fakePlayers, fakeView } from '../../dev/fixtures';
+import { fakePlayers, fakePortrait, fakeView } from '../../dev/fixtures';
 import { useT } from '../../i18n';
 import { errorText } from '../../lib/errors';
 import { __devSetState } from '../../lib/store';
-import { HERO_PHOTOS } from './heroPhotos';
 import { HomeScreen } from './HomeScreen';
 import { JoinByLink } from './JoinByLink';
 import { saveSelfie } from './selfie';
@@ -24,9 +23,9 @@ function setProfile(profile: { name: string; avatar: string } | null) {
   }
 }
 
-/** A stored selfie for the previews (any image data URL works: the dad print of the hero). */
+/** A stored selfie for the previews (any image data URL works: a fake "me" portrait). */
 function setSelfie(on: boolean) {
-  saveSelfie(on ? HERO_PHOTOS.dad : null);
+  saveSelfie(on ? fakePortrait(3, 'me') : null);
 }
 
 const realFetch = typeof window === 'undefined' ? fetch : window.fetch.bind(window);
@@ -99,7 +98,7 @@ const previews: PreviewRegistry = {
     },
   },
   'home-code': {
-    // A code half typed: the Join button has unfolded under the kraft strip.
+    // A code half typed in the "Got a code?" tiles.
     render: () => {
       setProfile({ name: 'Théo', avatar: '🦊' });
       setSelfie(false);

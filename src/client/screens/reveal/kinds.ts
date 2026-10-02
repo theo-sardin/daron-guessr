@@ -39,15 +39,15 @@ export const CAPTION_GROUP: Record<PhotoKind, CaptionGroup> = {
 };
 
 /**
- * The mode-specific reveal scene, chosen by the photo's kind:
- * - `album` (parents): the photo arrives on an album page turning, then the owner's print
- *   lands next to it with a hand-drawn "family resemblance" meter.
- * - `tree` (the rest of the family, friends, pets): a family-tree doodle links the photo to the owner.
- * - `glowup` (kid, me): "then vs now" split with the owner's print and a GLOW-UP star.
- * - `board` (pick, roll): a detective cork board, red string from the photo to every suspect,
- *   then the culprit circled.
- * - `poster` (crush): a teen-magazine poster pinned with hearts.
- * - `lens` (body parts): a magnifying glass zooms out onto the whole person.
+ * The mode-specific touch of the reveal, chosen by the photo's kind (one signature sticker
+ * each, see scenes.tsx). Except on the board, the owner's face slides in next to the photo.
+ * - `album` (parents): a "family resemblance" gauge, needle on the share of right guesses.
+ * - `tree` (the rest of the family, friends, pets): a sticker naming the link to the owner.
+ * - `glowup` (kid, me): "then" photo vs "now" face, with a ✨ GLOW-UP ✨ badge.
+ * - `board` (pick, roll): the most voted suspects pinned around the photo with red string,
+ *   then the culprit gets the badge.
+ * - `poster` (crush): a teen-magazine title over the photo and hearts popping around.
+ * - `lens` (body parts): a 🔍 zooms in on the detail, then flies to the owner's face.
  */
 export type Scene = 'album' | 'tree' | 'glowup' | 'board' | 'poster' | 'lens';
 

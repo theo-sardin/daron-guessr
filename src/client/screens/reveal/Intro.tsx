@@ -1,15 +1,10 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { CutoutText } from '../../components/CutoutText';
-import { Annotation } from '../../components/Marker';
-import { Tape } from '../../components/Tape';
-import { PaperStrip } from '../../components/TornPaper';
 import { useT } from '../../i18n';
 
-/** The face-down prints fanned out behind the ballot box. */
-const PRINTS = [
-  { rotate: -13, x: -56, y: 12, delay: 0 },
-  { rotate: 10, x: 54, y: 6, delay: 0.12 },
-  { rotate: -2, x: 0, y: -6, delay: 0.24 },
+const CARDS = [
+  { rotate: -14, x: -46, y: 8, delay: 0 },
+  { rotate: 10, x: 44, y: 4, delay: 0.12 },
+  { rotate: -3, x: 0, y: -6, delay: 0.24 },
 ];
 
 /** "The votes are in!" suspense before the first photo (photo 1 starts in the future). */
@@ -17,18 +12,29 @@ export function Intro({ secondsLeft, total }: { secondsLeft: number; total: numb
   const t = useT();
   return (
     <div className="flex min-h-[calc(100dvh-15rem)] flex-col items-center justify-center text-center">
-      <CutoutText as="h1" text={t('reveal.intro.title')} size={50} seed="intro" animate />
-      <Annotation font="pen" size={26} rotate={-2} delay={0.5} as="p" className="mt-2">
+      <motion.h1
+        className="text-outline font-display text-[2.5rem] leading-[1.05] text-cream sm:text-6xl"
+        initial={{ scale: 0.4, opacity: 0, rotate: -8 }}
+        animate={{ scale: 1, opacity: 1, rotate: [-8, 3, -2, 0] }}
+        transition={{ type: 'spring', stiffness: 320, damping: 14 }}
+      >
+        {t('reveal.intro.title')}
+      </motion.h1>
+      <motion.p
+        className="mt-2 text-lg font-bold text-grape-200 sm:text-xl"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+      >
         {t('reveal.intro.sub')}
-      </Annotation>
+      </motion.p>
 
-      {/* Prints still face down (their paper backs) with the ballot box in front. */}
-      <div className="relative mt-6 mb-7 h-56 w-72 sm:h-64 sm:w-80" aria-hidden>
-        <PaperStrip tone="blue" tilt={-5} className="-inset-x-16 top-16 h-28" seed="intro" />
-        {PRINTS.map((c, i) => (
+      {/* Stack of mystery polaroids with the ballot box shaking in front. */}
+      <div className="relative mt-8 mb-6 h-56 w-72 sm:h-64 sm:w-80">
+        {CARDS.map((c, i) => (
           <motion.div
             key={i}
-            className="absolute top-2 left-1/2 -ml-[4.5rem] flex h-44 w-36 flex-col bg-[linear-gradient(160deg,#fffefa,#efe7d6)] p-2 pb-6 shadow-paper sm:-ml-20 sm:h-48 sm:w-40"
+            className="absolute top-2 left-1/2 -ml-[4.5rem] flex h-44 w-36 flex-col rounded-md border-3 border-ink bg-white p-2 pb-6 shadow-pop sm:h-48 sm:w-40 sm:-ml-20"
             initial={{ y: 320, rotate: c.rotate * 3, opacity: 0 }}
             animate={{ y: [c.y, c.y - 6, c.y], x: c.x, rotate: [c.rotate, c.rotate + 2.5, c.rotate], opacity: 1 }}
             transition={{
@@ -38,80 +44,50 @@ export function Intro({ secondsLeft, total }: { secondsLeft: number; total: numb
               opacity: { delay: c.delay, duration: 0.2 },
             }}
           >
-            <Tape tone={i === 1 ? 'pink' : 'cream'} width={58} height={18} rotate={i === 1 ? 6 : -4} className="-top-2 left-1/2 -translate-x-1/2" />
-            <div className="paper-kraft relative flex flex-1 items-center justify-center overflow-hidden">
-              <span className="font-marker text-7xl leading-none text-red">?</span>
+            <div className="flex flex-1 items-center justify-center rounded-sm bg-gradient-to-br from-grape-300 to-pink/70">
+              <span className="text-outline-sm font-display text-6xl text-cream">?</span>
             </div>
           </motion.div>
         ))}
         <motion.div
-          className="absolute -right-4 -bottom-5 w-32 sm:-right-6 sm:w-36"
-          initial={{ scale: 0, rotate: -30 }}
-          animate={{ scale: 1, rotate: [0, -6, 6, -4, 4, 0] }}
+          className="absolute -right-2 -bottom-2 text-[5.5rem] leading-none drop-shadow-[0_5px_0_rgba(27,16,54,0.7)] sm:text-8xl"
+          initial={{ scale: 0, rotate: -40 }}
+          animate={{ scale: 1, rotate: [0, -9, 9, -7, 7, 0] }}
           transition={{
             scale: { delay: 0.45, type: 'spring', stiffness: 400, damping: 12 },
-            rotate: { delay: 0.8, duration: 0.55, repeat: Infinity, repeatDelay: 0.6 },
+            rotate: { delay: 0.8, duration: 0.55, repeat: Infinity, repeatDelay: 0.25 },
           }}
+          aria-hidden
         >
-          <BallotBox />
+          🗳️
+        </motion.div>
+        <motion.div
+          className="absolute -top-3 -left-3 text-4xl"
+          animate={{ y: [0, -10, 0], rotate: [-10, 10, -10] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+          aria-hidden
+        >
+          🥁
         </motion.div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="paper-ink flex h-[4.5rem] min-w-[4.5rem] flex-col items-center justify-center px-2.5 shadow-paper">
-          <span className="label-type text-[10px] whitespace-nowrap text-[#fff6e0]/75">{t('reveal.intro.startsIn')}</span>
-          <AnimatePresence mode="popLayout" initial={false}>
+      <div className="flex items-center gap-3">
+        <div className="relative flex size-16 items-center justify-center rounded-full border-3 border-ink bg-sun shadow-pop">
+          <AnimatePresence mode="popLayout">
             <motion.span
               key={secondsLeft}
-              className="mt-0.5 block font-display text-[2.2rem] leading-none text-[#fff6e0]"
-              initial={{ scale: 1.8, opacity: 0.3 }}
+              className="font-display text-4xl text-ink"
+              initial={{ scale: 2.2, opacity: 0.4 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.4, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+              exit={{ scale: 0.3, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
             >
               {secondsLeft}
             </motion.span>
           </AnimatePresence>
         </div>
-        <p className="flex items-baseline gap-2 text-left">
-          <span className="font-display text-[2.4rem] leading-none">{total}</span>
-          <span className="max-w-[8.5rem] text-lg leading-tight font-extrabold">{t('reveal.intro.photos')}</span>
-        </p>
+        <span className="sticker px-4 py-2 font-display text-lg">📸 {t('reveal.intro.count', { total })}</span>
       </div>
     </div>
-  );
-}
-
-/**
- * The ballot box: a kraft cardboard box with a slot, a folded voting slip dropping in on a loop.
- */
-function BallotBox() {
-  return (
-    <svg viewBox="0 0 120 120" className="block w-full overflow-visible drop-shadow-[0_6px_6px_rgb(40_25_10/0.35)]" aria-hidden>
-      <defs>
-        <clipPath id="reveal-ballot-slot">
-          <rect x="0" y="-60" width="120" height="107" />
-        </clipPath>
-      </defs>
-      <path d="M12 56 L24 40 H96 L108 56 Z" fill="#e8cfa6" stroke="var(--color-ink)" strokeWidth="3.5" strokeLinejoin="round" />
-      <rect x="38" y="44" width="44" height="7" rx="3.5" fill="var(--color-ink)" />
-      <g clipPath="url(#reveal-ballot-slot)">
-        <motion.g
-          initial={{ y: -26 }}
-          animate={{ y: [-26, -26, 44], opacity: [0, 1, 1] }}
-          transition={{ duration: 1.5, times: [0, 0.35, 1], ease: 'easeIn', repeat: Infinity, repeatDelay: 0.5 }}
-        >
-          <g transform="rotate(-6 60 26)">
-            <rect x="45" y="6" width="30" height="40" rx="2" fill="#fffdf6" stroke="var(--color-ink)" strokeWidth="3" />
-            <path d="M51 17 l4 4 l8 -9" fill="none" stroke="var(--color-red)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M51 29 h18 M51 36 h12" stroke="var(--color-blue)" strokeWidth="2.6" strokeLinecap="round" />
-          </g>
-        </motion.g>
-      </g>
-      <rect x="12" y="56" width="96" height="56" rx="3" fill="var(--color-kraft)" stroke="var(--color-ink)" strokeWidth="3.5" />
-      {/* Red Dymo-ish label with a big tick. */}
-      <rect x="33" y="72" width="54" height="24" rx="3" fill="var(--color-red)" stroke="var(--color-ink)" strokeWidth="3" />
-      <path d="M50 84 l6 6 l13 -13" fill="none" stroke="#fff" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

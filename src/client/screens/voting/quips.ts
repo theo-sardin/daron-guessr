@@ -17,13 +17,3 @@ export function quipGroup(kind: PhotoKind): QuipGroup {
       return 'people';
   }
 }
-
-/** A small stable number from a string (picks the caption / note of a photo). */
-export function hashOf(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}

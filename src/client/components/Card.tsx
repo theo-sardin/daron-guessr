@@ -5,7 +5,7 @@ import { cn } from '../lib/util';
 export interface CardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
   children?: ReactNode;
   /** Visual tone of the card surface. */
-  tone?: 'cream' | 'white' | 'pink' | 'sun' | 'mint' | 'sky' | 'lilac' | 'glass';
+  tone?: 'cream' | 'white' | 'pink' | 'sun' | 'mint' | 'sky' | 'lilac' | 'tangerine' | 'glass';
   padded?: boolean;
 }
 
@@ -17,6 +17,7 @@ const TONES: Record<NonNullable<CardProps['tone']>, string> = {
   mint: 'bg-mint text-ink border-ink shadow-pop',
   sky: 'bg-sky text-ink border-ink shadow-pop',
   lilac: 'bg-lilac text-ink border-ink shadow-pop',
+  tangerine: 'bg-tangerine text-ink border-ink shadow-pop',
   glass: 'bg-white/8 text-cream border-white/15 backdrop-blur-md',
 };
 

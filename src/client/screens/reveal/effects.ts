@@ -1,6 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { REVEAL_BARS_AT_MS, REVEAL_DRUMROLL_AT_MS, REVEAL_OWNER_AT_MS } from '../../../shared/protocol';
-import { flashScreen } from '../../components/Flash';
 import { burst, emojiRain, sideCannons } from '../../lib/confetti';
 import { sfx } from '../../lib/sfx';
 import { vibrate } from '../../lib/util';
@@ -43,7 +42,7 @@ function originOf(el: HTMLElement | null): { x: number; y: number } {
 }
 
 /**
- * Sounds, flash, confetti and haptics of one photo's reveal. Each effect fires only when its
+ * Sounds, confetti and haptics of one photo's reveal. Each effect fires only when its
  * threshold is crossed while the screen is open: someone (re)joining mid-reveal lands on
  * the final state silently. Keyed by photo index by the caller, so it resets per photo.
  */
@@ -85,14 +84,11 @@ export function useRevealEffects(elapsed: number, fx: RevealFx) {
     if (crossed(REVEAL_DRUMROLL_AT_MS)) sfx.play('drumroll');
 
     if (crossed(REVEAL_OWNER_AT_MS)) {
-      // The darkroom lights come back on: camera flash + shutter, then the fanfare.
-      flashScreen();
       sfx.play('reveal');
       buzz([25, 40, 25]);
       const { x, y } = originOf(f.anchor.current);
-      burst({ x, y, colors: [f.ownerColor, '#e3321f', '#2344c8', '#ffdf3d', '#f6a6c1', '#9ed9c0'], particleCount: 130 });
-      if (f.outcome === 'everybody') sideCannons(1400, [f.ownerColor, '#ffdf3d', '#e3321f', '#2344c8']);
-      // Emoji rain is a reaction (like the reaction tray), so it keeps its emoji.
+      burst({ x, y, colors: [f.ownerColor, f.ownerColor, '#fff8ec', '#ffd23f'], particleCount: 130 });
+      if (f.outcome === 'everybody') sideCannons(1400, [f.ownerColor, '#ffd23f', '#fff8ec']);
       if (f.total > 0 && f.correct === 0) {
         timers.current.push(window.setTimeout(() => emojiRain('😂', 36), 350));
       }

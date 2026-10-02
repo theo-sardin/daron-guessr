@@ -254,7 +254,7 @@ const previews: PreviewRegistry = {
     render,
   },
   // Mode-specific reveal scenes (see SCENE in kinds.ts). "-live" variants start just before the owner reveal.
-  /** Parents: album page + the owner's selfie with the resemblance meter. */
+  /** Parents: the owner's selfie next to the photo, with the family-resemblance gauge. */
   album: {
     view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, kind: 'daronne', selfies: true, scores: SCORES }),
     render,
@@ -263,11 +263,21 @@ const previews: PreviewRegistry = {
     view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: 4900, kind: 'daron', selfies: true, scores: SCORES }),
     render,
   },
-  /** The album page turning in. */
+  /** A parents photo flying in (with selfies around). */
   'album-turn': { view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: 250, kind: 'daronne', selfies: true }), render },
+  /** No votes on a parents photo: the gauge hesitates on "?". */
+  'album-novotes': {
+    view: () => reveal({ me: 1, owner: 3, votes: {}, ago: OWNER_AT, kind: 'daron', selfies: true, scores: SCORES }),
+    render,
+  },
   /** Then vs now (kid). */
   'glowup-kid': {
     view: () => reveal({ me: 0, owner: 3, n: 6, votes: { 0: 3, 1: 2, 2: 3, 4: 3, 5: 1 }, ago: OWNER_AT, kind: 'kid', theme: 'childhood', selfies: true }),
+    render,
+  },
+  /** Then vs now without selfies: the owner's emoji avatar stands in for their face. */
+  'glowup-noselfie': {
+    view: () => reveal({ me: 2, owner: 4, votes: { 0: 4, 1: 0, 2: 4, 3: 1 }, ago: OWNER_AT, kind: 'kid', theme: 'childhood', scores: SCORES }),
     render,
   },
   /** "Who's that?" blur game: the viewer was right early (100 + 75 speed bonus), the blur gets wiped live. */
@@ -278,6 +288,12 @@ const previews: PreviewRegistry = {
   },
   'whois-blur': {
     view: () => reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, kind: 'me', theme: 'whois', blur: true, points: 175, selfies: true }),
+    render,
+  },
+  /** Speed bonus with public votes: the score strip adds the viewer's 175 points. */
+  'blur-bonus-scores': {
+    view: () =>
+      reveal({ me: 1, owner: 2, votes: { 0: 2, 1: 2, 3: 1, 4: 2 }, ago: OWNER_AT, kind: 'daronne', blur: true, points: 150, anonymous: false, scores: SCORES }),
     render,
   },
   /** Blur game before the reveal: the photo is still blurred. */
@@ -326,6 +342,11 @@ const previews: PreviewRegistry = {
   /** …and pulls back onto the owner's print. */
   'lens-ear': {
     view: () => reveal({ me: 0, owner: 3, votes: { 0: 3, 1: 3, 2: 1, 4: 2 }, ago: OWNER_AT, kind: 'ear', theme: 'body', selfies: true }),
+    render,
+  },
+  /** The owner's own card on a body part. */
+  'mine-lens': {
+    view: () => reveal({ me: 3, owner: 3, decoy: 1, votes: { 0: 3, 1: 3, 2: 1, 4: 2 }, ago: OWNER_AT, kind: 'navel', theme: 'body', selfies: true }),
     render,
   },
   'lens-hair': {

@@ -1,20 +1,19 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type { Theme } from '../../../shared/protocol';
-import { PaperTexture } from '../../components/Background';
-import { CutoutText } from '../../components/CutoutText';
-import { Annotation, MarkerCircle } from '../../components/Marker';
-import { RubberStamp } from '../../components/RubberStamp';
-import { ThemeArt } from '../../components/ThemeArt';
-import { useI18n } from '../../i18n';
+import { useT } from '../../i18n';
+import { cn } from '../../lib/util';
+import { THEME_BG } from '../lobby/look';
 
 export type IntroStage = 'ready' | 3 | 2 | 1 | 'go';
 
-/**
- * Full-screen "Get ready!" before the very first photo: a fresh page of the zine with the title
- * in ransom-note letters, the mode's one-liner in ballpoint, the game's facts on strips of tape,
- * then a big 3-2-1 circled in red marker and a "GO!" rubber stamp (the flash itself is triggered
- * by VotingScreen with the sound cues).
- */
+const STICKER: Record<Exclude<IntroStage, 'ready'>, string> = {
+  3: 'bg-pink text-white',
+  2: 'bg-sun text-ink',
+  1: 'bg-sky text-ink',
+  go: 'bg-mint text-ink',
+};
+
+/** Full-screen "Get ready!" + 3-2-1-GO before the very first photo. */
 export function IntroOverlay({
   stage,
   totalRounds,
@@ -26,91 +25,118 @@ export function IntroOverlay({
   totalRounds: number;
   voteSeconds: number;
   theme: Theme;
+  /** The blur option is on: say the photos start blurry and early guesses score more. */
   blur: boolean;
 }) {
-  const { t, lang } = useI18n();
-  const counting = typeof stage === 'number';
+  const t = useT();
   return (
     <motion.div
-      className="fixed inset-0 z-[45] flex flex-col items-center justify-center overflow-hidden px-6 pt-16 pb-36 text-center text-ink"
+      className="fixed inset-0 z-[45] flex flex-col items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_42%,var(--color-grape-800),var(--color-grape-950)_75%)] px-6 pt-16 pb-28 text-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0, y: -40, rotate: -2, transition: { duration: 0.35, ease: 'easeIn' } }}
+      exit={{ opacity: 0, scale: 1.15, transition: { duration: 0.35, ease: 'easeIn' } }}
       aria-live="assertive"
     >
-      <PaperTexture className="absolute inset-0" />
+      {/* Spinning sunburst. */}
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 left-1/2 size-[190vmax] -translate-x-1/2 -translate-y-1/2 opacity-25"
+        style={{
+          background:
+            'repeating-conic-gradient(from 0deg, var(--color-grape-600) 0deg 10deg, transparent 10deg 20deg)',
+          maskImage: 'radial-gradient(circle, black 0%, transparent 55%)',
+          WebkitMaskImage: 'radial-gradient(circle, black 0%, transparent 55%)',
+        }}
+        animate={{ rotate: 360 }}
+        transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
+      />
 
-      <CutoutText as="h1" text={t('voting.intro.ready')} size="lg" seed={`ready-${lang}`} animate className="relative max-w-[22rem] sm:max-w-none" />
+      {/* The game mode, as a little sticker over the title. */}
+      <motion.span
+        className={cn('relative mb-3 rounded-full border-3 border-ink px-3 py-1 font-display text-lg leading-tight text-ink shadow-pop-sm', THEME_BG[theme])}
+        initial={{ scale: 0, rotate: 20 }}
+        animate={{ scale: 1, rotate: 3 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 14, delay: 0.15 }}
+      >
+        <span aria-hidden>{t(`common.theme.${theme}.emoji`)} </span>
+        {t(`common.theme.${theme}.name`)}
+      </motion.span>
 
-      <Annotation as="p" font="pen" rotate={-2} size={24} delay={0.35} className="relative mt-3 max-w-sm text-balance sm:text-[28px]!">
+      <motion.h1
+        className="text-outline relative font-display text-5xl leading-none text-sun sm:text-7xl"
+        initial={{ scale: 0.3, rotate: -12, y: -40 }}
+        animate={{ scale: 1, rotate: -3, y: 0 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 12 }}
+      >
+        {t('voting.intro.ready')}
+      </motion.h1>
+
+      <motion.p
+        className="relative mt-4 max-w-sm text-lg leading-snug font-extrabold text-balance text-cream sm:text-xl"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+      >
         {t(`voting.intro.rule.${theme}`)}
-      </Annotation>
+      </motion.p>
 
-      {/* The countdown: a big black number circled in red marker, GO! stamped. */}
-      <div className="relative my-[min(2rem,4dvh)] flex size-[min(11rem,24dvh)] items-center justify-center">
+      <div className="relative my-[min(2rem,4dvh)] flex size-[min(11rem,24dvh)] items-center justify-center sm:size-52">
         <AnimatePresence mode="popLayout">
           {stage === 'ready' ? (
-            <motion.div
+            <motion.span
               key="ready"
-              className="relative"
-              initial={{ scale: 0.5, rotate: -14, opacity: 0 }}
-              animate={{ scale: 1, rotate: -4, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.18 } }}
-              transition={{ type: 'spring', stiffness: 380, damping: 16, delay: 0.25 }}
+              className="text-[length:min(6rem,13dvh)] leading-none"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1, rotate: [0, -10, 10, 0] }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.5 }}
+              aria-hidden
             >
-              <ThemeArt theme={theme} className="block size-[min(10rem,21dvh)]" />
-              <Annotation rotate={-6} size={19} delay={0.9} className="absolute -right-14 -bottom-4 whitespace-nowrap">
-                {t('voting.intro.soon')}
-              </Annotation>
-            </motion.div>
-          ) : stage === 'go' ? (
-            <motion.div key="go" exit={{ scale: 1.6, opacity: 0, transition: { duration: 0.25 } }}>
-              <RubberStamp size={64} tilt={-10} backing animate={0} sound={false}>
-                {t('voting.intro.go')}
-              </RubberStamp>
-            </motion.div>
+              {/* With blur on, the camera is out of focus too. */}
+              <span className={cn('inline-block', blur && 'animate-pulse-soft blur-[3px]')}>📸</span>
+            </motion.span>
           ) : (
             <motion.span
               key={String(stage)}
-              className="relative"
-              initial={{ scale: 1.8, rotate: -10, opacity: 0 }}
-              animate={{ scale: 1, rotate: -3, opacity: 1 }}
-              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.14 } }}
-              transition={{ type: 'spring', stiffness: 520, damping: 18 }}
+              className={cn(
+                'absolute inset-0 flex items-center justify-center rounded-full border-[5px] border-ink font-display shadow-pop-lg',
+                stage === 'go' ? 'text-[length:min(3.75rem,8dvh)] sm:text-7xl' : 'text-[length:min(7rem,15dvh)] leading-none sm:text-[8.5rem]',
+                STICKER[stage],
+              )}
+              initial={{ scale: 0, rotate: -40 }}
+              animate={{ scale: 1, rotate: stage === 'go' ? -6 : 0 }}
+              exit={{ scale: 1.9, opacity: 0, transition: { duration: 0.3 } }}
+              transition={{ type: 'spring', stiffness: 520, damping: 13 }}
             >
-              <MarkerCircle pad={18} strokeWidth={5} sound={false} seed={stage}>
-                <span className="font-num block px-3 text-[length:min(7.5rem,15dvh)] leading-[0.9]">{stage}</span>
-              </MarkerCircle>
+              {stage === 'go' ? t('voting.intro.go') : stage}
             </motion.span>
           )}
         </AnimatePresence>
       </div>
 
       <motion.div
-        className="relative flex max-w-md flex-wrap justify-center gap-x-3 gap-y-2.5"
+        className="relative flex max-w-md flex-wrap justify-center gap-2"
         initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: counting || stage === 'go' ? 0.85 : 1, y: 0 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.45 }}
       >
-        <Fact tilt={-2}>{t('voting.intro.photos', { count: totalRounds })}</Fact>
-        <Fact tilt={1.5}>{voteSeconds > 0 ? t('voting.intro.perPhoto', { seconds: voteSeconds }) : t('voting.intro.noTimer')}</Fact>
-        {blur && <Fact tilt={-1}>{t('voting.intro.blur')}</Fact>}
+        <span className="rounded-full border-2 border-ink bg-cream px-3 py-1 text-sm font-extrabold text-ink shadow-pop-sm">
+          📸 {t('voting.intro.photos', { count: totalRounds })}
+        </span>
+        <span className="rounded-full border-2 border-ink bg-cream px-3 py-1 text-sm font-extrabold text-ink shadow-pop-sm">
+          ⏱️ {voteSeconds > 0 ? t('voting.intro.perPhoto', { seconds: voteSeconds }) : t('voting.intro.noTimer')}
+        </span>
+        {blur && (
+          <motion.span
+            className="rounded-2xl border-2 border-ink bg-sun px-3 py-1 text-sm font-extrabold text-balance text-ink shadow-pop-sm"
+            initial={{ scale: 0, rotate: -8 }}
+            animate={{ scale: 1, rotate: -2 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 14, delay: 0.7 }}
+          >
+            🌫️ {t('voting.intro.blur')}
+          </motion.span>
+        )}
       </motion.div>
     </motion.div>
-  );
-}
-
-/** A fact of the game typed on a strip of masking tape. */
-function Fact({ children, tilt }: { children: string; tilt: number }) {
-  return (
-    <span
-      className="inline-block bg-tape px-3 py-1.5 font-type text-[0.95rem] leading-tight text-ink shadow-[0_1px_2px_rgb(40_25_10/0.2)]"
-      style={{
-        rotate: `${tilt}deg`,
-        clipPath: 'polygon(1% 4%, 99% 0, 100% 50%, 98.5% 100%, 0.5% 96%, 0 50%)',
-      }}
-    >
-      {children}
-    </span>
   );
 }

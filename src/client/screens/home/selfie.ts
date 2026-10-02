@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { toast } from '../../components/Toast';
 import { compressImage } from '../../lib/image';
+import { sfx } from '../../lib/sfx';
 import { api } from '../../lib/store';
 
 /**
@@ -85,6 +86,7 @@ export function useSelfie(unreadableMessage: string) {
         const url = await prepareSelfie(file);
         setSelfie(url);
         saveSelfie(url);
+        sfx.play('shutter');
       } catch {
         toast(unreadableMessage, 'error');
       } finally {

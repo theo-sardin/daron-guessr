@@ -1,19 +1,15 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef } from 'react';
 import type { Theme } from '../../../shared/protocol';
-import { Icon } from '../../components/Icon';
-import { Paper } from '../../components/Paper';
-import { ThemeArt } from '../../components/ThemeArt';
-import { PaperStrip } from '../../components/TornPaper';
 import { useT } from '../../i18n';
 import { sfx } from '../../lib/sfx';
-import { THEME_PICKER_ID, themeStrip } from './look';
+import { cn } from '../../lib/util';
+import { glyphCount, THEME_BG, THEME_PICKER_ID } from './look';
 
 /**
- * "This game: Mini me — bring 1 photo of YOU as a kid". Shown to everyone at the top of the
- * lobby, since the theme decides what each player has to upload: a torn sheet taped over a
- * halftone strip in the theme's color, the theme's collage on the left, the ask in ballpoint.
- * The host gets a shortcut to the theme picker.
+ * "This game: 🧒 Mini me — bring 1 photo of YOU as a kid". Shown to everyone at the top of the
+ * lobby, since the theme decides what each player has to upload. A "blurry + speed bonus" badge
+ * says when the blur option is on. The host gets a shortcut to the theme picker.
  */
 export function ThemeBanner({
   theme,
@@ -27,11 +23,12 @@ export function ThemeBanner({
   isHost: boolean;
 }) {
   const t = useT();
-  // No slap on the first render (the lobby card entrance already animates it).
+  // No pop on the first render (the lobby card entrance already animates it).
   const first = useRef(true);
   useEffect(() => {
     first.current = false;
   }, []);
+  const emoji = t(`common.theme.${theme}.emoji`);
   const ask = photosPerPlayer === 1 ? t(`lobby.banner.ask.${theme}.one`) : t(`lobby.banner.ask.${theme}.many`, { n: photosPerPlayer });
 
   const goToPicker = () => {
@@ -42,73 +39,78 @@ export function ThemeBanner({
   };
 
   return (
-    <div className="relative mx-auto mb-8 max-w-3xl pt-2">
-      <PaperStrip tone={themeStrip(theme)} tilt={-2.5} seed={theme} className="absolute -inset-x-3 top-8 bottom-3 sm:-inset-x-8" />
-      {/* Keyed on the theme: a switch slaps the new banner on (no exit, so there is never a gap). */}
+    <div className="mx-auto mb-5 max-w-3xl">
+      {/* Keyed on the theme: a switch pops the new banner in (no exit, so there is never a gap). */}
       <motion.section
         key={theme}
         aria-live="polite"
-        initial={first.current ? false : { scale: 0.85, rotate: -5, opacity: 0 }}
-        animate={{ scale: 1, rotate: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 520, damping: 18 }}
-        className="relative"
+        initial={first.current ? false : { scale: 0.85, rotate: -4 }}
+        animate={{ scale: 1, rotate: -0.6 }}
+        transition={{ type: 'spring', stiffness: 520, damping: 16 }}
+        className={cn(
+          'relative flex items-center gap-3 rounded-3xl border-3 border-ink p-3 text-ink shadow-pop sm:gap-4 sm:p-4',
+          THEME_BG[theme],
+        )}
       >
-        <Paper surface="grain" torn="b" tilt={-0.8} tape seed={`banner-${theme}`} className="flex items-center gap-3 p-3 pr-3.5 pb-4 sm:gap-5 sm:p-4 sm:pb-5">
-          <span className="shrink-0 -rotate-3" aria-hidden>
-            <ThemeArt theme={theme} className="size-22 sm:size-28" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <p className="label-type pt-1 text-ink-soft">{t('lobby.banner.label')}</p>
-              {isHost && (
-                <motion.button
-                  type="button"
-                  onClick={goToPicker}
-                  whileTap={{ scale: 0.9 }}
-                  aria-label={t('lobby.banner.changeAria')}
-                  // 44px tall hit area around the handwritten link.
-                  className="group -my-2 -mr-1 flex h-11 shrink-0 items-center gap-1 px-1.5 text-blue"
-                >
-                  <Icon name="edit" className="size-4" />
-                  <span className="text-hand text-[1.2rem] leading-none underline decoration-2 underline-offset-4 group-hover:decoration-wavy">
-                    {t('lobby.banner.change')}
-                  </span>
-                </motion.button>
-              )}
-            </div>
-            <h2 className="mt-0.5 font-heavy text-[1.6rem] leading-[0.92] tracking-[-0.02em] uppercase sm:text-[2.2rem]">
-              {t(`common.theme.${theme}.name`)}
-            </h2>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.p
-                key={`${photosPerPlayer}`}
-                className="text-pen mt-1.5 text-[1.2rem] leading-[1.05] sm:text-[1.4rem]"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.15 }}
+        <motion.span
+          className={cn(
+            'flex size-16 shrink-0 items-center justify-center rounded-2xl border-3 border-ink bg-white leading-none shadow-pop-sm sm:size-20',
+            glyphCount(emoji) > 1 ? 'text-3xl sm:text-4xl' : 'text-4xl sm:text-5xl',
+          )}
+          animate={{ rotate: [-6, 4, -6] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+          aria-hidden
+        >
+          {emoji}
+        </motion.span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-display text-xs tracking-[0.18em] text-ink/70 uppercase">{t('lobby.banner.label')}</p>
+            {isHost && (
+              <motion.button
+                type="button"
+                onClick={goToPicker}
+                whileTap={{ scale: 0.9 }}
+                aria-label={t('lobby.banner.changeAria')}
+                className="-my-1 flex h-8 shrink-0 items-center gap-1 rounded-full border-2 border-ink bg-white px-2.5 font-display text-xs shadow-pop-sm"
               >
-                {ask}
-              </motion.p>
-            </AnimatePresence>
-            <AnimatePresence initial={false}>
-              {blur && (
-                <motion.span
-                  key="blur"
-                  className="mt-2 inline-flex items-center gap-1.5 bg-ink px-2 py-1 font-type text-[0.72rem] leading-none tracking-[0.04em] text-sheet uppercase"
-                  style={{ rotate: '-1.5deg' }}
-                  initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.6, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                >
-                  <Icon name="eye" className="size-3.5 blur-[0.6px]" />
-                  {t('lobby.banner.blurTag')}
-                </motion.span>
-              )}
-            </AnimatePresence>
+                <span aria-hidden>✏️</span>
+                {t('lobby.banner.change')}
+              </motion.button>
+            )}
           </div>
-        </Paper>
+          <h2 className="font-display text-2xl leading-tight sm:text-3xl">{t(`common.theme.${theme}.name`)}</h2>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={photosPerPlayer}
+              className="mt-0.5 text-sm leading-snug font-bold text-ink/85 sm:text-base"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+            >
+              {ask}
+            </motion.p>
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {blur && (
+              <motion.span
+                key="blur"
+                className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border-2 border-ink bg-ink px-2.5 py-0.5 font-display text-xs leading-5 text-sun shadow-pop-sm sm:text-sm"
+                initial={{ scale: 0.5, rotate: -10, opacity: 0 }}
+                animate={{ scale: 1, rotate: -2, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 16 }}
+              >
+                <span className="blur-[1px]" aria-hidden>
+                  👀
+                </span>
+                <span className="truncate">{t('lobby.banner.blurTag')}</span>
+                <span aria-hidden>⚡</span>
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
       </motion.section>
     </div>
   );

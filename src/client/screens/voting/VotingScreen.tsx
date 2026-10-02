@@ -3,8 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BLUR_BONUS_BY_STEP, type RoomView, type VotingView } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
-import { flashScreen } from '../../components/Flash';
-import { Icon } from '../../components/Icon';
 import { BottomBar, ScreenShell } from '../../components/Layout';
 import { Lightbox } from '../../components/Lightbox';
 import { Spinner } from '../../components/Spinner';
@@ -20,11 +18,11 @@ import { CandidateGrid } from './CandidateGrid';
 import { IntroOverlay, type IntroStage } from './IntroOverlay';
 import { MineBanner } from './MineBanner';
 import { PhotoStage } from './PhotoStage';
-import { Question } from './Question';
+import { Question, useQuestion } from './Question';
 import { RoundTransition } from './RoundTransition';
 import { useVote } from './useVote';
 import { VoteHeader } from './VoteHeader';
-import { VotersStrip } from './VotersStrip';
+import { useWaitingNote } from './VotersStrip';
 
 /** How long "GO!" stays on screen after the first round opens. */
 const GO_MS = 750;
@@ -35,14 +33,26 @@ export function VotingScreen({ view }: { view: RoomView }) {
   if (!view.voting) {
     return (
       <ScreenShell className="flex justify-center">
-        <Spinner className="size-10 text-red" />
+        <Spinner className="size-10 text-sun" />
       </ScreenShell>
     );
   }
   return <Voting view={view} v={view.voting} />;
 }
 
-type Note = { key: TKey; tone: 'pen' | 'marker' };
+type StatusKey = keyof typeof STATUS_KEYS;
+const STATUS_KEYS = {
+  waiting: 'voting.status.waiting',
+  pick: 'voting.status.pick',
+  pickBlur: 'voting.status.pickBlur',
+  hurry: 'voting.status.hurry',
+  changeTimer: 'voting.status.changeTimer',
+  changeNoTimer: 'voting.status.changeNoTimer',
+  minePick: 'voting.status.minePick',
+  bluff: 'voting.status.bluff',
+  locked: 'voting.status.locked',
+  missed: 'voting.status.missed',
+} as const satisfies Record<string, TKey>;
 
 function Voting({ view, v }: { view: RoomView; v: VotingView }) {
   const t = useT();
@@ -77,9 +87,7 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     lastCue.current = cue;
     if (!cue) return;
     if (cue === 'igo') {
-      // The self-timer fires: shutter + flash, on top of the "go" beep.
       sfx.play('go');
-      flashScreen();
       burst({ particleCount: 90, y: 0.5 });
       vibrate([20, 40, 30]);
     } else if (cue.startsWith('i')) sfx.play('countdown');
@@ -87,7 +95,7 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     else if (cue.startsWith('lock')) sfx.play('tock');
   }, [cue]);
 
-  // A sharper step: a soft shutter click.
+  // A sharper blur step: a soft click.
   const blurStep = v.blur?.step ?? null;
   const lastStep = useRef(blurStep);
   useEffect(() => {
@@ -103,19 +111,22 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
       sfx.play('vote');
       vibrate(15);
       const rect = el.getBoundingClientRect();
+      const color = players.get(id)?.color;
       burst({
-        particleCount: 24,
+        particleCount: 28,
         x: (rect.left + rect.width / 2) / window.innerWidth,
         y: (rect.top + rect.height / 2) / window.innerHeight,
-        colors: v.isMine ? ['#f6a6c1', '#e3321f', '#fffdf6'] : ['#ffdf3d', '#e3321f', '#2344c8'],
+        colors: v.isMine ? ['#b388ff', '#ff8c42', '#fff8ec'] : [color ?? '#ffd23f', '#ffd23f', '#fff8ec'],
       });
     },
-    [canVote, choose, v.blur, v.round, v.isMine],
+    [canVote, choose, players, v.blur, v.round, v.isMine],
   );
 
-  // Lightbox follows the photo: a new round closes it by itself.
+  // Lightbox follows the photo: a new round closes it by itself. A blurred photo only opens once
+  // it is fully sharp (the lightbox would show it sharp).
   const [zoomedId, setZoomedId] = useState<string | null>(null);
   const closeZoom = useCallback(() => setZoomedId(null), []);
+  const zoomable = !v.blur || v.blur.step >= v.blur.steps - 1;
 
   // Host skip, guarded per round against double taps.
   const [skipping, setSkipping] = useState<number | null>(null);
@@ -133,89 +144,110 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
     }
   };
 
-  const note: Note = !started
-    ? { key: 'voting.status.waiting', tone: 'pen' }
+  const status: StatusKey = !started
+    ? 'waiting'
     : timeUp
-      ? { key: selected ? 'voting.status.locked' : 'voting.status.missed', tone: 'pen' }
+      ? selected
+        ? 'locked'
+        : 'missed'
       : v.isMine
-        ? { key: selected ? 'voting.changeHint.bluff' : 'voting.status.minePick', tone: 'pen' }
+        ? selected
+          ? 'bluff'
+          : 'minePick'
         : selected
-          ? { key: view.settings.voteSeconds > 0 ? 'voting.changeHint.timer' : 'voting.changeHint.noTimer', tone: 'pen' }
+          ? view.settings.voteSeconds > 0
+            ? 'changeTimer'
+            : 'changeNoTimer'
           : urgent
-            ? { key: 'voting.status.hurry', tone: 'marker' }
-            : { key: 'voting.status.pick', tone: 'pen' };
+            ? 'hurry'
+            : v.blur && v.blur.step < v.blur.steps - 1
+              ? 'pickBlur'
+              : 'pick';
+  // Once you voted: who the round is still waiting for, under the status.
+  const waitingNote = useWaitingNote(view.players, v.votedIds);
+  const showWaiting = canVote && !!selected && waitingNote !== null;
 
-  const question = t(`common.whose.${v.photo.kind}`);
-  const zoomable = !v.blur || v.blur.step >= v.blur.steps - 1;
+  const question = useQuestion(v.photo.kind);
 
   return (
     <div className="w-full overflow-x-clip">
-      <ScreenShell width="xl" className="pb-36! lg:pb-32!">
-        <VoteHeader v={v} />
+      <ScreenShell width="xl" className="pb-44!" style={{ paddingTop: 'calc(max(0.5rem, env(safe-area-inset-top)) + 4.25rem)' }}>
+        <VoteHeader v={v} players={view.players} meId={view.meId} started={started} />
 
         {/* Phone: question, photo, banner, candidates stacked. Desktop: photo | the rest. */}
-        <div className="mt-2 flex flex-col lg:mt-4 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-center lg:gap-x-10">
-          <div className="order-2 lg:col-start-1 lg:row-span-3 lg:row-start-1">
-            <PhotoStage
-              photo={v.photo}
-              round={v.round}
-              visible={photoVisible}
-              locked={timeUp}
-              compact={v.isMine}
-              blur={v.blur}
-              keptBonus={keptBonus}
-              showBonus={!v.isMine}
-              onZoom={() => zoomable && setZoomedId(v.photo.id)}
-            />
+        <div className="mt-3 flex flex-col lg:mt-6 lg:grid lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center lg:gap-x-12">
+          <PhotoStage
+            photo={v.photo}
+            round={v.round}
+            visible={photoVisible}
+            locked={timeUp}
+            compact={v.isMine}
+            blur={v.blur}
+            keptBonus={keptBonus}
+            showBonus={!v.isMine}
+            onZoom={() => zoomable && setZoomedId(v.photo.id)}
+            className="order-2 mt-1 lg:col-start-1 lg:row-start-1 lg:mt-0"
+          />
+
+          <div className="contents lg:col-start-2 lg:row-start-1 lg:flex lg:flex-col">
+            <AnimatePresence mode="wait" initial={false}>
+              <Question key={`${v.photo.id}-q`} kind={v.photo.kind} className="order-1" />
+            </AnimatePresence>
+
             <AnimatePresence initial={false}>
               {v.isMine && photoVisible && (
                 <motion.div
                   key={`mine-${v.photo.id}`}
-                  className={cn('relative z-10 ml-auto w-[min(100%,21rem)] pr-1 lg:mr-6', v.blur ? 'mt-1' : '-mt-6 lg:-mt-10')}
+                  // Overlaps the bottom of the photo, except under a blurred one (its focus meter stays visible).
+                  className={cn('relative z-10 order-3 px-1 lg:mt-6 lg:px-0', v.blur ? 'mt-1' : '-mt-9')}
                   exit={{ opacity: 0, scale: 0.9 }}
                 >
                   <MineBanner kind={v.photo.kind} />
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
 
-          <AnimatePresence mode="wait" initial={false}>
-            <Question key={v.photo.id} kind={v.photo.kind} photoId={v.photo.id} className="order-1 mt-2 lg:col-start-2 lg:row-start-1 lg:mt-0" />
-          </AnimatePresence>
-
-          <div className={cn('relative order-4 lg:col-start-2 lg:row-start-2 lg:mt-6', v.isMine ? 'mt-4' : 'mt-3', timeUp && 'pointer-events-none')}>
-            <CandidateGrid candidates={v.candidates} players={players} selected={selected} enabled={canVote} decoy={v.isMine} onPick={onPick} />
-          </div>
-
-          <div className="order-5 mt-4 min-h-7 px-1 lg:col-start-2 lg:row-start-3 lg:mt-5">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.p
-                key={note.key}
-                className={cn(
-                  'leading-[1.05]',
-                  note.tone === 'marker' ? 'text-marker text-[1.45rem]' : 'text-pen text-[1.3rem] lg:text-[1.45rem]',
-                )}
-                initial={{ opacity: 0, x: -10, rotate: -2 }}
-                animate={{ opacity: 1, x: 0, rotate: -1 }}
-                exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                transition={{ duration: 0.2 }}
-                aria-live="polite"
-              >
-                {t(note.key)}
-              </motion.p>
-            </AnimatePresence>
+            <div className={cn('relative order-4 lg:mt-7', v.isMine ? 'mt-4' : 'mt-5', timeUp && 'pointer-events-none')}>
+              <CandidateGrid
+                candidates={v.candidates}
+                players={players}
+                selected={selected}
+                enabled={canVote}
+                decoy={v.isMine}
+                onPick={onPick}
+              />
+            </div>
           </div>
         </div>
       </ScreenShell>
 
-      <BottomBar className="max-w-5xl">
-        <VotersStrip players={view.players} votedIds={v.votedIds} compact={isHost} className="flex-1" />
+      <BottomBar>
+        <div className="flex min-h-12 min-w-0 flex-1 flex-col justify-center overflow-hidden rounded-2xl border-3 border-ink bg-cream px-3.5 py-1.5 text-ink shadow-pop-sm">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={status}
+              className={cn('text-sm leading-tight font-extrabold', status === 'hurry' && 'text-danger-dark')}
+              initial={{ y: 14, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -14, opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              aria-live="polite"
+            >
+              {t(STATUS_KEYS[status])}
+            </motion.p>
+          </AnimatePresence>
+          {showWaiting && (
+            <p className="mt-0.5 truncate text-xs leading-tight font-bold text-ink-soft">
+              <span aria-hidden>⏳ </span>
+              {waitingNote}
+            </p>
+          )}
+        </div>
         {isHost && (
           <Button
             variant="secondary"
             size="md"
-            icon={<Icon name="arrow-right" className="size-5" weight="bold" />}
+            icon={<span aria-hidden>⏭</span>}
             aria-label={t('voting.skipLabel')}
             title={t('voting.skipLabel')}
             disabled={!started || timeUp}
@@ -223,7 +255,7 @@ function Voting({ view, v }: { view: RoomView; v: VotingView }) {
             onClick={skip}
             className="shrink-0 px-4 max-[389px]:gap-0 max-[389px]:px-3"
           >
-            {/* Icon only on narrow phones, so the voters strip keeps room (the name stays). */}
+            {/* Emoji only on narrow phones, so the status keeps room (the name stays). */}
             <span className="max-[389px]:sr-only">{t('voting.skip')}</span>
           </Button>
         )}
@@ -262,7 +294,7 @@ function getIntroStage(v: VotingView, now: number, sawIntro: boolean): IntroStag
   return null;
 }
 
-/** Red marker pulse around the screen during the last seconds when you still have not voted. */
+/** Red pulse around the screen during the last seconds when you still have not voted. */
 function UrgentVignette({ show }: { show: boolean }) {
   return (
     <AnimatePresence>
@@ -270,7 +302,7 @@ function UrgentVignette({ show }: { show: boolean }) {
         <motion.div
           aria-hidden
           className="pointer-events-none fixed inset-0 z-30"
-          style={{ boxShadow: 'inset 0 0 60px 8px rgb(227 50 31 / 0.4)' }}
+          style={{ boxShadow: 'inset 0 0 70px 10px rgb(255 93 93 / 0.55)' }}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.35, 1, 0.35] }}
           exit={{ opacity: 0 }}

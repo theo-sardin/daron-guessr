@@ -1,40 +1,13 @@
 import { motion } from 'motion/react';
-import type { ReactNode } from 'react';
 import { POINTS_PER_CORRECT, type PhotoKind, type PublicPlayer } from '../../../shared/protocol';
 import { Avatar } from '../../components/Avatar';
-import { MarkerUnderline } from '../../components/Marker';
-import { NotebookCard, PostIt } from '../../components/Paper';
-import { RubberStamp } from '../../components/RubberStamp';
-import { StarBurst } from '../../components/StarBurst';
+import { Card } from '../../components/Card';
 import { useI18n } from '../../i18n';
+import { cn } from '../../lib/util';
 import type { PersonalResult } from './effects';
 import { CAPTION_GROUP } from './kinds';
 
-/** The caption of the result, handwritten on a torn notebook page; the owner's name underlined in red. */
-export function Caption({ text, owner }: { text: string; owner: string }) {
-  const at = owner ? text.indexOf(owner) : -1;
-  return (
-    <NotebookCard torn="lb" tape="yellow" tilt={-1.2} leading={27} margin={22} slap={0.45} wrapperClassName="mx-1" className="pr-4 pb-2">
-      <p className="text-pen text-[23px] leading-[27px] md:text-[25px]">
-        {at < 0 ? (
-          text
-        ) : (
-          <>
-            {text.slice(0, at)}
-            <MarkerUnderline delay={1.1} className="text-red-ink">
-              {owner}
-            </MarkerUnderline>
-            {text.slice(at + owner.length)}
-          </>
-        )}
-      </p>
-    </NotebookCard>
-  );
-}
-
-const TITLE = 'font-display text-[1.5rem] leading-[1.02] tracking-[-0.01em] break-words';
-
-/** The viewer's own verdict for this photo, on a post-it, once the owner is revealed. */
+/** The viewer's private verdict for this photo, shown once the owner is revealed. */
 export function Feedback({
   result,
   kind,
@@ -51,104 +24,133 @@ export function Feedback({
   picked: PublicPlayer | null;
   correct: number;
   total: number;
-  /** Points earned on this photo (right answers: 100 + speed bonus). */
+  /** Points earned on this photo (right answers: 100 + the blur game's speed bonus). */
   points: number;
 }) {
   const { t, tpick } = useI18n();
+  const enter = {
+    initial: { opacity: 0, y: 24, scale: 0.8, rotate: -3 },
+    animate: { opacity: 1, y: 0, scale: 1, rotate: 0 },
+    transition: { delay: 0.6, type: 'spring' as const, stiffness: 420, damping: 18 },
+  };
 
   if (result === 'right') {
     const bonus = Math.max(0, points - POINTS_PER_CORRECT);
     return (
-      <Note color="mint" aside={<PointsBurst points={points} />}>
-        <p className={TITLE}>{tpick('reveal.me.rightTitle', index)}</p>
-        <p className="text-pen mt-0.5 text-[20px] leading-tight">
-          {bonus > 0 ? t('reveal.me.bonus', { base: POINTS_PER_CORRECT, bonus }) : t('reveal.me.rightSub')}
-        </p>
-      </Note>
+      <Card tone="mint" padded={false} className="flex items-center gap-3 px-4 py-3" {...enter}>
+        <motion.span
+          className="relative flex h-14 shrink-0 items-center justify-center rounded-2xl border-3 border-ink bg-white px-2.5 font-display text-3xl text-mint-dark shadow-pop-sm"
+          initial={{ scale: 0, rotate: -30 }}
+          animate={{ scale: [0, 1.3, 1], rotate: [-30, 8, -4] }}
+          transition={{ delay: 0.85, duration: 0.5 }}
+        >
+          +{points}
+          {bonus > 0 && (
+            <motion.span
+              className="absolute -top-3 -right-3 flex size-7 items-center justify-center rounded-full border-2 border-ink bg-sun text-sm shadow-pop-sm"
+              initial={{ scale: 0, rotate: -90 }}
+              animate={{ scale: 1, rotate: 12 }}
+              transition={{ type: 'spring', stiffness: 600, damping: 14, delay: 1.25 }}
+              aria-hidden
+            >
+              ⚡
+            </motion.span>
+          )}
+        </motion.span>
+        <div className="min-w-0">
+          <p className="font-display text-2xl leading-tight">{tpick('reveal.me.rightTitle', index)}</p>
+          <p className="text-sm font-bold opacity-75">{bonus > 0 ? t('reveal.me.bonus', { base: POINTS_PER_CORRECT, bonus }) : t('reveal.me.rightSub')}</p>
+        </div>
+      </Card>
     );
   }
 
   if (result === 'wrong') {
     return (
-      <Note
-        color="pink"
-        aside={
-          picked && (
-            <motion.span className="shrink-0" animate={{ rotate: [0, -12, 12, -8, 0] }} transition={{ delay: 1, duration: 0.5 }}>
-              <Avatar player={picked} size="md" crown={false} dimOffline={false} tilt={6} selfie />
-            </motion.span>
-          )
-        }
-      >
-        <p className={TITLE}>{t('reveal.me.wrongTitle', { name: picked?.name ?? '???' })}</p>
-        <p className="text-pen mt-0.5 text-[20px] leading-tight">{tpick('reveal.me.wrongSub', index)}</p>
-      </Note>
+      <Card tone="pink" padded={false} className="flex items-center gap-3 px-4 py-3" {...enter}>
+        {picked && (
+          <motion.span
+            className="shrink-0"
+            animate={{ rotate: [0, -12, 12, -8, 0] }}
+            transition={{ delay: 1, duration: 0.5 }}
+          >
+            <Avatar player={picked} size="md" crown={false} dimOffline={false} selfie />
+          </motion.span>
+        )}
+        <div className="min-w-0">
+          <p className="font-display text-2xl leading-tight break-words">{t('reveal.me.wrongTitle', { name: picked?.name ?? '???' })}</p>
+          <p className="text-sm font-bold opacity-85">{tpick('reveal.me.wrongSub', index)}</p>
+        </div>
+      </Card>
     );
   }
 
   if (result === 'proud' || result === 'offended') {
+    const line = total > 0 ? t(`reveal.me.mineCount.${kind}`, { correct, total }) : t(`reveal.me.mineNoVotes.${kind}`);
     const group = CAPTION_GROUP[kind];
     const mood = result === 'proud' ? tpick(`reveal.me.mineProud.${group}`, index) : tpick(`reveal.me.mineOffended.${group}`, index);
     return (
-      <Note color={result === 'proud' ? 'yellow' : 'sky'}>
-        <p className={TITLE}>{t(`reveal.me.mineTitle.${kind}`)}</p>
-        {total > 0 ? (
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-2 font-bold">
-            <span className="font-display text-[1.6rem] leading-none">{`${correct}/${total}`}</span>
-            <span>{t(`reveal.me.mineCount.${kind}`)}</span>
-          </p>
-        ) : (
-          <p className="mt-0.5 font-bold">{t(`reveal.me.mineNoVotes.${kind}`)}</p>
-        )}
-        <p className="text-pen mt-0.5 text-[20px] leading-tight">{mood}</p>
-      </Note>
+      <Card tone="sun" padded={false} className="flex items-center gap-3 px-4 py-3" {...enter}>
+        <motion.span
+          className="shrink-0 text-5xl leading-none"
+          initial={{ scale: 0 }}
+          animate={result === 'proud' ? { scale: [0, 1.3, 1], rotate: [0, -10, 0] } : { scale: [0, 1.3, 1], x: [0, -4, 4, -4, 0] }}
+          transition={{ delay: 0.85, duration: 0.6 }}
+          aria-hidden
+        >
+          {result === 'proud' ? '😎' : '😤'}
+        </motion.span>
+        <div className="min-w-0">
+          <p className="font-display text-2xl leading-tight break-words">{t(`reveal.me.mineTitle.${kind}`)}</p>
+          <p className="text-sm font-extrabold">{line}</p>
+          <p className="text-xs font-bold opacity-70">{mood}</p>
+        </div>
+      </Card>
     );
   }
 
   return (
-    <Note color="lilac">
-      <p className={TITLE}>{t('reveal.me.noneTitle')}</p>
-      <p className="text-pen mt-0.5 text-[20px] leading-tight">{t('reveal.me.noneSub')}</p>
-    </Note>
+    <Card tone="glass" padded={false} className="flex items-center gap-3 px-4 py-3" {...enter}>
+      <motion.span
+        className="shrink-0 text-4xl leading-none"
+        animate={{ rotate: [0, -8, 0, 8, 0], y: [0, -2, 0] }}
+        transition={{ duration: 2.4, repeat: Infinity }}
+        aria-hidden
+      >
+        💤
+      </motion.span>
+      <div className="min-w-0">
+        <p className="font-display text-xl leading-tight">{t('reveal.me.noneTitle')}</p>
+        <p className="text-sm font-bold text-grape-200">{t('reveal.me.noneSub')}</p>
+      </div>
+    </Card>
   );
 }
 
-function Note({ children, aside, color }: { children: ReactNode; aside?: ReactNode; color: 'yellow' | 'pink' | 'mint' | 'sky' | 'lilac' }) {
+const BADGE_STYLE: Record<PersonalResult, string> = {
+  right: 'bg-mint text-ink px-2.5 text-2xl',
+  wrong: 'bg-pink text-white size-12 text-2xl',
+  proud: 'bg-sun size-12 text-3xl',
+  offended: 'bg-sun size-12 text-3xl',
+  none: 'bg-cream size-12 text-3xl',
+};
+
+/** Compact verdict slapped on the photo corner (phones), so it is visible without scrolling. */
+export function PersonalBadge({ result, points }: { result: PersonalResult; points: number }) {
+  const bonus = points > POINTS_PER_CORRECT;
+  const content = { right: `+${points}${bonus ? '⚡' : ''}`, wrong: '❌', proud: '😎', offended: '😤', none: '💤' }[result];
   return (
-    <PostIt color={color} tilt={1.2} slap={0.7} tape wrapperClassName="mx-2" className="flex items-center gap-3 px-4 pt-3.5 pb-3">
-      <div className="min-w-0 flex-1">{children}</div>
-      {aside}
-    </PostIt>
+    <motion.span
+      className={cn(
+        'flex h-12 items-center justify-center rounded-2xl border-3 border-ink font-display leading-none whitespace-nowrap shadow-pop-sm',
+        BADGE_STYLE[result],
+      )}
+      initial={{ scale: 0, rotate: 40 }}
+      animate={{ scale: 1, rotate: -10 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 13, delay: 0.75 }}
+      aria-hidden
+    >
+      {content}
+    </motion.span>
   );
-}
-
-function PointsBurst({ points, size = 84 }: { points: number; size?: number }) {
-  return (
-    <StarBurst tone="yellow" size={size} tilt={-8} animate={1} className="-my-3 -mr-2">
-      <span className="font-display text-[22px] leading-none">+{points}</span>
-    </StarBurst>
-  );
-}
-
-/**
- * Compact verdict slapped on the photo corner, so it is visible without scrolling on a phone:
- * the points earned, or a blue "MISSED" stamp.
- */
-export function PersonalBadge({ result, points, live }: { result: PersonalResult; points: number; live: boolean }) {
-  const { t } = useI18n();
-  if (result === 'right') {
-    return (
-      <StarBurst tone="yellow" size={78} tilt={-10} animate={0.75}>
-        <span className="font-display text-[21px] leading-none">+{points}</span>
-      </StarBurst>
-    );
-  }
-  if (result === 'wrong') {
-    return (
-      <RubberStamp tone="blue" size="sm" tilt={-9} backing animate={0.8} sound={live} className="ml-1 mb-2">
-        {t('reveal.me.missed')}
-      </RubberStamp>
-    );
-  }
-  return null;
 }

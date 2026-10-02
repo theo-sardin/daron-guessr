@@ -3,20 +3,17 @@ import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { MIN_PHOTO_OWNERS } from '../../../shared/protocol';
 import { Button } from '../../components/Button';
-import { DymoLabel } from '../../components/DymoLabel';
-import { Icon } from '../../components/Icon';
-import { KraftCard } from '../../components/Paper';
-import { Tape } from '../../components/Tape';
+import { Card } from '../../components/Card';
 import { toast } from '../../components/Toast';
 import { useT } from '../../i18n';
 import { roomLink } from '../../lib/router';
 import { sfx } from '../../lib/sfx';
 import { cn, copyText, vibrate } from '../../lib/util';
 
-/** Buttons share the row equally, never narrower than their label (the row wraps instead). */
-const EVEN = 'min-w-fit flex-1';
+const TILE_COLORS = ['bg-pink text-white', 'bg-sun text-ink', 'bg-mint text-ink', 'bg-sky text-ink'];
+const TILE_TILTS = [-6, 4, -3, 5];
 /** Three buttons (share sheet available): tighter, and tighter still on a 320px phone. */
-const COMPACT = 'gap-1.5! px-3! text-sm! @max-[18rem]:px-2.5!';
+const COMPACT = 'min-w-0 flex-1 gap-1.5! px-3! text-sm! @max-[18rem]:px-2.5!';
 
 /** Copies the invite link and says so. Shared by the invite card and the empty seat tile. */
 export function useCopyInvite(code: string) {
@@ -25,7 +22,7 @@ export function useCopyInvite(code: string) {
     vibrate(10);
     if (await copyText(roomLink(code))) {
       sfx.play('pop');
-      toast(t('common.copied'), 'success', { icon: 'link' });
+      toast(t('common.copied'), 'success', { emoji: '🔗' });
     } else {
       toast(t('lobby.invite.copyFailed', { code }), 'error');
     }
@@ -40,7 +37,7 @@ function isWide(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 768px)').matches;
 }
 
-/** The invite, on kraft paper: "salon n°" + the room code on a red Dymo label (tap to copy), copy / share buttons and a QR code for people in the same room. */
+/** Room code "ticket": giant code, copy / share buttons and a QR code for people in the same room. */
 export function InviteCard({ code, playerCount }: { code: string; playerCount: number }) {
   const t = useT();
   const copyInvite = useCopyInvite(code);
@@ -56,7 +53,7 @@ export function InviteCard({ code, playerCount }: { code: string; playerCount: n
       type: 'svg',
       margin: 1,
       errorCorrectionLevel: 'M',
-      color: { dark: '#17130f', light: '#fffdf6' },
+      color: { dark: '#1b1036', light: '#fff8ec' },
     })
       .then((svg) => {
         if (alive) setQr(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`);
@@ -78,72 +75,79 @@ export function InviteCard({ code, playerCount }: { code: string; playerCount: n
     }
   };
 
-  const buttonIcon = 'size-5';
-  const spaced = code.split('').join(' ');
-
   return (
-    <KraftCard tape tilt={-0.6} seed={`invite-${code}`} className="@container relative p-4 pb-6 sm:p-5 sm:pb-7">
-      {/* Phone: code, buttons, then the QR below. Wide + QR open: code on the left, QR on the right, buttons across. */}
-      <div className={cn('grid grid-cols-[minmax(0,1fr)] justify-items-center', qrOpen && 'md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-x-4')}>
-        <div className="flex w-full min-w-0 flex-col items-center md:col-start-1 md:row-start-1">
-          {/* "salon n°" typed above the code, punched on a red Dymo label: tap to copy the link. */}
+    <Card tone="cream" className="@container relative overflow-hidden p-4 sm:p-5">
+      {/* Ticket punches */}
+      <span className="absolute top-1/2 -left-3 size-6 -translate-y-1/2 rounded-full border-3 border-ink bg-grape-900" aria-hidden />
+      <span className="absolute top-1/2 -right-3 size-6 -translate-y-1/2 rounded-full border-3 border-ink bg-grape-900" aria-hidden />
+
+      {/* Phone: code, buttons, then the QR below. Wide + QR open: code and buttons on the left, QR on the right. */}
+      <div className={cn('grid justify-items-center', qrOpen && 'md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-x-3')}>
+        <div className="flex min-w-0 flex-col items-center md:col-start-1 md:row-start-1">
+          <p className="font-display text-sm tracking-[0.2em] text-ink-soft uppercase">{t('lobby.invite.label')}</p>
           <motion.button
             type="button"
             onClick={copyInvite}
-            whileTap={{ scale: 0.95, rotate: 1 }}
-            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.94 }}
             title={t('lobby.invite.tapToCopy')}
-            aria-label={`${t('lobby.invite.label')} ${spaced}. ${t('lobby.invite.tapToCopy')}`}
-            className="group relative flex flex-col items-start px-2 pt-1 pb-2"
+            aria-label={`${t('lobby.invite.label')} ${code.split('').join(' ')}. ${t('lobby.invite.tapToCopy')}`}
+            className="my-1.5 flex gap-2 rounded-2xl p-1"
           >
-            <span className="label-type mb-1.5 text-[0.9rem]" aria-hidden>
-              {t('lobby.invite.roomNo')}
-            </span>
-            <DymoLabel text={code} tone="red" size={qrOpen ? 38 : 44} tilt={-2.5} spacing={0.3} animate={0.25} />
-            <span className="text-pen absolute -right-3 -bottom-5 flex rotate-[-6deg] items-center gap-1 text-[1.15rem] whitespace-nowrap" aria-hidden>
-              <svg viewBox="0 0 30 20" className="size-6 -scale-x-100 rotate-[200deg] overflow-visible" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="M2 16 C 10 4, 20 2, 28 6" />
-                <path d="M22 1 L28 6 L21 10" />
-              </svg>
-              {t('lobby.invite.copyHint')}
-            </span>
+            {code.split('').map((ch, i) => (
+              <motion.span
+                key={`${ch}${i}`}
+                className={cn(
+                  'flex h-16 w-13 items-center justify-center rounded-2xl border-3 border-ink font-display text-5xl shadow-pop',
+                  !qrOpen && 'sm:h-18 sm:w-15 sm:text-6xl',
+                  TILE_COLORS[i % TILE_COLORS.length],
+                )}
+                initial={{ y: -40, scale: 0.4, rotate: 0, opacity: 0 }}
+                animate={{ y: 0, scale: 1, rotate: TILE_TILTS[i % TILE_TILTS.length], opacity: 1 }}
+                whileHover={{ y: -4, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 520, damping: 14, delay: 0.15 + i * 0.08 }}
+              >
+                {ch}
+              </motion.span>
+            ))}
           </motion.button>
+          <p className="text-center text-xs font-bold text-ink-soft/80">{t('lobby.invite.tapToCopy')}</p>
         </div>
 
         {/* Phones with a share sheet get three compact buttons that fit on one row. */}
-        {/* They wrap (full-width rows) only where even the compact labels can't fit, e.g. French at 320px. */}
-        <div className="mt-7 flex w-full flex-wrap justify-center gap-2 md:col-span-full md:row-start-2">
+        <div className="mt-3 flex w-full flex-wrap justify-center gap-2 md:col-start-1 md:row-start-2">
           {shareable && (
-            <Button size="md" variant="sun" className={cn(EVEN, COMPACT)} icon={<Icon name="share" className={buttonIcon} />} onClick={share}>
+            <Button size="md" variant="mint" className={COMPACT} icon={<span aria-hidden>📤</span>} onClick={share}>
               {t('lobby.invite.share')}
             </Button>
           )}
           <Button
             size="md"
-            variant={shareable ? 'outline' : 'sun'}
-            className={cn(EVEN, shareable && cn(COMPACT, '@max-[18rem]:flex-none'))}
-            icon={<Icon name="link" className={buttonIcon} />}
+            variant="sky"
+            className={cn(shareable && cn(COMPACT, '@max-[18rem]:flex-none'))}
+            icon={<span aria-hidden>🔗</span>}
             onClick={copyInvite}
             sound={false}
             aria-label={t('common.copyLink')}
           >
-            {/* With the share sheet on a 320px phone: Share keeps its label, copy and QR become icons. */}
+            {/* With the share sheet on a 320px phone: Share keeps its label, copy and QR become emoji buttons. */}
             {shareable ? <span className="@max-[18rem]:sr-only">{t('common.copy')}</span> : t('lobby.invite.copyLink')}
           </Button>
           <Button
             size="md"
-            variant="outline"
-            className={cn(shareable ? cn(COMPACT, 'flex-none') : EVEN)}
+            variant="secondary"
+            className={cn(shareable && COMPACT, shareable && 'flex-none')}
             aria-expanded={qrOpen}
             aria-label={qrOpen ? t('lobby.invite.hideQr') : t('lobby.invite.showQr')}
-            icon={<Icon name={qrOpen ? 'eye-off' : 'qr'} className={buttonIcon} />}
+            icon={<span aria-hidden>{qrOpen ? '🙈' : '📱'}</span>}
             onClick={() => setQrOpen((o) => !o)}
           >
             {shareable ? (
               <span className="@max-[18rem]:sr-only">{qrOpen ? t('lobby.invite.hideQrShort') : t('lobby.invite.qrShort')}</span>
-            ) : qrOpen
-                ? t('lobby.invite.hideQr')
-                : t('lobby.invite.showQr')}
+            ) : qrOpen ? (
+              t('lobby.invite.hideQr')
+            ) : (
+              t('lobby.invite.showQr')
+            )}
           </Button>
         </div>
 
@@ -151,40 +155,41 @@ export function InviteCard({ code, playerCount }: { code: string; playerCount: n
           {qrOpen && (
             <motion.div
               key="qr"
-              className="overflow-hidden md:col-start-2 md:row-start-1"
+              className="overflow-hidden md:col-start-2 md:row-span-2 md:row-start-1"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
             >
-              {/* Padding keeps the tape and the tilt inside the clipped (height-animated) box. */}
-              <div className="flex flex-col items-center px-4 pt-7 pb-1 md:px-3 md:pt-5">
-                {/* The QR printed on a scrap of white paper, taped on the kraft. */}
+              {/* Padding keeps the 👋 sticker inside the clipped (height-animated) box. */}
+              <div className="flex flex-col items-center px-4 pt-5 pb-1 md:px-2 md:pt-4">
                 <motion.div
-                  className="relative bg-sheet p-2 shadow-paper-sm"
-                  initial={{ scale: 0.7, rotate: -8 }}
-                  animate={{ scale: 1, rotate: 2 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 16 }}
+                  className="relative mb-2 rounded-2xl border-3 border-ink bg-cream p-2 shadow-pop-sm"
+                  initial={{ rotate: -8, scale: 0.7 }}
+                  animate={{ rotate: 2, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 14 }}
                 >
-                  <Tape width={52} height={18} rotate={-5} className="-top-2.5 left-1/2 -translate-x-1/2" />
                   {qr ? (
-                    <img src={qr} alt={t('lobby.invite.qrAlt', { code })} className="size-40 [image-rendering:pixelated] md:size-32" />
+                    <img src={qr} alt={t('lobby.invite.qrAlt', { code })} className="size-44 [image-rendering:pixelated] md:size-36" />
                   ) : (
-                    <div className="size-40 animate-pulse bg-paper-dark md:size-32" />
+                    <div className="size-44 animate-pulse rounded-lg bg-grape-200/50 md:size-36" />
                   )}
+                  <span className="absolute -top-4 -right-4 rotate-12 text-3xl drop-shadow" aria-hidden>
+                    👋
+                  </span>
                 </motion.div>
-                <p className="text-pen mt-3 max-w-52 -rotate-2 text-center text-[1.3rem] leading-none">{t('lobby.invite.scan')}</p>
+                <p className="max-w-48 text-center font-display text-base leading-tight text-ink">{t('lobby.invite.scan')}</p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {playerCount < MIN_PHOTO_OWNERS && (
-          <p className="text-marker mt-4 max-w-[20rem] -rotate-1 text-center text-[1.05rem] leading-tight md:col-span-full md:max-w-none">
+          <p className="mt-3 text-center text-sm font-bold text-pink-dark md:col-span-full">
             {t('lobby.invite.needPlayers', { n: MIN_PHOTO_OWNERS })}
           </p>
         )}
       </div>
-    </KraftCard>
+    </Card>
   );
 }

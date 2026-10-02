@@ -1,360 +1,322 @@
 import { AnimatePresence, motion } from 'motion/react';
+import type { ReactNode } from 'react';
 import type { PublicPlayer } from '../../../shared/protocol';
-import { Annotation, MarkerCircle } from '../../components/Marker';
-import { RubberStamp } from '../../components/RubberStamp';
-import { SelfiePrint } from '../../components/SelfiePrint';
-import { StarBurst } from '../../components/StarBurst';
+import { Avatar } from '../../components/Avatar';
 import { useI18n } from '../../i18n';
 import { cn } from '../../lib/util';
 
 /*
- * The mode-specific decorations of the reveal (see SCENE in kinds.ts), drawn around the photo
- * in the scrapbook language. Everything here is positioned inside PhotoStage's box
- * (`relative`, ~358×300 on a phone, 480×380 from md): the photo sits in the middle, and from
- * the owner reveal on, slides left to make room for the owner's print on the right.
+ * The mode-specific touches of the reveal (see SCENE in kinds.ts), in the same sticker
+ * language as the rest of the game: bright shapes, thick ink outlines, hard shadows, emojis,
+ * springs. One signature element per scene, kept away from the photo itself.
+ *
+ * PhotoCard positions them: the companion (the owner's face) and the scene's sticker hang on
+ * the photo's right edge (`SIDE`), the board's suspects and the hearts on the whole stage.
  */
 
-const INK = 'var(--color-ink)';
-const RED = 'var(--color-red)';
-const BLUE = 'var(--color-blue)';
+/** Right of the photo, overlapping its edge a little: the owner's face and, above it, the scene's sticker. */
+export const SIDE = 'absolute left-[calc(100%-0.75rem)] w-[7.5rem] md:left-[calc(100%-1rem)] md:w-[9.5rem]';
 
-/** The owner's print next to the photo (their selfie, or their avatar on paper): two sizes. */
-export function Companion({ owner, caption, delay = 0.35, className }: { owner: PublicPlayer; caption?: string; delay?: number; className?: string }) {
+/* ------------------------------------------------------------------ the owner's face */
+
+/** Spinning sunburst in the owner's color behind a revealed face (the OG reveal flourish). */
+function Sunburst({ color, className }: { color: string; className?: string }) {
   return (
-    <div className={cn('pointer-events-none absolute top-[120px] right-1 z-[4] md:top-[150px] md:right-2', className)}>
-      <span className="block md:hidden">
-        <SelfiePrint player={owner} size={118} tilt={5} caption={caption} tape="yellow" animate={delay} />
-      </span>
-      <span className="hidden md:block">
-        <SelfiePrint player={owner} size={148} tilt={5} caption={caption} tape="yellow" animate={delay} />
-      </span>
-    </div>
+    <motion.div
+      aria-hidden
+      className={cn('pointer-events-none absolute top-1/2 left-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80', className)}
+      style={{
+        background: `repeating-conic-gradient(${color} 0deg 12deg, transparent 12deg 30deg)`,
+        maskImage: 'radial-gradient(circle, black 35%, transparent 70%)',
+        WebkitMaskImage: 'radial-gradient(circle, black 35%, transparent 70%)',
+      }}
+      animate={{ rotate: 360 }}
+      transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
+    />
+  );
+}
+
+/**
+ * The owner's face slid next to the photo once revealed, to compare ("he has his dad's
+ * nose!"): a mini polaroid with their selfie, or their emoji avatar on their color when they
+ * have none. `label` replaces the name under it by a sticker (then-vs-now); `lens` lands a
+ * 🔍 on the face (body parts).
+ */
+export function Companion({ owner, label, lens, delay = 0.3 }: { owner: PublicPlayer; label?: string; lens?: boolean; delay?: number }) {
+  const face = owner.selfieUrl ?? null;
+  return (
+    <motion.div
+      aria-hidden
+      className={cn(SIDE, 'pointer-events-none top-[24%] z-[3]')}
+      initial={{ opacity: 0, x: -70, rotate: -24, scale: 0.4 }}
+      animate={{ opacity: 1, x: 0, rotate: 7, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 17, delay }}
+    >
+      <Sunburst color={owner.color} className="size-[175%]" />
+      <figure className="relative m-0 rounded-md border-3 border-ink bg-white p-1.5 pb-1 text-ink shadow-pop">
+        <span className="absolute -top-2.5 left-1/2 h-5 w-14 -translate-x-1/2 rotate-[4deg] rounded-sm bg-sun/80 shadow-sm" />
+        <div className="relative aspect-square overflow-hidden rounded-sm" style={{ backgroundColor: owner.color }}>
+          {face ? (
+            <img src={face} alt="" draggable={false} className="size-full object-cover" />
+          ) : (
+            <span className="flex size-full items-center justify-center text-6xl leading-none select-none md:text-7xl">{owner.avatar}</span>
+          )}
+          {lens && <LensOnFace delay={delay + 0.35} />}
+        </div>
+        {label ? (
+          <div className="flex justify-center pt-1 pb-0.5">
+            <SceneTag tone="mint" tilt={3} delay={delay + 0.45}>
+              {label}
+            </SceneTag>
+          </div>
+        ) : (
+          <figcaption className="truncate px-0.5 pt-0.5 text-center font-display text-base leading-tight md:text-lg">{owner.name}</figcaption>
+        )}
+      </figure>
+      {/* Their avatar sticker on the corner, so the face is tied to the player everyone knows. */}
+      {face && (
+        <motion.span
+          className="absolute -right-3 -bottom-3 flex size-9 items-center justify-center rounded-full border-2 border-ink text-lg leading-none shadow-pop-sm md:size-10 md:text-xl"
+          style={{ backgroundColor: owner.color }}
+          initial={{ scale: 0, rotate: -60 }}
+          animate={{ scale: 1, rotate: -10 }}
+          transition={{ type: 'spring', stiffness: 520, damping: 14, delay: delay + 0.3 }}
+        >
+          {owner.avatar}
+        </motion.span>
+      )}
+    </motion.div>
+  );
+}
+
+/** A small Lilita sticker (then / now labels). */
+export function SceneTag({
+  children,
+  tone = 'sun',
+  tilt = -6,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode;
+  tone?: 'sun' | 'mint' | 'pink' | 'sky';
+  tilt?: number;
+  delay?: number;
+  className?: string;
+}) {
+  const bg = { sun: 'bg-sun text-ink', mint: 'bg-mint text-ink', pink: 'bg-pink text-white', sky: 'bg-sky text-ink' }[tone];
+  return (
+    <motion.span
+      className={cn('inline-block rounded-lg border-2 border-ink px-1.5 py-0.5 font-display text-sm leading-none whitespace-nowrap uppercase shadow-pop-sm', bg, className)}
+      initial={{ scale: 0, rotate: tilt - 30 }}
+      animate={{ scale: 1, rotate: tilt }}
+      transition={{ type: 'spring', stiffness: 520, damping: 15, delay }}
+    >
+      {children}
+    </motion.span>
+  );
+}
+
+/** The sticker slot above the owner's face. */
+function TopSlot({ children, delay, tilt }: { children: ReactNode; delay: number; tilt: number }) {
+  return (
+    <motion.div
+      aria-hidden
+      className={cn(SIDE, 'pointer-events-none -top-3 z-[4] flex justify-center md:top-2')}
+      initial={{ opacity: 0, scale: 0, rotate: tilt - 30 }}
+      animate={{ opacity: 1, scale: 1, rotate: tilt }}
+      transition={{ type: 'spring', stiffness: 460, damping: 14, delay }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
 /* ------------------------------------------------------------------ album (parents) */
 
-/** The album page the photo is mounted on: it turns in like a page when the photo arrives. */
-export function AlbumPage() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-x-3 top-1 bottom-3 [perspective:1100px] md:inset-x-6">
-      {/* The page underneath (already turned). */}
-      <div className="absolute inset-0 rotate-[1.5deg] rounded-[3px] bg-[#2b2520] shadow-paper" />
-      <motion.div
-        className="absolute inset-0 rounded-[3px] bg-[#342c26] shadow-paper"
-        style={{
-          originX: 0,
-          backgroundImage: 'radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1.2px)',
-          backgroundSize: '5px 5px',
-        }}
-        initial={{ rotateY: -150, opacity: 0.6 }}
-        animate={{ rotateY: 0, opacity: 1 }}
-        transition={{ duration: 0.75, ease: [0.3, 0.6, 0.25, 1] }}
-      >
-        {/* Spiral binding holes along the spine. */}
-        <div className="absolute inset-y-4 left-2 flex flex-col justify-between">
-          {Array.from({ length: 9 }, (_, i) => (
-            <span key={i} className="block size-2.5 rounded-full bg-paper shadow-[inset_0_1px_2px_rgb(0_0_0/0.5)]" />
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  );
+const GAUGE = { cx: 32, cy: 32, r: 24 };
+/** A point of the gauge's half circle, p from 0 (left) to 1 (right). */
+function arcPoint(p: number): string {
+  const a = Math.PI * (1 - p);
+  return `${(GAUGE.cx + GAUGE.r * Math.cos(a)).toFixed(2)} ${(GAUGE.cy - GAUGE.r * Math.sin(a)).toFixed(2)}`;
 }
-
-/** Black photo corners holding a print on an album page. */
-export function PhotoCorners() {
-  const corner = 'absolute size-6 bg-ink shadow-[0_1px_1px_rgb(0_0_0/0.3)]';
-  return (
-    <span aria-hidden className="pointer-events-none absolute -inset-1.5 z-[3]">
-      <span className={cn(corner, 'top-0 left-0 [clip-path:polygon(0_0,100%_0,0_100%)]')} />
-      <span className={cn(corner, 'top-0 right-0 [clip-path:polygon(0_0,100%_0,100%_100%)]')} />
-      <span className={cn(corner, 'bottom-0 left-0 [clip-path:polygon(0_0,100%_100%,0_100%)]')} />
-      <span className={cn(corner, 'right-0 bottom-0 [clip-path:polygon(100%_0,100%_100%,0_100%)]')} />
-    </span>
-  );
-}
+const arc = (from: number, to: number) => `M${arcPoint(from)} A${GAUGE.r} ${GAUGE.r} 0 0 1 ${arcPoint(to)}`;
 
 /**
- * The hand-drawn "family resemblance" meter: a ballpoint gauge whose red needle swings to the
- * share of players who recognised the owner (a resemblance everybody saw = 100%).
+ * "Family resemblance" gauge sticker: the needle swings to the share of players who
+ * recognised the owner (everybody = 100%). No votes: it hesitates and shows "?".
  */
-export function ResemblanceMeter({ value, delay = 0.6 }: { value: number | null; delay?: number }) {
+export function ResemblanceGauge({ value, delay = 0.55 }: { value: number | null; delay?: number }) {
   const { t } = useI18n();
-  // No votes: nobody can tell, the needle hesitates in the middle.
   const pct = value === null ? null : Math.round(Math.max(0, Math.min(1, value)) * 100);
   const angle = pct === null ? 0 : -90 + pct * 1.8;
   return (
-    <motion.div
-      className="pointer-events-none absolute top-0 right-0 z-[5] flex w-[140px] flex-col items-center md:top-1 md:right-1 md:w-[176px]"
-      initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
-      animate={{ opacity: 1, scale: 1, rotate: -3 }}
-      transition={{ type: 'spring', stiffness: 420, damping: 18, delay }}
-    >
-      <Annotation font="pen" size={20} rotate={-2} delay={delay + 0.1} className="whitespace-nowrap md:text-[24px]!">
-        {t('reveal.scene.resemblance')}
-      </Annotation>
-      <div className="flex w-full items-end justify-center gap-1">
-        <svg viewBox="0 0 120 66" className="w-[86px] overflow-visible md:w-[108px]" aria-hidden>
-          {/* Wobbly ballpoint arc and ticks. */}
-          <motion.path
-            d="M8 60 C 9 28, 34 7, 60 7 C 87 6, 111 28, 112 60"
-            fill="none"
-            stroke={BLUE}
-            strokeWidth="4"
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.5, delay: delay + 0.15 }}
-          />
-          {[-72, -36, 0, 36, 72].map((a) => (
-            <line key={a} x1="60" y1="17" x2="60" y2="26" stroke={BLUE} strokeWidth="3" strokeLinecap="round" transform={`rotate(${a} 60 60)`} />
-          ))}
-          <motion.g
-            // Pivot at the needle's base (transform-box is the needle's own box).
-            style={{ originX: 0.5, originY: 1 }}
-            initial={{ rotate: -90 }}
-            animate={{ rotate: pct === null ? [-90, 40, -40, 20, 0] : [-90, Math.min(90, angle + 25), angle - 8, angle] }}
-            transition={{ duration: 1.1, times: [0, 0.55, 0.8, 1], delay: delay + 0.45, ease: 'easeOut' }}
+    <TopSlot delay={delay} tilt={-5}>
+      <div className="sticker flex flex-col items-center rounded-2xl px-2 pt-1 pb-1.5 md:px-3">
+        <span className="text-[10px] leading-tight font-extrabold tracking-wide whitespace-nowrap text-ink-soft uppercase md:text-[11px]">
+          🧬 {t('reveal.scene.resemblance')}
+        </span>
+        <div className="flex items-end gap-1">
+          <svg viewBox="0 0 64 38" className="w-12 overflow-visible md:w-16" aria-hidden>
+            <path d={arc(0, 1)} fill="none" stroke="var(--color-ink)" strokeWidth="12" strokeLinecap="round" />
+            <path d={arc(0, 1 / 3)} fill="none" stroke="var(--color-pink)" strokeWidth="6.5" strokeLinecap="round" />
+            <path d={arc(1 / 3, 2 / 3)} fill="none" stroke="var(--color-sun)" strokeWidth="6.5" />
+            <path d={arc(2 / 3, 1)} fill="none" stroke="var(--color-mint)" strokeWidth="6.5" strokeLinecap="round" />
+            <motion.g
+              // Pivot at the needle's base (the transform box is the needle's own box).
+              style={{ originX: 0.5, originY: 1 }}
+              initial={{ rotate: -90 }}
+              animate={{ rotate: pct === null ? [-90, 40, -40, 20, 0] : [-90, Math.min(90, angle + 25), angle - 8, angle] }}
+              transition={{ duration: 1.1, times: pct === null ? [0, 0.4, 0.6, 0.8, 1] : [0, 0.55, 0.8, 1], delay: delay + 0.3, ease: 'easeOut' }}
+            >
+              <line x1={GAUGE.cx} y1={GAUGE.cy} x2={GAUGE.cx} y2={GAUGE.cy - 21} stroke="var(--color-ink)" strokeWidth="4" strokeLinecap="round" />
+            </motion.g>
+            <circle cx={GAUGE.cx} cy={GAUGE.cy} r="5" fill="var(--color-ink)" />
+          </svg>
+          <motion.span
+            className="font-display text-2xl leading-none md:text-3xl"
+            initial={{ opacity: 0, scale: 1.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: delay + 1.1, type: 'spring', stiffness: 500, damping: 16 }}
           >
-            <path d="M60 60 L60 16" stroke={RED} strokeWidth="5" strokeLinecap="round" />
-          </motion.g>
-          <circle cx="60" cy="60" r="6.5" fill={INK} />
-        </svg>
-        <motion.span
-          className="font-display text-[22px] leading-none md:text-[28px]"
-          initial={{ opacity: 0, scale: 1.6 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: delay + 1.2, type: 'spring', stiffness: 500, damping: 18 }}
-        >
-          {pct === null ? '?' : `${pct}%`}
-        </motion.span>
+            {pct === null ? '?' : `${pct}%`}
+          </motion.span>
+        </div>
       </div>
-    </motion.div>
+    </TopSlot>
   );
 }
 
 /* ------------------------------------------------------------------ glow-up (kid, me) */
 
-/** "THEN → NOW": a red arrow from the photo to the owner's print, and a GLOW-UP star. */
-export function GlowUp({ delay = 0.45 }: { delay?: number }) {
+/** ✨ GLOW-UP ✨ badge above the "now" face. */
+export function GlowUpBadge({ delay = 0.6 }: { delay?: number }) {
   const { t } = useI18n();
   return (
-    <>
-      <svg viewBox="0 0 70 40" className="pointer-events-none absolute top-[150px] left-[58%] z-[6] w-[58px] overflow-visible md:top-[190px] md:left-[59%] md:w-[70px]" aria-hidden>
-        <motion.path
-          d="M4 30 C 20 6, 44 4, 62 16 M50 6 L63 17 L48 24"
-          fill="none"
-          stroke={RED}
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.45, delay: delay + 0.2 }}
-        />
-      </svg>
-      <div className="pointer-events-none absolute top-0 right-0 z-[6] md:top-1 md:right-2">
-        <span className="block md:hidden">
-          <StarBurst tone="pink" size={96} tilt={10} spikes={16} animate={delay + 0.6}>
-            <span className="font-display text-[19px] leading-[0.95]">{t('reveal.scene.glowUp')}</span>
-          </StarBurst>
-        </span>
-        <span className="hidden md:block">
-          <StarBurst tone="pink" size={118} tilt={10} spikes={16} animate={delay + 0.6}>
-            <span className="font-display text-[23px] leading-[0.95]">{t('reveal.scene.glowUp')}</span>
-          </StarBurst>
-        </span>
-      </div>
-    </>
+    <TopSlot delay={delay} tilt={6}>
+      <motion.span
+        className="block rounded-2xl border-3 border-ink bg-pink px-2.5 py-1 font-display text-lg leading-none whitespace-nowrap text-white shadow-pop-sm md:text-xl"
+        animate={{ scale: [1, 1.08, 1] }}
+        transition={{ duration: 1.2, repeat: Infinity, delay: delay + 0.6 }}
+      >
+        {t('reveal.scene.glowUp')}
+      </motion.span>
+    </TopSlot>
   );
 }
 
 /* ------------------------------------------------------------------ family tree */
 
-/** A doodled branch from the photo to the owner's print, leaves, and the relation written on it. */
-export function TreeDoodle({ relation, delay = 0.4 }: { relation: string; delay?: number }) {
-  const leaves: Array<[number, number, number]> = [
-    [30, 38, -30],
-    [52, 34, 25],
-    [74, 38, -20],
-    [118, 52, 40],
-    [112, 78, -35],
-  ];
+/** The link between the photo and its owner ("🌳 sis", "🐾 fur baby"), on a mint sticker. */
+export function RelationSticker({ text, delay = 0.55 }: { text: string; delay?: number }) {
   return (
-    <div className="pointer-events-none absolute top-[6px] right-1 z-[3] h-[112px] w-[160px] md:top-[18px] md:right-2 md:h-[132px] md:w-[200px]">
-      <svg viewBox="0 0 160 112" className="absolute inset-0 size-full overflow-visible" aria-hidden>
-        <motion.path
-          d="M-4 70 C 20 66, 30 46, 60 44 C 90 42, 108 40, 118 52 C 126 62, 116 84, 112 110"
-          fill="none"
-          stroke="#5a3a1c"
-          strokeWidth="4.5"
-          strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.7, delay, ease: 'easeInOut' }}
-        />
-        {leaves.map(([x, y, r], i) => (
-          <motion.ellipse
-            key={i}
-            cx={x}
-            cy={y}
-            rx="7"
-            ry="3.6"
-            fill="var(--color-mint)"
-            stroke={INK}
-            strokeWidth="1.6"
-            transform={`rotate(${r} ${x} ${y})`}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            style={{ originX: `${x}px`, originY: `${y}px` }}
-            transition={{ type: 'spring', stiffness: 500, damping: 14, delay: delay + 0.4 + i * 0.07 }}
-          />
-        ))}
-        <motion.circle cx="-4" cy="70" r="5" fill={RED} stroke={INK} strokeWidth="1.6" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay }} />
-      </svg>
-      <Annotation font="pen" size={23} rotate={-6} delay={delay + 0.5} className="absolute top-[2px] left-[26%] whitespace-nowrap md:top-[6px]">
-        {relation}
-      </Annotation>
-    </div>
+    <TopSlot delay={delay} tilt={-4}>
+      <span className="relative block rounded-full border-3 border-ink bg-mint px-3 py-1 font-display text-lg leading-none whitespace-nowrap text-ink shadow-pop-sm md:text-xl">
+        {text}
+        {/* A dotted branch down to the face. */}
+        <span className="absolute top-full left-1/2 h-4 border-l-3 border-dotted border-ink" />
+      </span>
+    </TopSlot>
   );
 }
 
 /* ------------------------------------------------------------------ teen-magazine poster (crush) */
 
-const HEART = 'M12 21 C 5 15, 1 11, 2.5 6.5 C 4 2, 9.5 1.5, 12 5.5 C 14.5 1.5, 20 2, 21.5 6.5 C 23 11, 19 15, 12 21 Z';
-const HEARTS: Array<{ cls: string; size: number; rotate: number; fill: string }> = [
-  { cls: 'top-[96px] left-[1%]', size: 34, rotate: -18, fill: 'var(--color-pink)' },
-  { cls: 'top-[190px] left-[3%] md:top-[240px]', size: 26, rotate: 12, fill: 'var(--color-red)' },
-  { cls: 'top-[232px] left-[10%] md:top-[300px]', size: 30, rotate: -8, fill: 'var(--color-pink)' },
-  { cls: 'top-[14px] right-[30%] md:right-[33%]', size: 22, rotate: 20, fill: 'var(--color-red)' },
-  { cls: 'top-[70px] right-[6%]', size: 32, rotate: 14, fill: 'var(--color-pink)' },
-  { cls: 'top-[262px] right-[4%] md:top-[330px]', size: 24, rotate: -14, fill: 'var(--color-red)' },
+/** The magazine title stuck above the crush's face. */
+export function PosterTitle({ delay = 0.45 }: { delay?: number }) {
+  const { t } = useI18n();
+  return (
+    <TopSlot delay={delay} tilt={-7}>
+      <span className="relative block rounded-xl border-3 border-ink bg-pink px-2.5 pt-1 pb-0.5 text-center font-display leading-none text-white shadow-pop-sm">
+        <span className="block text-[10px] tracking-[0.2em] text-sun uppercase md:text-xs">N°1 💘</span>
+        <span className="text-outline-sm block text-xl whitespace-nowrap uppercase md:text-2xl">{t('reveal.scene.poster')}</span>
+      </span>
+    </TopSlot>
+  );
+}
+
+const HEARTS: Array<{ cls: string; emoji: string; size: string; rotate: number }> = [
+  { cls: 'top-[34%] left-[-1%]', emoji: '💖', size: 'text-3xl', rotate: -16 },
+  { cls: 'top-[68%] left-[1%]', emoji: '💘', size: 'text-2xl', rotate: 12 },
+  { cls: 'bottom-[-6%] left-[22%]', emoji: '💕', size: 'text-2xl', rotate: -8 },
+  { cls: 'top-[30%] right-[-2%]', emoji: '💗', size: 'text-2xl', rotate: 14 },
+  { cls: 'bottom-[-4%] right-[8%]', emoji: '💖', size: 'text-3xl', rotate: -12 },
 ];
 
-/** Hearts popping around the poster, beating softly. */
+/** Hearts popping around the poster, then beating softly. */
 export function Hearts({ delay = 0.5 }: { delay?: number }) {
   return (
     <>
       {HEARTS.map((h, i) => (
-        <motion.svg
+        <motion.span
           key={i}
-          viewBox="0 0 24 24"
-          className={cn('pointer-events-none absolute z-[6] overflow-visible', h.cls)}
-          style={{ width: h.size, height: h.size, rotate: h.rotate }}
-          initial={{ scale: 0 }}
-          animate={{ scale: [0, 1.3, 1, 1.12, 1] }}
-          transition={{ duration: 1.4, times: [0, 0.2, 0.35, 0.55, 0.7], delay: delay + i * 0.09 }}
           aria-hidden
+          className={cn('pointer-events-none absolute z-[5] leading-none drop-shadow-[0_3px_0_rgba(27,16,54,0.6)]', h.cls, h.size)}
+          style={{ rotate: h.rotate }}
+          initial={{ scale: 0 }}
+          animate={{ scale: [0, 1.35, 1, 1.15, 1] }}
+          transition={{ duration: 1.3, times: [0, 0.2, 0.35, 0.55, 0.7], delay: delay + i * 0.1, repeat: Infinity, repeatDelay: 1.4 }}
         >
-          <path d={HEART} fill={h.fill} stroke={INK} strokeWidth="1.8" strokeLinejoin="round" />
-        </motion.svg>
+          {h.emoji}
+        </motion.span>
       ))}
     </>
   );
 }
 
-/** The magazine masthead stuck across the top of the poster, with push pins. */
-export function PosterMasthead({ delay = 0.2 }: { delay?: number }) {
-  const { t } = useI18n();
-  return (
-    <motion.div
-      className="pointer-events-none absolute -top-4 -inset-x-4 z-[5] flex justify-center"
-      initial={{ y: -40, opacity: 0, rotate: -12 }}
-      animate={{ y: 0, opacity: 1, rotate: -5 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 16, delay }}
-    >
-      <span className="font-wide paper-red relative block px-3 pt-1.5 pb-1 text-[19px] leading-none whitespace-nowrap text-white uppercase shadow-paper-sm md:text-[23px]">
-        {t('reveal.scene.poster')}
-        <span className="absolute -top-1.5 left-1.5 size-3.5 rounded-full border-2 border-ink bg-yellow" />
-        <span className="absolute -top-1.5 right-1.5 size-3.5 rounded-full border-2 border-ink bg-blue" />
-      </span>
-    </motion.div>
-  );
-}
-
 /* ------------------------------------------------------------------ magnifying glass (body parts) */
 
-/** An ink magnifying glass: a ring with a glassy shine and a handle. */
-export function Magnifier({ size = 92, className }: { size?: number; className?: string }) {
+const LENS_SHADOW = 'drop-shadow-[0_4px_0_rgba(27,16,54,0.7)]';
+
+/**
+ * The 🔍 resting on the body-part photo until the reveal: it creeps to the middle and grows
+ * during the drum roll (while the photo zooms in), then leaves for the owner's face.
+ */
+export function PhotoLens({ zoom, drumrollS }: { zoom: boolean; drumrollS: number }) {
   return (
-    <svg viewBox="0 0 100 100" width={size} height={size} className={cn('overflow-visible', className)} aria-hidden>
-      <line x1="64" y1="64" x2="94" y2="94" stroke={INK} strokeWidth="11" strokeLinecap="round" />
-      <line x1="66" y1="66" x2="92" y2="92" stroke="#7a4b24" strokeWidth="6" strokeLinecap="round" />
-      <circle cx="40" cy="40" r="32" fill="rgb(169 200 242 / 0.22)" stroke={INK} strokeWidth="7" />
-      <path d="M22 30 A 20 20 0 0 1 36 18" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" opacity="0.85" />
-    </svg>
+    <motion.span
+      key="lens"
+      aria-hidden
+      className={cn('pointer-events-none absolute -right-3 bottom-[18%] z-[5] text-5xl leading-none md:text-6xl', LENS_SHADOW)}
+      initial={{ opacity: 0, scale: 0.4, rotate: 40 }}
+      animate={zoom ? { opacity: 1, scale: 1.35, rotate: -8, x: '-120%', y: '-60%' } : { opacity: 1, scale: 1, rotate: 0, x: 0, y: 0 }}
+      exit={{ opacity: 0, scale: 0.5, transition: { duration: 0.2 } }}
+      transition={zoom ? { duration: drumrollS * 0.8, ease: 'easeInOut' } : { type: 'spring', stiffness: 320, damping: 16, delay: 0.5 }}
+    >
+      🔍
+    </motion.span>
   );
 }
 
-/**
- * Anatomy-sketch callout: dashed ballpoint lines from the magnifier hovering over the owner's
- * print to the photo, like a detail view in a textbook.
- */
-export function LensCallout({ delay = 0.5 }: { delay?: number }) {
+/** The 🔍 flying from the photo onto the owner's face once revealed. */
+function LensOnFace({ delay }: { delay: number }) {
   return (
-    <>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[5] size-full" aria-hidden>
-        {[
-          [74, 47, 60, 8],
-          [76, 61, 60, 86],
-        ].map(([x1, y1, x2, y2], i) => (
-          <motion.line
-            key={i}
-            x1={x1}
-            y1={y1}
-            stroke={BLUE}
-            strokeWidth="2.2"
-            strokeDasharray="5 5"
-            vectorEffect="non-scaling-stroke"
-            initial={{ x2: x1, y2: y1, opacity: 0 }}
-            animate={{ x2, y2, opacity: 1 }}
-            transition={{ duration: 0.45, delay: delay + 0.35 + i * 0.12, ease: 'easeOut' }}
-          />
-        ))}
-      </svg>
-      <motion.div
-        className="pointer-events-none absolute top-[132px] right-[42px] z-[6] md:top-[172px] md:right-[58px]"
-        initial={{ x: -150, y: -40, scale: 1.6, rotate: -30, opacity: 0 }}
-        animate={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 160, damping: 16, delay }}
-      >
-        <Magnifier size={70} />
-      </motion.div>
-    </>
+    <motion.span
+      className={cn('absolute right-[-6%] bottom-[-8%] text-5xl leading-none md:text-6xl', LENS_SHADOW)}
+      initial={{ opacity: 0, x: -150, y: 10, scale: 1.4, rotate: -30 }}
+      animate={{ opacity: 1, x: 0, y: 0, scale: 1, rotate: 0 }}
+      transition={{ type: 'spring', stiffness: 170, damping: 15, delay }}
+    >
+      🔍
+    </motion.span>
   );
 }
 
 /* ------------------------------------------------------------------ detective board (pick, roll) */
 
-/** Cork board with a wooden frame, behind the photo and the suspects. */
-export function CorkBoard() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 bottom-1 rounded-[6px] border-[7px] border-[#8a5a2b] shadow-paper md:inset-x-2"
-      style={{
-        backgroundColor: '#c99c63',
-        backgroundImage:
-          'radial-gradient(rgb(110 66 24 / 0.35) 1px, transparent 1.4px), radial-gradient(rgb(255 240 210 / 0.22) 1px, transparent 1.5px)',
-        backgroundSize: '6px 6px, 9px 9px',
-        backgroundPosition: '0 0, 3px 4px',
-        boxShadow: 'inset 0 0 0 2px #6b4320, inset 0 0 18px rgb(60 30 5 / 0.35), var(--shadow-paper)',
-      }}
-    />
-  );
-}
-
-/** Where suspects get pinned: their print's position and, in % of the stage, the pin the string ties to. */
-const SLOTS: Array<{ cls: string; pin: [number, number]; tilt: number }> = [
-  { cls: 'top-[14px] left-[10px] md:left-[24px]', pin: [11, 7], tilt: -6 },
-  { cls: 'top-[14px] right-[10px] md:right-[24px]', pin: [89, 7], tilt: 5 },
-  { cls: 'top-[150px] left-[12px] md:top-[192px] md:left-[30px]', pin: [11, 52], tilt: 4 },
-  { cls: 'top-[150px] right-[12px] md:top-[192px] md:right-[30px]', pin: [89, 52], tilt: -5 },
+/**
+ * Where suspects get pinned: their position, their 📌 (in % of the stage) and what their red
+ * string ties to (the photo's pin for the top ones, the suspect above for the bottom ones),
+ * so the strings run around the photo instead of across it.
+ */
+const SLOTS: Array<{ cls: string; pin: [number, number]; from: number; tilt: number }> = [
+  { cls: 'top-[3%] left-[1%]', pin: [10, 4], from: -1, tilt: -8 },
+  { cls: 'top-[3%] right-[1%]', pin: [90, 4], from: -1, tilt: 7 },
+  { cls: 'top-[52%] left-[1%]', pin: [10, 53], from: 0, tilt: 6 },
+  { cls: 'top-[52%] right-[1%]', pin: [90, 53], from: 1, tilt: -6 },
 ];
 export const MAX_SUSPECTS = SLOTS.length;
-/** The photo's push pin (top center of the print), in % of the stage. */
-const PHOTO_PIN: [number, number] = [50, 6];
+/** The photo's pin (on its tape), in % of the stage. */
+const PHOTO_PIN: [number, number] = [50, 1];
 
 export interface Suspect {
   player: PublicPlayer;
@@ -362,39 +324,51 @@ export interface Suspect {
 }
 
 /**
- * The suspects pinned around the photo, a red string from the photo to each of them (thicker
- * with more votes) and the vote count on a tag. At the reveal, the culprit gets circled and
- * stamped, the others fade.
+ * The most voted suspects pinned around the photo with red string (thicker with more votes)
+ * and their vote count. At the reveal the culprit (the owner) grows, glows and gets the badge;
+ * the others fade.
  */
-export function SuspectBoard({ suspects, culpritId, live }: { suspects: Suspect[]; culpritId: string | null; live: boolean }) {
+export function SuspectBoard({ suspects, culpritId }: { suspects: Suspect[]; culpritId: string | null }) {
   const { t } = useI18n();
   return (
     <>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[4] size-full" aria-hidden>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[3] size-full overflow-visible" aria-hidden>
         <AnimatePresence>
           {suspects.map((s, i) => {
             const slot = SLOTS[i];
-            const culprit = culpritId === s.player.id;
+            const [x1, y1] = slot.from < 0 ? PHOTO_PIN : SLOTS[slot.from].pin;
+            const tied = culpritId === s.player.id || (slot.from >= 0 && culpritId === suspects[slot.from]?.player.id);
             return (
               <motion.line
                 key={s.player.id}
-                x1={PHOTO_PIN[0]}
-                y1={PHOTO_PIN[1]}
-                stroke="#c4161c"
-                strokeWidth={1.6 + Math.min(4, s.votes) * 0.9}
+                x1={x1}
+                y1={y1}
+                stroke="var(--color-danger-dark)"
+                strokeWidth={2.5 + Math.min(4, s.votes) * 0.8}
+                strokeDasharray="7 5"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
-                // The string shoots out from the photo's pin to the suspect's (a dash animation
-                // would be distorted by the stretched viewBox).
-                initial={{ x2: PHOTO_PIN[0], y2: PHOTO_PIN[1] }}
-                animate={{ x2: slot.pin[0], y2: slot.pin[1], opacity: culpritId && !culprit ? 0.35 : 1 }}
-                transition={{ x2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' }, y2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' }, opacity: { duration: 0.3 } }}
-                style={{ filter: 'drop-shadow(0 1px 0 rgb(0 0 0 / 0.35))' }}
+                initial={{ x2: x1, y2: y1 }}
+                animate={{ x2: slot.pin[0], y2: slot.pin[1], opacity: culpritId && !tied ? 0.3 : 1 }}
+                transition={{
+                  x2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' },
+                  y2: { duration: 0.4, delay: 0.15 + i * 0.12, ease: 'easeOut' },
+                  opacity: { duration: 0.3 },
+                }}
               />
             );
           })}
         </AnimatePresence>
       </svg>
+      <motion.span
+        aria-hidden
+        className="pointer-events-none absolute top-[-3%] left-1/2 z-[4] -translate-x-1/2 text-2xl leading-none"
+        initial={{ scale: 0, y: -20 }}
+        animate={{ scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+      >
+        📌
+      </motion.span>
       {suspects.map((s, i) => {
         const slot = SLOTS[i];
         const culprit = culpritId === s.player.id;
@@ -402,34 +376,71 @@ export function SuspectBoard({ suspects, culpritId, live }: { suspects: Suspect[
         return (
           <motion.div
             key={s.player.id}
-            className={cn('pointer-events-none absolute z-[5]', slot.cls)}
-            initial={{ scale: 1.4, opacity: 0, rotate: slot.tilt + 10 }}
-            animate={{ scale: 1, opacity: cleared ? 0.55 : 1, rotate: slot.tilt, filter: cleared ? 'grayscale(0.8)' : 'grayscale(0)' }}
-            transition={{ type: 'spring', stiffness: 480, damping: 20, delay: i * 0.12 }}
+            aria-hidden
+            className={cn('pointer-events-none absolute z-[4] flex flex-col items-center', slot.cls)}
+            initial={{ scale: 0, opacity: 0, rotate: slot.tilt + 30 }}
+            animate={{
+              scale: culprit ? 1.15 : 1,
+              opacity: cleared ? 0.4 : 1,
+              rotate: slot.tilt,
+              filter: cleared ? 'grayscale(0.85)' : 'grayscale(0)',
+            }}
+            transition={{ type: 'spring', stiffness: 460, damping: 16, delay: culprit ? 0.15 : i * 0.12 }}
           >
-            <MarkerCircle show={culprit} pad={7} delay={0.35} sound={live} seed={s.player.id}>
-              <span className="block md:hidden">
-                <SelfiePrint player={s.player} size={62} tilt={0} tape={false} />
-              </span>
-              <span className="hidden md:block">
-                <SelfiePrint player={s.player} size={76} tilt={0} tape={false} />
-              </span>
-            </MarkerCircle>
-            {/* Push pin. */}
-            <span aria-hidden className="absolute -top-1.5 left-1/2 z-10 size-3.5 -translate-x-1/2 rounded-full border-2 border-ink bg-red shadow-[0_2px_0_rgb(0_0_0/0.3)]" />
-            {s.votes > 0 && (
-              <span className="absolute -bottom-2 -left-2 z-10 rounded-[2px] bg-sheet px-1 font-display text-[13px] leading-[1.25] text-red-ink shadow-paper-sm">
-                ×{s.votes}
-              </span>
-            )}
+            <span className="relative">
+              <Avatar player={s.player} size="lg" crown={false} dimOffline={false} selfie highlight={culprit} />
+              <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-lg leading-none">📌</span>
+              {s.votes > 0 && (
+                <span className="absolute -bottom-1 -left-2 rounded-full border-2 border-ink bg-cream px-1.5 text-xs leading-tight font-black text-ink shadow-pop-sm">
+                  ×{s.votes}
+                </span>
+              )}
+            </span>
             {culprit && (
-              <RubberStamp size="xs" tilt={-14} backing animate={0.55} sound={live} className="absolute -right-4 -bottom-3 z-20">
-                {t('reveal.scene.culprit')}
-              </RubberStamp>
+              <motion.span
+                className="-mt-1.5 rounded-lg border-2 border-ink bg-danger px-1.5 py-0.5 font-display text-xs leading-none whitespace-nowrap text-white uppercase shadow-pop-sm md:text-sm"
+                initial={{ scale: 0, rotate: -40 }}
+                animate={{ scale: 1, rotate: -8 }}
+                transition={{ type: 'spring', stiffness: 560, damping: 14, delay: 0.45 }}
+              >
+                🔍 {t('reveal.scene.culprit')}
+              </motion.span>
             )}
           </motion.div>
         );
       })}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ blur games */
+
+/**
+ * The blurred photo, wiped clean at the reveal by a pink eraser sticker. `wipe`: the reveal
+ * happens on screen (someone joining later just gets the sharp photo).
+ */
+export function BlurWipe({ src, revealed, wipe }: { src: string; revealed: boolean; wipe: boolean }) {
+  const play = revealed && wipe;
+  return (
+    <>
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 overflow-hidden"
+        initial={false}
+        animate={{ clipPath: revealed ? 'inset(0 0 0 100%)' : 'inset(0 0 0 0%)' }}
+        transition={{ duration: play ? 0.75 : 0, ease: 'easeInOut', delay: play ? 0.1 : 0 }}
+      >
+        <img src={src} alt="" draggable={false} className="size-full scale-110 object-cover blur-[12px]" />
+      </motion.div>
+      {play && (
+        <motion.span
+          aria-hidden
+          className="pointer-events-none absolute -top-2 -bottom-2 w-6 rounded-lg border-3 border-ink bg-pink shadow-pop-sm"
+          initial={{ left: '-8%', opacity: 1, rotate: 8 }}
+          animate={{ left: '100%', opacity: [1, 1, 0], rotate: [8, -6, 8] }}
+          transition={{ duration: 0.8, ease: 'easeInOut', delay: 0.08 }}
+        />
+      )}
     </>
   );
 }
